@@ -14,6 +14,13 @@ enum UserRole {
   MAINTENANCE_STAFF
 }
 
+enum RoomSharingType {
+  SINGLE
+  DOUBLE
+  TRIPLE
+  QUAD
+}
+
 model User {
   id               Int      @id @default(autoincrement())
   role             UserRole
@@ -27,6 +34,8 @@ model User {
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   propertyOwnerProfile PropertyOwnerProfile?
+
+  property Property[]
 
   @@index([phoneNumber])
   @@index([role])
@@ -50,4 +59,42 @@ model BankAccountDetails {
   id                     Int                  @id @default(autoincrement())
   propertyOwnerProfileId Int
   profile                PropertyOwnerProfile @relation(fields: [propertyOwnerProfileId], references: [id])
+}
+
+model Property {
+  id      Int    @id @default(autoincrement())
+  name    String
+  pinCode String
+  ownerId Int
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  rooms Room[]
+
+  @@index([ownerId])
+}
+
+model Room {
+  id               Int             @id @default(autoincrement())
+  propertyId       Int
+  property         Property        @relation(fields: [propertyId], references: [id])
+  roomName         String
+  floorNumber      Int
+  totalBeds        Int
+  occupiedBeds     Int             @default(0)
+  rentPerBed       Int
+  sharingType      RoomSharingType
+  meterReadingDate DateTime?
+
+  amenity String[]
+  images  RoomImages[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RoomImages {
+  id     Int    @id @default(autoincrement())
+  roomId Int
+  room   Room   @relation(fields: [roomId], references: [id])
+  url    String
 }

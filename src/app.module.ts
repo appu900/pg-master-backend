@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { RedisModule } from './infra/redis/redis.module';
 import { OtpModule } from './infra/notification/OTP/otp.module';
+import { PropertyModule } from './modules/property/property.module';
 
 
 @Module({
@@ -17,6 +18,7 @@ import { OtpModule } from './infra/notification/OTP/otp.module';
     AuthModule,
     UserModule,
     OtpModule,
+    PropertyModule,
   ],
   controllers: [AppController],
   providers: [AppService],
