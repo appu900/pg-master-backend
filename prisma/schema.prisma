@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  PROPERTY_OWNER
+  TENANT
+  MAINTENANCE_STAFF
+}
+
+model User {
+  id               Int      @id @default(autoincrement())
+  role             UserRole
+  phoneNumber      String
+  email            String   @unique
+  fullName         String
+  pinCode          String?
+  isActive         Boolean  @default(true)
+  isBlockedByAdmin Boolean  @default(false)
+
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  propertyOwnerProfile PropertyOwnerProfile?
+
+  @@index([phoneNumber])
+  @@index([role])
+}
+
+model PropertyOwnerProfile {
+  id           Int                  @id @default(autoincrement())
+  userId       Int                  @unique
+  user         User                 @relation(fields: [userId], references: [id])
+  Gender       String?
+  Profession   String?
+  pinCode      String
+  State        String?
+  BusinessName String?
+  BusinessType String?
+  profileImage String?
+  BankAcconts  BankAccountDetails[]
+}
+
+model BankAccountDetails {
+  id                     Int                  @id @default(autoincrement())
+  propertyOwnerProfileId Int
+  profile                PropertyOwnerProfile @relation(fields: [propertyOwnerProfileId], references: [id])
+}
