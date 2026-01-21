@@ -45,7 +45,7 @@ export class PropertyController {
     return this.propertyService.getPropertiesByPropertyOwner(userId);
   }
 
-  @Post('/room/:propertyId')
+  @Post('/:propertyId/room')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(FilesInterceptor('images'))
@@ -57,7 +57,7 @@ export class PropertyController {
     return this.propertyService.addRooms(propertyId, dto, images);
   }
 
-  @Get('/room/:propertyId')
+  @Get('/:propertyId/rooms')
   @UseGuards(JwtAuthGuard)
   async fetchAllRoomsOfProperty(@Param('propertyId', ParseIntPipe) propertyId: number) {
     return this.propertyService.fetchAllRoomsOfProperty(propertyId)
