@@ -77,13 +77,14 @@ model Room {
   id               Int             @id @default(autoincrement())
   propertyId       Int
   property         Property        @relation(fields: [propertyId], references: [id])
-  roomName         String
+  roomNumber         String
   floorNumber      Int
   totalBeds        Int
   occupiedBeds     Int             @default(0)
   rentPerBed       Int
   sharingType      RoomSharingType
   meterReadingDate DateTime?
+  lastMeterReading Float
 
   amenity String[]
   images  RoomImages[]

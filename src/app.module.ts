@@ -8,6 +8,7 @@ import { UserModule } from './modules/user/user.module';
 import { RedisModule } from './infra/redis/redis.module';
 import { OtpModule } from './infra/notification/OTP/otp.module';
 import { PropertyModule } from './modules/property/property.module';
+import { S3Module } from './infra/s3/s3.module';
 
 
 @Module({
@@ -15,6 +16,7 @@ import { PropertyModule } from './modules/property/property.module';
     ConfigModule.forRoot({isGlobal:true}),
     PrismaModule,
     RedisModule,
+    S3Module,
     AuthModule,
     UserModule,
     OtpModule,
