@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { CreatePropertyDto } from './dto/create.property.dto';
 import { response } from 'express';
 import { AddRoomDto } from './dto/AddRoom.dto';
 import { S3Service } from 'src/infra/s3/s3.service';
 import { RoomSharingType } from '@prisma/client';
+import { editRoomDto } from './dto/edit.room.dto';
 
 @Injectable()
 export class PropertyService {
@@ -68,7 +69,7 @@ export class PropertyService {
       },
     });
 
-    // ** if iimages are uploaded then create entries in RoomImages table
+    // ** if images are uploaded then create entries in RoomImages table
     if (uploadImages.length > 0) {
       for (const imageUrl of uploadImages) {
         await this.prisma.roomImages.create({
@@ -86,11 +87,87 @@ export class PropertyService {
     });
   }
 
+  // ** need edit room Dto
+  async editRoom(
+    roomId: number,
+    dto: editRoomDto,
+    files?: Express.Multer.File[],
+  ) {
+    const room = await this.prisma.room.findUnique({
+      where: {
+        id: roomId,
+      },
+    });
+    if (!room) throw new BadRequestException('room not found');
+    let uploadedImages: string[] = [];
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const url = await this.s3Service.uploadFile(file, 'property-rooms');
+        uploadedImages.push(url);
+      }
+    }
+
+    const updateData: any = {};
+    if (dto.roomNumber !== undefined) updateData.roomNumber = dto.roomNumber;
+    if (dto.floorNumber !== undefined) updateData.floorNumber = dto.floorNumber;
+    if (dto.totalBeds !== undefined) updateData.totalBeds = dto.totalBeds;
+    if (dto.rentPricePerBed !== undefined)
+      updateData.rentPerBed = dto.rentPricePerBed;
+    if (dto.meterReadingDate !== undefined)
+      updateData.meterReadingDate = dto.meterReadingDate;
+    if (dto.lastMeterReading !== undefined)
+      updateData.lastMeterReading = dto.lastMeterReading;
+    if (dto.amenity !== undefined) updateData.amenity = dto.amenity;
+
+    if (dto.sharingType) {
+      updateData.sharingType = dto.sharingType.toUpperCase() as RoomSharingType;
+    }
+
+    await this.prisma.room.update({
+      where: { id: roomId },
+      data: updateData,
+    });
+
+    if (uploadedImages.length > 0) {
+      await this.prisma.roomImages.createMany({
+        data: uploadedImages.map((url) => ({
+          roomId,
+          url,
+        })),
+      });
+    }
+    return this.prisma.room.findUnique({
+      where: { id: roomId },
+      include: { images: true },
+    });
+  }
 
   async fetchAllRoomsOfProperty(propertyId: number) {
     return this.prisma.room.findMany({
-      where:{propertyId:propertyId},
-      include:{images:true}
-    })
+      where: { propertyId: propertyId },
+      include: { images: true },
+    });
+  }
+
+  async deleteRoom(roomId: number) {
+    const room = await this.prisma.room.findUnique({
+      where: {
+        id: roomId,
+      },
+    });
+    if (room) {
+      await this.prisma.roomImages.deleteMany({
+        where: {
+          roomId: roomId,
+        },
+      });
+      await this.prisma.room.delete({
+        where: { id: roomId },
+      });
+
+      console.log('room deleted with roomId', roomId);
+    } else {
+      throw new BadRequestException('room not found');
+    }
   }
 }
