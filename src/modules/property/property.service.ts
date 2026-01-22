@@ -170,4 +170,18 @@ export class PropertyService {
       throw new BadRequestException('room not found');
     }
   }
+
+
+
+
+
+  
+  async getRoomDetails(roomId: number) {
+    const room = await this.prisma.room.findUnique({
+      where: { id: roomId },
+      include: { images: true },
+    });
+    if (!room) throw new BadRequestException('room not found');
+    return room;
+  }
 }

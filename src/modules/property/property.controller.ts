@@ -85,4 +85,11 @@ export class PropertyController {
   async deleteRoom(@Param('roomId', ParseIntPipe) id: number) {
     return this.propertyService.deleteRoom(id);
   }
+
+  @Get('/room/:roomId')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async GetRoomById(@Param('roomId', ParseIntPipe) id: number) {
+    return this.propertyService.getRoomDetails(id);
+  }
 }
