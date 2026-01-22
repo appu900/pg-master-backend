@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { CreatePropertyDto } from './dto/create.property.dto';
 import { response } from 'express';
@@ -43,10 +43,17 @@ export class PropertyService {
   }
 
   async addRooms(
+    ownerId: number,
     propertyId: number,
     dto: AddRoomDto,
     files?: Express.Multer.File[],
   ) {
+    // **check if the peroperty belogs to the owener or not
+    const property = await this.prisma.property.findUnique({
+      where: { id: propertyId, ownerId: ownerId },
+    });
+    if (!property)
+      throw new ForbiddenException('property not found for this owner');
     let uploadImages: string[] = [];
     if (files && files.length > 0) {
       for (const file of files) {
@@ -171,11 +178,6 @@ export class PropertyService {
     }
   }
 
-
-
-
-
-  
   async getRoomDetails(roomId: number) {
     const room = await this.prisma.room.findUnique({
       where: { id: roomId },

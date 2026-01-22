@@ -55,8 +55,11 @@ export class PropertyController {
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Body() dto: AddRoomDto,
     @UploadedFiles() images: Express.Multer.File[],
+    @GetUser() user:any
   ) {
-    return this.propertyService.addRooms(propertyId, dto, images);
+    const userId = user.userId;
+    if(!userId) throw new BadRequestException();
+    return this.propertyService.addRooms(Number(userId),propertyId, dto, images);
   }
 
   @Get('/:propertyId/rooms')
