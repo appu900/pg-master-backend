@@ -75,11 +75,12 @@ export class PropertyController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(FilesInterceptor('images'))
   editRoom(
-    @Param('roomId', ParseIntPipe) id: number,
     @Body() dto: editRoomDto,
+    @Param('roomId', ParseIntPipe) id: number,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
     return this.propertyService.editRoom(id, dto, files);
+    
   }
 
   @Delete('/room/:roomId')

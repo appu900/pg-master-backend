@@ -100,6 +100,7 @@ export class PropertyService {
     dto: editRoomDto,
     files?: Express.Multer.File[],
   ) {
+    console.log('edit room dto', dto);
     const room = await this.prisma.room.findUnique({
       where: {
         id: roomId,
@@ -115,20 +116,22 @@ export class PropertyService {
     }
 
     const updateData: any = {};
-    if (dto.roomNumber !== undefined) updateData.roomNumber = dto.roomNumber;
-    if (dto.floorNumber !== undefined) updateData.floorNumber = dto.floorNumber;
-    if (dto.totalBeds !== undefined) updateData.totalBeds = dto.totalBeds;
-    if (dto.rentPricePerBed !== undefined)
+    if (dto.roomNumber) updateData.roomNumber = dto.roomNumber;
+    if (dto.floorNumber) updateData.floorNumber = dto.floorNumber;
+    if (dto.totalBeds) updateData.totalBeds = dto.totalBeds;
+    if (dto.rentPricePerBed)
       updateData.rentPerBed = dto.rentPricePerBed;
-    if (dto.meterReadingDate !== undefined)
+    if (dto.meterReadingDate)
       updateData.meterReadingDate = dto.meterReadingDate;
-    if (dto.lastMeterReading !== undefined)
+    if (dto.lastMeterReading)
       updateData.lastMeterReading = dto.lastMeterReading;
-    if (dto.amenity !== undefined) updateData.amenity = dto.amenity;
+    if (dto.amenity && dto.amenity.length > 0) updateData.amenity = dto.amenity;
 
     if (dto.sharingType) {
       updateData.sharingType = dto.sharingType.toUpperCase() as RoomSharingType;
     }
+
+    console.log("update data payload is", updateData);
 
     await this.prisma.room.update({
       where: { id: roomId },
@@ -187,3 +190,7 @@ export class PropertyService {
     return room;
   }
 }
+
+
+
+

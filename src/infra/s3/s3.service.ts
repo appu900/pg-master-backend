@@ -1,5 +1,9 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 
@@ -12,10 +16,11 @@ export class S3Service {
     @Inject('S3_CLIENT') private readonly s3Client: S3Client,
     private readonly configService: ConfigService,
   ) {
-    this.bucket = this.configService.get<string>('AWS_S3_BUCKET') ?? 'default-bucket-name';
+    this.bucket =
+      this.configService.get<string>('AWS_S3_BUCKET') ?? 'default-bucket-name';
   }
 
-  async uploadFile(file:Express.Multer.File, folder: string): Promise<string> {
+  async uploadFile(file: Express.Multer.File, folder: string): Promise<string> {
     const fileExt = file.originalname.split('.').pop();
     const key = `${folder}/${randomUUID()}.${fileExt}`;
 
@@ -35,7 +40,7 @@ export class S3Service {
   async deleteFile(fileUrl: string): Promise<void> {
     try {
       const urlParts = fileUrl.split('/');
-      const key = urlParts.slice(3).join('/'); 
+      const key = urlParts.slice(3).join('/');
 
       await this.s3Client.send(
         new DeleteObjectCommand({
@@ -50,6 +55,4 @@ export class S3Service {
       throw error;
     }
   }
-
-
 }
