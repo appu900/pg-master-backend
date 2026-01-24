@@ -88,8 +88,6 @@ model TenentProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenencies Tenancy @relation(fields: [tenancyId], references: [id])
-  tenancyId Int
 
   @@index([userId])
 }
@@ -168,9 +166,8 @@ model Tenancy {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  status         TenantStatus    @default(ACTIVE)
-  deletedAt      DateTime?
-  tenentProfiles TenentProfile[]
+  status    TenantStatus @default(ACTIVE)
+  deletedAt DateTime?
 
   @@unique([roomId, tenentId])
   @@index([roomId, tenentId])
