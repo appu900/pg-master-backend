@@ -9,6 +9,8 @@ import { RedisModule } from './infra/redis/redis.module';
 import { OtpModule } from './infra/notification/OTP/otp.module';
 import { PropertyModule } from './modules/property/property.module';
 import { S3Module } from './infra/s3/s3.module';
+import { TenentModule } from './modules/tenent/tenent.module';
+import { RoomModule } from './modules/room/room.module';
 
 
 @Module({
@@ -21,6 +23,8 @@ import { S3Module } from './infra/s3/s3.module';
     UserModule,
     OtpModule,
     PropertyModule,
+    TenentModule,
+    RoomModule,
   ],
   controllers: [AppController],
   providers: [AppService],

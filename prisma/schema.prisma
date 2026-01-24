@@ -7,6 +7,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TenantStatus {
+  ACTIVE
+  NOTICE_PERIOD
+  EXITED
+  EVICTED
+  PENDING
+}
+
 enum UserRole {
   ADMIN
   PROPERTY_OWNER
@@ -31,20 +39,24 @@ model User {
   isActive         Boolean  @default(true)
   isBlockedByAdmin Boolean  @default(false)
 
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
   propertyOwnerProfile PropertyOwnerProfile?
+  tenentProfile        TenentProfile?
 
   property Property[]
+  tenancy  Tenancy?
 
   @@index([phoneNumber])
   @@index([role])
 }
 
 model PropertyOwnerProfile {
-  id           Int                  @id @default(autoincrement())
-  userId       Int                  @unique
-  user         User                 @relation(fields: [userId], references: [id])
+  id           Int     @id @default(autoincrement())
+  userId       Int     @unique
+  user         User    @relation(fields: [userId], references: [id])
   Gender       String?
   Profession   String?
   pinCode      String
@@ -52,7 +64,34 @@ model PropertyOwnerProfile {
   BusinessName String?
   BusinessType String?
   profileImage String?
-  BankAcconts  BankAccountDetails[]
+
+  BankAcconts BankAccountDetails[]
+}
+
+model TenentProfile {
+  id                      Int       @id @default(autoincrement())
+  userId                  Int       @unique
+  user                    User      @relation(fields: [userId], references: [id])
+  geneder                 String?
+  profession              String?
+  pinCode                 String
+  state                   String?
+  profileImage            String?
+  Address                 String?
+  agreementPeriodinMonths Int?      @default(0)
+  RentalType              String?
+  lockInPeriodsInMonths   Int?      @default(0)
+  noticePeriodInDays      Int?      @default(0)
+  moveOutDate             DateTime?
+  JoiningDate             DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenencies Tenancy @relation(fields: [tenancyId], references: [id])
+  tenancyId Int
+
+  @@index([userId])
 }
 
 model BankAccountDetails {
@@ -68,7 +107,8 @@ model Property {
   ownerId Int
   owner   User   @relation(fields: [ownerId], references: [id])
 
-  rooms Room[]
+  rooms   Room[]
+  tenents Tenancy[]
 
   @@index([ownerId])
 }
@@ -77,11 +117,11 @@ model Room {
   id               Int             @id @default(autoincrement())
   propertyId       Int
   property         Property        @relation(fields: [propertyId], references: [id])
-  roomNumber         String
+  roomNumber       String          @db.Text
   floorNumber      Int
   totalBeds        Int
   occupiedBeds     Int             @default(0)
-  rentPerBed       Int
+  rentPerBed       Decimal         @db.Decimal(10, 2)
   sharingType      RoomSharingType
   meterReadingDate DateTime?
   lastMeterReading Float
@@ -91,6 +131,8 @@ model Room {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  tenants Tenancy[]
 }
 
 model RoomImages {
@@ -98,4 +140,38 @@ model RoomImages {
   roomId Int
   room   Room   @relation(fields: [roomId], references: [id])
   url    String
+}
+
+// ** tenent section 
+model Tenancy {
+  id       Int @id @default(autoincrement())
+  roomId   Int
+  tenentId Int @unique
+
+  propertyId Int
+
+  property Property @relation(fields: [propertyId], references: [id])
+  room     Room     @relation(fields: [roomId], references: [id])
+  tenent   User     @relation(fields: [tenentId], references: [id])
+
+  rentAmount            Decimal  @db.Decimal(10, 2)
+  securityDeposit       Decimal  @db.Decimal(10, 2)
+  advanceAmount         Decimal? @db.Decimal(10, 2)
+  lockInPeriodsInMonths Int?     @default(0)
+  noticePeriodInDays    Int?     @default(0)
+
+  initialElectricityReading Decimal? @db.Decimal(10, 2)
+
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  status         TenantStatus    @default(ACTIVE)
+  deletedAt      DateTime?
+  tenentProfiles TenentProfile[]
+
+  @@unique([roomId, tenentId])
+  @@index([roomId, tenentId])
 }

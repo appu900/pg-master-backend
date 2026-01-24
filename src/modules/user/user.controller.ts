@@ -9,6 +9,10 @@ import { Role } from 'src/common/enum/role.enum';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @Get()
+  async fetchAllUsers() {
+    return this.userService.getAllUsers();
+  }
   @Get('owner/profile')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -16,6 +20,4 @@ export class UserController {
     const userId = 1;
     return this.userService.getPropertyOwnerDetails(userId);
   }
-
-  
 }

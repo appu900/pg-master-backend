@@ -13,6 +13,11 @@ export class UserService {
 
 
 
+
+  async getAllUsers(){
+    return this.prisma.user.findMany();
+  }
+
   async findUserByPhoneNumber(userPhoneNumber:string){
     return this.prisma.user.findFirst({where:{phoneNumber:userPhoneNumber}})
   }
