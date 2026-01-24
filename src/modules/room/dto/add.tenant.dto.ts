@@ -23,13 +23,13 @@ export class AddTenantDto {
   @IsNotEmpty()
   fullName: string;
 
-  @IsOptional()
-  @IsString()
-  gender?: string;
 
-  @IsOptional()
   @IsString()
-  profession?: string;
+  gender: string;
+
+
+  @IsString()
+  profession: string;
 
   @IsPhoneNumber('IN')
   phoneNumber: string;
@@ -67,10 +67,10 @@ export class AddTenantDto {
   @IsDate()
   joiningDate: Date;
 
-  @IsOptional()
+
   @Type(() => Date)
   @IsDate()
-  moveoutDate?: Date;
+  moveoutDate: Date;
 
   @Type(() => Number)
   @IsInt()
