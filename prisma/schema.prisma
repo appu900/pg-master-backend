@@ -29,11 +29,51 @@ enum RoomSharingType {
   QUAD
 }
 
+enum MaintenancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MaintenanceStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MaintenanceStaffType {
+  ADMIN_STAFF
+  SERVICE_STAFF
+}
+
+enum MaintenanceJobPosition {
+  ELECTRICIAN
+  PLUMBER
+  CLEANER
+  CARPENTER
+  SECURITY
+  MANAGER
+  OTHER
+  OWNER
+  CO_PARTNER
+  SUPERVISOR
+  ACCOUNTANT
+  OPERATIONS_HEAD
+}
+
+enum PropertyAccessScope {
+  ALL_PROPERTIES
+  SELECTIVE
+}
+
 model User {
   id               Int      @id @default(autoincrement())
   role             UserRole
   phoneNumber      String
-  email            String   @unique
+  email            String?  @unique
   fullName         String
   pinCode          String?
   isActive         Boolean  @default(true)
@@ -43,11 +83,14 @@ model User {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  propertyOwnerProfile PropertyOwnerProfile?
-  tenentProfile        TenentProfile?
+  propertyOwnerProfile    PropertyOwnerProfile?
+  tenentProfile           TenentProfile?
+  maintenanceStaffProfile MaintenanceStaffProfile?
 
   property Property[]
   tenancy  Tenancy?
+
+  employeeBooks EmployeeBook[]
 
   @@index([phoneNumber])
   @@index([role])
@@ -88,7 +131,6 @@ model TenentProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-
   @@index([userId])
 }
 
@@ -107,6 +149,8 @@ model Property {
 
   rooms   Room[]
   tenents Tenancy[]
+
+  maintenanceStaffPropertyAccess MaintenanceStaffPropertyAccess[]
 
   @@index([ownerId])
 }
@@ -171,4 +215,49 @@ model Tenancy {
 
   @@unique([roomId, tenentId])
   @@index([roomId, tenentId])
+}
+
+model MaintenanceStaffProfile {
+  id     Int  @id @default(autoincrement())
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+
+  phoneNumber    String
+  whatsAppNumber String?
+
+  staffType   MaintenanceStaffType
+  jobPosition MaintenanceJobPosition
+
+  monthlySalary Decimal @db.Decimal(10, 2)
+
+  propertyScope PropertyAccessScope
+  isActive      Boolean             @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employeeBooks                    EmployeeBook?
+  maintenanceStaffPropertyAccesses MaintenanceStaffPropertyAccess[]
+}
+
+model MaintenanceStaffPropertyAccess {
+  id             Int                     @id @default(autoincrement())
+  propertyId     Int
+  staffProfileId Int
+  staffProfile   MaintenanceStaffProfile @relation(fields: [staffProfileId], references: [id])
+  property       Property                @relation(fields: [propertyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmployeeBook {
+  id                Int                     @id @default(autoincrement())
+  ownerId           Int
+  owner             User                    @relation(fields: [ownerId], references: [id])
+  employeeProfileId Int                     @unique
+  employeeProfile   MaintenanceStaffProfile @relation(fields: [employeeProfileId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

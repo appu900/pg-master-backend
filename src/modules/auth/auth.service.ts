@@ -23,7 +23,7 @@ export class AuthService {
       const payload = { sub: user.id, role: user.role };
       return { access_token: this.jwtService.sign(payload) };
     } catch (error) {
-      console.log("Error in generating token",error)
+      console.log('Error in generating token', error);
     }
   }
   async createPropertyOwner(dto: CreatePropertyOwnerDto) {

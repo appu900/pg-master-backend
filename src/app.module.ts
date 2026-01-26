@@ -11,6 +11,7 @@ import { PropertyModule } from './modules/property/property.module';
 import { S3Module } from './infra/s3/s3.module';
 import { TenentModule } from './modules/tenent/tenent.module';
 import { RoomModule } from './modules/room/room.module';
+import { StaffModule } from './modules/staff/staff.module';
 
 
 @Module({
@@ -25,6 +26,7 @@ import { RoomModule } from './modules/room/room.module';
     PropertyModule,
     TenentModule,
     RoomModule,
+    StaffModule,
   ],
   controllers: [AppController],
   providers: [AppService],
