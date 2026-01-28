@@ -4,7 +4,11 @@ import {
   Get,
   UseGuards,
   Body,
+  Patch,
   BadRequestException,
+  UnauthorizedException,
+  ParseIntPipe,
+  Param,
 } from '@nestjs/common';
 import { StaffService } from './staff.service';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
@@ -14,6 +18,8 @@ import { UserRole } from '@prisma/client';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { CreateStaffDto } from './dto/create.staff.dto';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
+import { EditStaffAccessDto } from './dto/edit-Staff_Access.dto';
+import { EditEmployeeProfileDto } from './dto/edit.staff.profile.dto';
 
 @Controller('staff')
 export class StaffController {
@@ -28,6 +34,15 @@ export class StaffController {
     return this.maintenanceStaffService.createMaintenanceStaff(userId, dto);
   }
 
+
+
+  @Get('profile/:id')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard,RolesGuard)
+  async getStaffDetails(@Param('id', ParseIntPipe) staffProfileId:number){
+      return this.maintenanceStaffService.getStaffDetailsById(staffProfileId)
+  }
+
   @Get('owner')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -36,4 +51,33 @@ export class StaffController {
     if (!userId) throw new BadRequestException('please login and try again');
     return this.maintenanceStaffService.getMaintenanceStaffsByOwner(userId);
   }
+
+  @Get('/by/property/:propertyId')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard,RolesGuard)
+  async fetchAllStaffsForProperty(@Param('propertyId',ParseIntPipe) propertyId:number,@GetUser() user:any){
+     const ownerId = user.userId;
+     if(!ownerId || !propertyId) throw new BadRequestException()
+     return this.maintenanceStaffService.fetchAllocatedStaffByPropertyId(propertyId,ownerId)
+  }
+
+  @Patch('/property/access')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard,RolesGuard)
+  async editPropertyPermission(@Body() dto:EditStaffAccessDto,@GetUser() user:any){
+       const ownerId = user.userId;
+       if(!ownerId) throw new UnauthorizedException();
+       return this.maintenanceStaffService.editStaffAccess(ownerId,dto)
+  }
+
+
+  @Patch('profile')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard,RolesGuard)
+  async editEmpProfile(@Body() dto:EditEmployeeProfileDto,@GetUser() user:any){
+      const ownerId = user.userId;
+      if(!ownerId) throw new UnauthorizedException();
+      return this.maintenanceStaffService.editMaintenanceStaffProfile(dto,ownerId,dto.empProfileId)
+  }
+
 }

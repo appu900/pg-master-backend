@@ -1,4 +1,4 @@
-import { MaintenanceStaffResponseDto } from '../staff-Response.dto';
+import { MaintenanceStaffResponseDto } from '../dto/staff-Response.dto';
 
 export class StaffMapper {
   static toResponse(record: any): MaintenanceStaffResponseDto {
