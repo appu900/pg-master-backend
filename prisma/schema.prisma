@@ -36,7 +36,8 @@ enum MaintenancePriority {
   URGENT
 }
 
-enum MaintenanceStatus {
+enum ComplaintStatus {
+  OPEN
   PENDING
   ASSIGNED
   IN_PROGRESS
@@ -91,6 +92,7 @@ model User {
   tenancy  Tenancy?
 
   employeeBooks EmployeeBook[]
+  complaints    Complaint[]    @relation("ComplaintRaisedBy")
 
   @@index([phoneNumber])
   @@index([role])
@@ -151,6 +153,7 @@ model Property {
   tenents Tenancy[]
 
   maintenanceStaffPropertyAccess MaintenanceStaffPropertyAccess[]
+  complaints                     Complaint[]
 
   @@index([ownerId])
 }
@@ -204,7 +207,7 @@ model Tenancy {
 
   initialElectricityReading Decimal? @db.Decimal(10, 2)
 
-  joinedAt DateTime  @default(now())
+  joinedAt DateTime  @db.Date
   leftAt   DateTime?
 
   createdAt DateTime @default(now())
@@ -238,6 +241,8 @@ model MaintenanceStaffProfile {
 
   employeeBooks                    EmployeeBook?
   maintenanceStaffPropertyAccesses MaintenanceStaffPropertyAccess[]
+
+  complaints Complaint[]
 }
 
 model MaintenanceStaffPropertyAccess {
@@ -249,7 +254,7 @@ model MaintenanceStaffPropertyAccess {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
+}  
 
 model EmployeeBook {
   id                Int                     @id @default(autoincrement())
@@ -260,4 +265,53 @@ model EmployeeBook {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Complaint {
+  id                                Int                      @id @default(autoincrement())
+  title                             String
+  description                       String
+  raisedById                        Int
+  raisedBy                          User                     @relation("ComplaintRaisedBy", fields: [raisedById], references: [id])
+  assignedMaintenanceStaffProfileId Int?
+  assignedMaintenanceStaffProfile   MaintenanceStaffProfile? @relation(fields: [assignedMaintenanceStaffProfileId], references: [id])
+  status                            ComplaintStatus          @default(OPEN)
+
+  images ComplaintPhoto[]
+  logs   ComplaintActivityLog[]
+
+  propertyId Int
+  property   Property @relation(fields: [propertyId], references: [id])
+  roomNumber  String?
+
+  requestedVisitDate DateTime? @db.Date
+  requestedVisitTime DateTime?  @db.Time
+
+  priority MaintenancePriority?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([raisedById])
+  @@index([assignedMaintenanceStaffProfileId])
+  @@index([status])
+}
+
+model ComplaintActivityLog {
+  id    Int    @id @default(autoincrement())
+  title String
+
+  complaintId Int
+  complaint   Complaint @relation(fields: [complaintId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@index([complaintId])
+}
+
+model ComplaintPhoto {
+  id          Int       @id @default(autoincrement())
+  complaintId Int
+  complaint   Complaint @relation(fields: [complaintId], references: [id])
+
+  @@index([complaintId])
 }

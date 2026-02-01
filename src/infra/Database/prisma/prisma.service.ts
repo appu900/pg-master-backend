@@ -6,9 +6,20 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  constructor() {
+    super({
+       log: [
+        { emit: 'event', level: 'query' },
+        { emit: 'event', level: 'error' },
+      ],
+    });
+  }
   async onModuleInit() {
     await this.$connect();
-    console.log("Database connected")
+    this.$on('query' as never, (e: any) => {
+      console.log(`Query: ${e.query} | Duration: ${e.duration}ms`);
+    });
+    console.log('Database connected');
   }
 
   async onModuleDestroy() {

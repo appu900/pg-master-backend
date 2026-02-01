@@ -12,6 +12,7 @@ import { S3Module } from './infra/s3/s3.module';
 import { TenentModule } from './modules/tenent/tenent.module';
 import { RoomModule } from './modules/room/room.module';
 import { StaffModule } from './modules/staff/staff.module';
+import { ComplaintModule } from './modules/complaint/complaint.module';
 
 
 @Module({
@@ -27,6 +28,7 @@ import { StaffModule } from './modules/staff/staff.module';
     TenentModule,
     RoomModule,
     StaffModule,
+    ComplaintModule,
   ],
   controllers: [AppController],
   providers: [AppService],

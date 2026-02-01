@@ -4,9 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { TenantStatus, UserRole } from '@prisma/client';
+import { Prisma, TenantStatus, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { AddTenantDto } from './dto/add.tenant.dto';
+import { TargetObjectKeyFormat$ } from '@aws-sdk/client-s3';
 
 @Injectable()
 export class RoomService {
@@ -123,6 +124,125 @@ export class RoomService {
           occupiedBeds: { increment: 1 },
         },
       });
+    });
+  }
+
+  async addTenant(roomId: number, dto: AddTenantDto) {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. validation checks
+      const room = await tx.room.findUnique({ where: { id: roomId } });
+      if (!room) throw new NotFoundException('Room not found');
+      if (room.propertyId != dto.propertyId)
+        throw new BadRequestException(
+          'Room does not belong to specified property',
+        );
+      if (room.occupiedBeds >= room.totalBeds)
+        throw new BadRequestException('No vacant bed available in this room');
+
+      //  2. user check validation
+      const existingUser = await tx.user.findFirst({
+        where: { OR: [{ email: dto.email }, { phoneNumber: dto.phoneNumber }] },
+        select: {
+          id: true,
+          role: true,
+          tenancy: {
+            where: {
+              status: TenantStatus.ACTIVE,
+              deletedAt: null,
+            },
+            select: { id: true },
+          },
+        },
+      });
+
+      let tenant;
+
+      if (existingUser) {
+        if (existingUser.role !== UserRole.TENANT) {
+          throw new BadRequestException('User is not registered as tenant');
+        }
+        if (existingUser.tenancy) {
+          throw new ConflictException('User already has an active tenancy');
+        }
+
+        tenant = existingUser;
+      } else {
+        // create a new tenant
+        tenant = await tx.user.create({
+          data: {
+            phoneNumber: dto.phoneNumber,
+            email: dto.email,
+            fullName: dto.fullName,
+            role: UserRole.TENANT,
+          },
+          select: { id: true },
+        });
+      }
+
+      // 4 create or update tenant profile
+      const tenantProfile = await tx.tenentProfile.upsert({
+        where: { userId: tenant.id },
+        update: {
+          geneder: dto.gender,
+          profession: dto.profession,
+          pinCode: dto.pinCode,
+          state: dto.state,
+          RentalType: dto.rentalType,
+          lockInPeriodsInMonths: dto.lockinPeriodMonths,
+          noticePeriodInDays: dto.noticePeriodInDays,
+          JoiningDate: dto.joiningDate,
+          moveOutDate: dto.moveoutDate,
+          agreementPeriodinMonths: dto.agreementPeriodMonths,
+        },
+        create: {
+          userId: tenant.id,
+          geneder: dto.gender,
+          profession: dto.profession,
+          pinCode: dto.pinCode,
+          state: dto.state,
+          profileImage: '',
+          RentalType: dto.rentalType,
+          lockInPeriodsInMonths: dto.lockinPeriodMonths,
+          noticePeriodInDays: dto.noticePeriodInDays,
+          JoiningDate: dto.joiningDate,
+          moveOutDate: dto.moveoutDate,
+          agreementPeriodinMonths: dto.agreementPeriodMonths,
+        },
+      });
+
+      // 5 create tenancy and update room
+      const [newTenancy] = await Promise.all([
+        // tx1 create tenancy
+        tx.tenancy.create({
+          data: {
+            tenentId: tenant.id,
+            roomId: roomId,
+            propertyId: dto.propertyId,
+            rentAmount: dto.rentPrice,
+            securityDeposit: dto.securityDeposit,
+            noticePeriodInDays: dto.noticePeriodInDays,
+            initialElectricityReading: dto.roomElectricityReading,
+            joinedAt: dto.joiningDate,
+            lockInPeriodsInMonths: dto.lockinPeriodMonths,
+          },
+          select: { id: true },
+        }),
+
+        // tx2 update room
+        tx.room.update({
+          where: { id: roomId },
+          data: {
+            occupiedBeds: { increment: 1 },
+          },
+        }),
+      ]);
+
+      return {
+        success: true,
+        tenantId: tenant.id,
+        tenancyId: newTenancy.id,
+        roomId,
+      };
     });
   }
 

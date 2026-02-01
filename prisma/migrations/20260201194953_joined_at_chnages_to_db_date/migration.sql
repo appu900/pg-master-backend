@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Tenancy" ALTER COLUMN "joinedAt" DROP DEFAULT,
+ALTER COLUMN "joinedAt" SET DATA TYPE DATE;

@@ -26,7 +26,7 @@ export class RoomController {
     @Param('id', ParseIntPipe) roomId: number,
     @Body() dto: AddTenantDto,
   ) {
-    return this.roomService.addTenentToRoom(roomId, dto);
+    return this.roomService.addTenant(roomId, dto);
   }
 
   @Get('/tenants/:id')
