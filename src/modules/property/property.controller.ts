@@ -1,16 +1,17 @@
 import {
-    BadRequestException,
-    Body,
-    Controller,
-    Delete,
-    Get,
-    Param,
-    ParseIntPipe,
-    Patch,
-    Post,
-    UploadedFiles,
-    UseGuards,
-    UseInterceptors,
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Put,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
@@ -49,7 +50,7 @@ export class PropertyController {
   @Post('/:propertyId/room')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @UseInterceptors(FilesInterceptor('images'))
+  @UseInterceptors(FilesInterceptor('images', 10)) // Allow up to 10 images
   async createRoom(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Body() dto: AddRoomDto,
@@ -57,7 +58,8 @@ export class PropertyController {
     @GetUser() user:any
   ) {
     const userId = user.userId;
-    if(!userId) throw new BadRequestException();
+    if(!userId) throw new BadRequestException('User ID not found');
+    
     return this.propertyService.addRooms(Number(userId),propertyId, dto, images);
   }
 
@@ -72,7 +74,7 @@ export class PropertyController {
   @Patch('/room/:roomId/')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @UseInterceptors(FilesInterceptor('images'))
+  @UseInterceptors(FilesInterceptor('images', 10))
   editRoom(
     @Body() dto: editRoomDto,
     @Param('roomId', ParseIntPipe) id: number,
@@ -80,8 +82,24 @@ export class PropertyController {
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
     const userId = user.userId;
-    if (!userId) throw new BadRequestException();
+    if (!userId) throw new BadRequestException('User ID not found');
+    
     return this.propertyService.editRoom(id, dto, userId, files);
+  }
+
+  // NOTE: React Native (axios/XHR) can be flaky with multipart PATCH.
+  // Provide a PUT alias for the same operation when uploading images.
+  @Put('/room/:roomId/')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseInterceptors(FilesInterceptor('images', 10))
+  editRoomPut(
+    @Body() dto: editRoomDto,
+    @Param('roomId', ParseIntPipe) id: number,
+    @GetUser() user: any,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ) {
+    return this.editRoom(dto, id, user, files);
   }
 
   @Delete('/room/:roomId')
@@ -94,6 +112,19 @@ export class PropertyController {
     const userId = user.userId;
     if (!userId) throw new BadRequestException();
     return this.propertyService.deleteRoom(id, userId);
+  }
+
+  @Delete('/room/:roomId/image/:imageId')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async deleteRoomImage(
+    @Param('roomId', ParseIntPipe) roomId: number,
+    @Param('imageId', ParseIntPipe) imageId: number,
+    @GetUser() user: any,
+  ) {
+    const userId = user.userId;
+    if (!userId) throw new BadRequestException('User ID not found');
+    return this.propertyService.deleteRoomImage(roomId, imageId, userId);
   }
 
   @Get('/room/:roomId')

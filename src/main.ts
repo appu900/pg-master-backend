@@ -19,12 +19,22 @@ async function bootstrap() {
   
   app.use(helmet());
   
-  app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:19006'],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  });
+  if (process.env.NODE_ENV === 'production') {
+    app.enableCors({
+      origin: process.env.ALLOWED_ORIGINS?.split(',') || [],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    });
+  } else {
+    app.enableCors({
+      origin: true, 
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    });
+    logger.log('CORS enabled for all origins (development mode)');
+  }
   
   app.setGlobalPrefix('api');
   
