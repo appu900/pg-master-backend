@@ -1,17 +1,13 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { CreatePropertyOwnerDto } from '../auth/dto/create.Property-owner.dto';
-import { User, UserRole } from '@prisma/client';
-import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly prisma: PrismaService,
   ) {}
-
-
-
 
 
   async getAllUsers(){
@@ -29,9 +25,16 @@ export class UserService {
         OR: [{ phoneNumber: dto.phoneNumber }, { email: dto.email }],
       },
     });
+    
     if (userExists) {
-      throw new ConflictException('user exists with this phonenumber or email');
+      if (userExists.phoneNumber === dto.phoneNumber) {
+        throw new ConflictException('A user with this phone number already exists');
+      }
+      if (userExists.email === dto.email) {
+        throw new ConflictException('A user with this email already exists');
+      }
     }
+    
     const user = await this.prisma.user.create({
       data: {
         phoneNumber: dto.phoneNumber,
@@ -47,6 +50,7 @@ export class UserService {
         },
       },
     });
+    
     return user;
   }
 

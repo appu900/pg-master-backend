@@ -1,28 +1,27 @@
 import {
-  Controller,
-  Body,
-  Post,
-  Get,
-  Delete,
-  UseGuards,
-  BadRequestException,
-  UseInterceptors,
-  Param,
-  ParseIntPipe,
-  UploadedFiles,
-  Patch,
+    BadRequestException,
+    Body,
+    Controller,
+    Delete,
+    Get,
+    Param,
+    ParseIntPipe,
+    Patch,
+    Post,
+    UploadedFiles,
+    UseGuards,
+    UseInterceptors,
 } from '@nestjs/common';
-import { PropertyService } from './property.service';
-import { UserRole } from '@prisma/client';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { GetUser } from 'src/common/decorators/Getuser.decorator';
+import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { CreatePropertyDto } from './dto/create.property.dto';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { GetUser } from 'src/common/decorators/Getuser.decorator';
-import { FilesInterceptor } from '@nestjs/platform-express';
 import { AddRoomDto } from './dto/AddRoom.dto';
+import { CreatePropertyDto } from './dto/create.property.dto';
 import { editRoomDto } from './dto/edit.room.dto';
+import { PropertyService } from './property.service';
 
 @Controller('property')
 export class PropertyController {
@@ -77,23 +76,35 @@ export class PropertyController {
   editRoom(
     @Body() dto: editRoomDto,
     @Param('roomId', ParseIntPipe) id: number,
+    @GetUser() user: any,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
-    return this.propertyService.editRoom(id, dto, files);
-    
+    const userId = user.userId;
+    if (!userId) throw new BadRequestException();
+    return this.propertyService.editRoom(id, dto, userId, files);
   }
 
   @Delete('/room/:roomId')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async deleteRoom(@Param('roomId', ParseIntPipe) id: number) {
-    return this.propertyService.deleteRoom(id);
+  async deleteRoom(
+    @Param('roomId', ParseIntPipe) id: number,
+    @GetUser() user: any,
+  ) {
+    const userId = user.userId;
+    if (!userId) throw new BadRequestException();
+    return this.propertyService.deleteRoom(id, userId);
   }
 
   @Get('/room/:roomId')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async GetRoomById(@Param('roomId', ParseIntPipe) id: number) {
-    return this.propertyService.getRoomDetails(id);
+  async GetRoomById(
+    @Param('roomId', ParseIntPipe) id: number,
+    @GetUser() user: any,
+  ) {
+    const userId = user.userId;
+    if (!userId) throw new BadRequestException();
+    return this.propertyService.getRoomDetails(id, userId);
   }
 }
