@@ -1,21 +1,57 @@
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
-import { RedisService } from './infra/redis/redis.service';
-
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const logger = new Logger('Bootstrap');
+  
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET environment variable is required');
+  }
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
+  
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log'],
+  });
+  
+  app.use(helmet());
+  
+  if (process.env.NODE_ENV === 'production') {
+    app.enableCors({
+      origin: process.env.ALLOWED_ORIGINS?.split(',') || [],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    });
+  } else {
+    app.enableCors({
+      origin: true, 
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    });
+    logger.log('CORS enabled for all origins (development mode)');
+  }
+  
   app.setGlobalPrefix('api');
+  
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
+      forbidNonWhitelisted: false,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
     }),
   );
-  await app.listen(process.env.PORT ?? 3000);
-  const redisService = new RedisService();
-  console.log(await redisService.get('otp:7735041901'))
-  console.log()
+  
+  const port = process.env.PORT ?? 3000;
+  await app.listen(port);
+  
+  logger.log(`Application is running on: http://localhost:${port}/api`);
 }
 bootstrap();

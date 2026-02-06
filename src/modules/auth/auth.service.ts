@@ -1,14 +1,14 @@
 import {
   BadRequestException,
   Injectable,
-  InternalServerErrorException,
+  InternalServerErrorException
 } from '@nestjs/common';
-import { UserService } from '../user/user.service';
-import { CreatePropertyOwnerDto } from './dto/create.Property-owner.dto';
-import { OtpService } from 'src/infra/notification/OTP/otp.service';
-import { OtpLoginDto } from './dto/auth.otp.login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
+import { OtpService } from 'src/infra/notification/OTP/otp.service';
+import { UserService } from '../user/user.service';
+import { OtpLoginDto } from './dto/auth.otp.login.dto';
+import { CreatePropertyOwnerDto } from './dto/create.Property-owner.dto';
 
 @Injectable()
 export class AuthService {
@@ -18,53 +18,77 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  private async generateToken(user: User) {
+  private async generateToken(user: User): Promise<{ access_token: string }> {
     try {
       const payload = { sub: user.id, role: user.role };
       return { access_token: this.jwtService.sign(payload) };
     } catch (error) {
-      console.log('Error in generating token', error);
+      throw new InternalServerErrorException('Failed to generate authentication token');
     }
   }
   async createPropertyOwner(dto: CreatePropertyOwnerDto) {
     try {
       const user = await this.userService.createPropertyOwner(dto);
       await this.otpService.sendOtp(user.phoneNumber);
-      console.log('propertyowner created', user);
       return {
-        status: 'sucess',
-        mesaage: 'please verify otp',
+        status: 'success',
+        message: 'Please verify OTP to complete registration',
       };
     } catch (error) {
-      console.log(
-        'error occured while creating the propertyowner',
-        error.message,
-      );
       throw error;
     }
   }
 
   async sendOtp(phoneNumber: string) {
     const user = await this.userService.findUserByPhoneNumber(phoneNumber);
-    if (!user) throw new BadRequestException('Invalid user phoneNuber');
+    
+    if (!user) {
+      throw new BadRequestException('User not found with this phone number');
+    }
+    
+    if (user.isBlockedByAdmin) {
+      throw new BadRequestException('Your account has been blocked by admin');
+    }
+    
+    if (!user.isActive) {
+      throw new BadRequestException('Your account is inactive');
+    }
+    
     await this.otpService.sendOtp(phoneNumber);
     return {
-      status: 'sucess',
-      message: 'otp send sucessfully',
+      status: 'success',
+      message: 'OTP sent successfully',
+      isBlockedByAdmin: false,
     };
   }
 
   async login(dto: OtpLoginDto) {
     try {
+      // Verify OTP first
       await this.otpService.verifyOtp(dto.phoneNumber, dto.otp);
+      
+      // Get user details
       const user = await this.userService.findUserByPhoneNumber(
         dto.phoneNumber,
       );
-      if (!user) throw new BadRequestException();
+      
+      if (!user) {
+        throw new BadRequestException('User not found');
+      }
+     
+      if (user.isBlockedByAdmin) {
+        throw new BadRequestException('Your account has been blocked by admin');
+      }
+      
+      if (!user.isActive) {
+        throw new BadRequestException('Your account is inactive');
+      }
+      
+      // Generate token
       const token = await this.generateToken(user);
-      console.log(token);
+      
       return {
-        message: 'login sucessful',
+        message: 'Login successful',
         name: user.fullName,
         token,
         email: user.email,
@@ -73,9 +97,8 @@ export class AuthService {
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;
-      } else {
-        throw new InternalServerErrorException('Login failed please try again');
       }
+      throw new InternalServerErrorException('Login failed. Please try again');
     }
   }
 }

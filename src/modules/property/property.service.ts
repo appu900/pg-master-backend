@@ -1,10 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
-import { CreatePropertyDto } from './dto/create.property.dto';
-import { response } from 'express';
-import { AddRoomDto } from './dto/AddRoom.dto';
-import { S3Service } from 'src/infra/s3/s3.service';
 import { RoomSharingType } from '@prisma/client';
+import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
+import { S3Service } from 'src/infra/s3/s3.service';
+import { AddRoomDto } from './dto/AddRoom.dto';
+import { CreatePropertyDto } from './dto/create.property.dto';
 import { editRoomDto } from './dto/edit.room.dto';
 
 @Injectable()
@@ -48,19 +47,28 @@ export class PropertyService {
     dto: AddRoomDto,
     files?: Express.Multer.File[],
   ) {
-    // **check if the peroperty belogs to the owener or not
+  
     const property = await this.prisma.property.findUnique({
       where: { id: propertyId, ownerId: ownerId },
     });
     if (!property)
       throw new ForbiddenException('property not found for this owner');
+    
     let uploadImages: string[] = [];
+    
     if (files && files.length > 0) {
-      for (const file of files) {
-        const url = await this.s3Service.uploadFile(file, 'property-rooms');
-        uploadImages.push(url);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        try {
+          const url = await this.s3Service.uploadFile(file, 'property-rooms');
+          uploadImages.push(url);
+        } catch (error) {
+          // Silent fail for individual image upload errors
+        }
       }
     }
+    
     const sharingType = dto.sharingType.toUpperCase() as RoomSharingType;
     const room = await this.prisma.room.create({
       data: {
@@ -72,11 +80,10 @@ export class PropertyService {
         sharingType: sharingType,
         meterReadingDate: dto.meterReadingDate,
         lastMeterReading: dto.lastMeterReading,
-        amenity: dto.amenity,
+        amenity: dto.amenity || [],
       },
     });
 
-    // ** if images are uploaded then create entries in RoomImages table
     if (uploadImages.length > 0) {
       for (const imageUrl of uploadImages) {
         await this.prisma.roomImages.create({
@@ -94,24 +101,41 @@ export class PropertyService {
     });
   }
 
-  // ** need edit room Dto
   async editRoom(
     roomId: number,
     dto: editRoomDto,
+    ownerId: number,
     files?: Express.Multer.File[],
   ) {
-    console.log('edit room dto', dto);
     const room = await this.prisma.room.findUnique({
-      where: {
-        id: roomId,
-      },
+      where: { id: roomId },
+      include: {
+        property: {
+          select: { ownerId: true }
+        }
+      }
     });
-    if (!room) throw new BadRequestException('room not found');
+    
+    if (!room) {
+      throw new BadRequestException('Room not found');
+    }
+  
+    if (room.property.ownerId !== ownerId) {
+      throw new ForbiddenException('You do not have access to this room');
+    }
+    
     let uploadedImages: string[] = [];
+    
     if (files && files.length > 0) {
-      for (const file of files) {
-        const url = await this.s3Service.uploadFile(file, 'property-rooms');
-        uploadedImages.push(url);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        try {
+          const url = await this.s3Service.uploadFile(file, 'property-rooms');
+          uploadedImages.push(url);
+        } catch (error) {
+          // Silent fail for individual image upload errors
+        }
       }
     }
 
@@ -131,8 +155,6 @@ export class PropertyService {
       updateData.sharingType = dto.sharingType.toUpperCase() as RoomSharingType;
     }
 
-    console.log("update data payload is", updateData);
-
     await this.prisma.room.update({
       where: { id: roomId },
       data: updateData,
@@ -146,6 +168,7 @@ export class PropertyService {
         })),
       });
     }
+    
     return this.prisma.room.findUnique({
       where: { id: roomId },
       include: { images: true },
@@ -159,35 +182,104 @@ export class PropertyService {
     });
   }
 
-  async deleteRoom(roomId: number) {
+  async deleteRoom(roomId: number, ownerId: number) {
     const room = await this.prisma.room.findUnique({
-      where: {
-        id: roomId,
-      },
-    });
-    if (room) {
-      await this.prisma.roomImages.deleteMany({
-        where: {
-          roomId: roomId,
+      where: { id: roomId },
+      include: {
+        property: {
+          select: { ownerId: true }
         },
-      });
-      await this.prisma.room.delete({
-        where: { id: roomId },
-      });
-
-      console.log('room deleted with roomId', roomId);
-    } else {
-      throw new BadRequestException('room not found');
+        images: true,
+      }
+    });
+    
+    if (!room) {
+      throw new BadRequestException('Room not found');
     }
+    
+    if (room.property.ownerId !== ownerId) {
+      throw new ForbiddenException('You do not have access to this room');
+    }
+
+    if (room.images?.length) {
+      for (const image of room.images) {
+        await this.s3Service.deleteFile(image.url);
+      }
+    }
+    
+    await this.prisma.roomImages.deleteMany({
+      where: { roomId: roomId },
+    });
+    
+    await this.prisma.room.delete({
+      where: { id: roomId },
+    });
+    
+    return { message: 'Room deleted successfully' };
   }
 
-  async getRoomDetails(roomId: number) {
+  async deleteRoomImage(roomId: number, imageId: number, ownerId: number) {
+    const image = await this.prisma.roomImages.findUnique({
+      where: { id: imageId },
+      include: {
+        room: {
+          select: {
+            id: true,
+            property: {
+              select: { ownerId: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!image) {
+      throw new BadRequestException('Image not found');
+    }
+
+    if (image.room.id !== roomId) {
+      throw new BadRequestException('Image does not belong to this room');
+    }
+
+    if (image.room.property.ownerId !== ownerId) {
+      throw new ForbiddenException('You do not have access to this room');
+    }
+
+    await this.s3Service.deleteFile(image.url);
+    await this.prisma.roomImages.delete({ where: { id: imageId } });
+
     const room = await this.prisma.room.findUnique({
       where: { id: roomId },
       include: { images: true },
     });
-    if (!room) throw new BadRequestException('room not found');
-    return room;
+
+    return {
+      message: 'Image deleted successfully',
+      room,
+    };
+  }
+
+  async getRoomDetails(roomId: number, ownerId: number) {
+    const room = await this.prisma.room.findUnique({
+      where: { id: roomId },
+      include: { 
+        images: true,
+        property: {
+          select: { ownerId: true }
+        }
+      },
+    });
+    
+    if (!room) {
+      throw new BadRequestException('Room not found');
+    }
+    
+    if (room.property.ownerId !== ownerId) {
+      throw new ForbiddenException('You do not have access to this room');
+    }
+  
+    const { property, ...roomData } = room;
+    return roomData;
   }
 }
 

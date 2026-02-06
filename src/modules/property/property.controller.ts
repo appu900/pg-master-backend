@@ -1,28 +1,28 @@
 import {
-  Controller,
-  Body,
-  Post,
-  Get,
-  Delete,
-  UseGuards,
   BadRequestException,
-  UseInterceptors,
+  Body,
+  Controller,
+  Delete,
+  Get,
   Param,
   ParseIntPipe,
-  UploadedFiles,
   Patch,
+  Post,
+  Put,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { PropertyService } from './property.service';
-import { UserRole } from '@prisma/client';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { GetUser } from 'src/common/decorators/Getuser.decorator';
+import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { CreatePropertyDto } from './dto/create.property.dto';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { GetUser } from 'src/common/decorators/Getuser.decorator';
-import { FilesInterceptor } from '@nestjs/platform-express';
 import { AddRoomDto } from './dto/AddRoom.dto';
+import { CreatePropertyDto } from './dto/create.property.dto';
 import { editRoomDto } from './dto/edit.room.dto';
+import { PropertyService } from './property.service';
 
 @Controller('property')
 export class PropertyController {
@@ -50,7 +50,7 @@ export class PropertyController {
   @Post('/:propertyId/room')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @UseInterceptors(FilesInterceptor('images'))
+  @UseInterceptors(FilesInterceptor('images', 10)) // Allow up to 10 images
   async createRoom(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Body() dto: AddRoomDto,
@@ -58,7 +58,8 @@ export class PropertyController {
     @GetUser() user:any
   ) {
     const userId = user.userId;
-    if(!userId) throw new BadRequestException();
+    if(!userId) throw new BadRequestException('User ID not found');
+    
     return this.propertyService.addRooms(Number(userId),propertyId, dto, images);
   }
 
@@ -73,27 +74,68 @@ export class PropertyController {
   @Patch('/room/:roomId/')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @UseInterceptors(FilesInterceptor('images'))
+  @UseInterceptors(FilesInterceptor('images', 10))
   editRoom(
     @Body() dto: editRoomDto,
     @Param('roomId', ParseIntPipe) id: number,
+    @GetUser() user: any,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
-    return this.propertyService.editRoom(id, dto, files);
+    const userId = user.userId;
+    if (!userId) throw new BadRequestException('User ID not found');
     
+    return this.propertyService.editRoom(id, dto, userId, files);
+  }
+
+  // NOTE: React Native (axios/XHR) can be flaky with multipart PATCH.
+  // Provide a PUT alias for the same operation when uploading images.
+  @Put('/room/:roomId/')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseInterceptors(FilesInterceptor('images', 10))
+  editRoomPut(
+    @Body() dto: editRoomDto,
+    @Param('roomId', ParseIntPipe) id: number,
+    @GetUser() user: any,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ) {
+    return this.editRoom(dto, id, user, files);
   }
 
   @Delete('/room/:roomId')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async deleteRoom(@Param('roomId', ParseIntPipe) id: number) {
-    return this.propertyService.deleteRoom(id);
+  async deleteRoom(
+    @Param('roomId', ParseIntPipe) id: number,
+    @GetUser() user: any,
+  ) {
+    const userId = user.userId;
+    if (!userId) throw new BadRequestException();
+    return this.propertyService.deleteRoom(id, userId);
+  }
+
+  @Delete('/room/:roomId/image/:imageId')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async deleteRoomImage(
+    @Param('roomId', ParseIntPipe) roomId: number,
+    @Param('imageId', ParseIntPipe) imageId: number,
+    @GetUser() user: any,
+  ) {
+    const userId = user.userId;
+    if (!userId) throw new BadRequestException('User ID not found');
+    return this.propertyService.deleteRoomImage(roomId, imageId, userId);
   }
 
   @Get('/room/:roomId')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async GetRoomById(@Param('roomId', ParseIntPipe) id: number) {
-    return this.propertyService.getRoomDetails(id);
+  async GetRoomById(
+    @Param('roomId', ParseIntPipe) id: number,
+    @GetUser() user: any,
+  ) {
+    const userId = user.userId;
+    if (!userId) throw new BadRequestException();
+    return this.propertyService.getRoomDetails(id, userId);
   }
 }

@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsOptional, IsNumber, IsString, IsArray } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class editRoomDto {
 
@@ -35,15 +35,20 @@ export class editRoomDto {
   @IsNumber()
   lastMeterReading?: number;
 
+  @IsOptional()
   @Transform(({ value }) => {
-     if (Array.isArray(value)) return value;
-     try {
-       return JSON.parse(value);
-     } catch {
-       return value?.split(',');
-     }
-   })
-   @IsArray()
-   @IsString({ each: true })
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value.split(',').filter(Boolean);
+      }
+    }
+    return [];
+  })
+  @IsArray()
+  @IsString({ each: true })
   amenity?: string[];
 }

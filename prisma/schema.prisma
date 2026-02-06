@@ -7,6 +7,244 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id                      Int                      @id @default(autoincrement())
+  role                    UserRole
+  phoneNumber             String
+  email                   String?                  @unique
+  fullName                String
+  pinCode                 String?
+  isActive                Boolean                  @default(true)
+  isBlockedByAdmin        Boolean                  @default(false)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  deletedAt               DateTime?
+  complaints              Complaint[]              @relation("ComplaintRaisedBy")
+  employeeBooks           EmployeeBook[]
+  maintenanceStaffProfile MaintenanceStaffProfile?
+  property                Property[]
+  propertyOwnerProfile    PropertyOwnerProfile?
+  tenancy                 Tenancy?
+  tenentProfile           TenentProfile?
+
+  @@index([phoneNumber])
+  @@index([role])
+}
+
+model PropertyOwnerProfile {
+  id           Int                  @id @default(autoincrement())
+  userId       Int                  @unique
+  Gender       String?
+  Profession   String?
+  pinCode      String
+  State        String?
+  BusinessName String?
+  BusinessType String?
+  profileImage String?
+  BankAcconts  BankAccountDetails[]
+  user         User                 @relation(fields: [userId], references: [id])
+  
+  @@index([pinCode])
+  @@index([userId])
+}
+
+model TenentProfile {
+  id                      Int       @id @default(autoincrement())
+  userId                  Int       @unique
+  geneder                 String?
+  profession              String?
+  pinCode                 String
+  state                   String?
+  profileImage            String?
+  Address                 String?
+  RentalType              String?
+  lockInPeriodsInMonths   Int?      @default(0)
+  noticePeriodInDays      Int?      @default(0)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  JoiningDate             DateTime
+  agreementPeriodinMonths Int?      @default(0)
+  moveOutDate             DateTime?
+  user                    User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model BankAccountDetails {
+  id                     Int                  @id @default(autoincrement())
+  propertyOwnerProfileId Int
+  profile                PropertyOwnerProfile @relation(fields: [propertyOwnerProfileId], references: [id])
+}
+
+model Property {
+  id                             Int                              @id @default(autoincrement())
+  name                           String
+  pinCode                        String
+  ownerId                        Int
+  complaints                     Complaint[]
+  maintenanceStaffPropertyAccess MaintenanceStaffPropertyAccess[]
+  owner                          User                             @relation(fields: [ownerId], references: [id])
+  rooms                          Room[]
+  tenents                        Tenancy[]
+
+  @@index([ownerId])
+  @@index([pinCode])
+}
+
+model Room {
+  id               Int             @id @default(autoincrement())
+  propertyId       Int
+  floorNumber      Int
+  totalBeds        Int
+  occupiedBeds     Int             @default(0)
+  rentPerBed       Decimal         @db.Decimal(10, 2)
+  sharingType      RoomSharingType
+  meterReadingDate DateTime?
+  amenity          String[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  lastMeterReading Float
+  roomNumber       String
+  property         Property        @relation(fields: [propertyId], references: [id])
+  images           RoomImages[]
+  tenants          Tenancy[]
+  
+  @@index([propertyId])
+  @@index([sharingType])
+  @@index([propertyId, floorNumber])
+}
+
+model RoomImages {
+  id     Int    @id @default(autoincrement())
+  roomId Int
+  url    String
+  room   Room   @relation(fields: [roomId], references: [id])
+  
+  @@index([roomId])
+}
+
+model Tenancy {
+  id                        Int          @id @default(autoincrement())
+  roomId                    Int
+  tenentId                  Int          @unique
+  propertyId                Int
+  rentAmount                Decimal      @db.Decimal(10, 2)
+  securityDeposit           Decimal      @db.Decimal(10, 2)
+  advanceAmount             Decimal?     @db.Decimal(10, 2)
+  lockInPeriodsInMonths     Int?         @default(0)
+  noticePeriodInDays        Int?         @default(0)
+  initialElectricityReading Decimal?     @db.Decimal(10, 2)
+  joinedAt                  DateTime     @db.Date
+  leftAt                    DateTime?
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
+  deletedAt                 DateTime?
+  status                    TenantStatus @default(ACTIVE)
+  property                  Property     @relation(fields: [propertyId], references: [id])
+  room                      Room         @relation(fields: [roomId], references: [id])
+  tenent                    User         @relation(fields: [tenentId], references: [id])
+
+  @@unique([roomId, tenentId])
+  @@index([roomId, tenentId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([joinedAt])
+}
+
+model MaintenanceStaffProfile {
+  id                               Int                              @id @default(autoincrement())
+  userId                           Int                              @unique
+  phoneNumber                      String
+  whatsAppNumber                   String?
+  staffType                        MaintenanceStaffType
+  jobPosition                      MaintenanceJobPosition
+  monthlySalary                    Decimal                          @db.Decimal(10, 2)
+  propertyScope                    PropertyAccessScope
+  isActive                         Boolean                          @default(true)
+  createdAt                        DateTime                         @default(now())
+  updatedAt                        DateTime                         @updatedAt
+  complaints                       Complaint[]
+  employeeBooks                    EmployeeBook?
+  user                             User                             @relation(fields: [userId], references: [id])
+  maintenanceStaffPropertyAccesses MaintenanceStaffPropertyAccess[]
+  
+  @@index([userId])
+  @@index([staffType])
+  @@index([isActive])
+}
+
+model MaintenanceStaffPropertyAccess {
+  id             Int                     @id @default(autoincrement())
+  propertyId     Int
+  staffProfileId Int
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  property       Property                @relation(fields: [propertyId], references: [id])
+  staffProfile   MaintenanceStaffProfile @relation(fields: [staffProfileId], references: [id])
+  
+  @@index([propertyId])
+  @@index([staffProfileId])
+  @@index([propertyId, staffProfileId])
+}
+
+model EmployeeBook {
+  id                Int                     @id @default(autoincrement())
+  ownerId           Int
+  employeeProfileId Int                     @unique
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  employeeProfile   MaintenanceStaffProfile @relation(fields: [employeeProfileId], references: [id])
+  owner             User                    @relation(fields: [ownerId], references: [id])
+  
+  @@index([ownerId])
+  @@index([employeeProfileId])
+  @@index([ownerId, employeeProfileId])
+}
+
+model Complaint {
+  id                                Int                      @id @default(autoincrement())
+  title                             String
+  description                       String
+  raisedById                        Int
+  assignedMaintenanceStaffProfileId Int?
+  status                            ComplaintStatus          @default(OPEN)
+  createdAt                         DateTime                 @default(now())
+  updatedAt                         DateTime                 @updatedAt
+  propertyId                        Int
+  requestedVisitDate                DateTime?                @db.Date
+  requestedVisitTime                DateTime?                @db.Time(6)
+  priority                          MaintenancePriority?
+  roomNumber                        String?
+  assignedMaintenanceStaffProfile   MaintenanceStaffProfile? @relation(fields: [assignedMaintenanceStaffProfileId], references: [id])
+  property                          Property                 @relation(fields: [propertyId], references: [id])
+  raisedBy                          User                     @relation("ComplaintRaisedBy", fields: [raisedById], references: [id])
+  logs                              ComplaintActivityLog[]
+  images                            ComplaintPhoto[]
+
+  @@index([raisedById])
+  @@index([assignedMaintenanceStaffProfileId])
+  @@index([status])
+}
+
+model ComplaintActivityLog {
+  id          Int       @id @default(autoincrement())
+  title       String
+  complaintId Int
+  createdAt   DateTime  @default(now())
+  complaint   Complaint @relation(fields: [complaintId], references: [id])
+
+  @@index([complaintId])
+}
+
+model ComplaintPhoto {
+  id          Int       @id @default(autoincrement())
+  complaintId Int
+  imageUrl    String
+  complaint   Complaint @relation(fields: [complaintId], references: [id])
+
+  @@index([complaintId])
+}
+
 enum TenantStatus {
   ACTIVE
   NOTICE_PERIOD
@@ -68,251 +306,4 @@ enum MaintenanceJobPosition {
 enum PropertyAccessScope {
   ALL_PROPERTIES
   SELECTIVE
-}
-
-model User {
-  id               Int      @id @default(autoincrement())
-  role             UserRole
-  phoneNumber      String
-  email            String?  @unique
-  fullName         String
-  pinCode          String?
-  isActive         Boolean  @default(true)
-  isBlockedByAdmin Boolean  @default(false)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  propertyOwnerProfile    PropertyOwnerProfile?
-  tenentProfile           TenentProfile?
-  maintenanceStaffProfile MaintenanceStaffProfile?
-
-  property Property[]
-  tenancy  Tenancy?
-
-  employeeBooks EmployeeBook[]
-  complaints    Complaint[]    @relation("ComplaintRaisedBy")
-
-  @@index([phoneNumber])
-  @@index([role])
-}
-
-model PropertyOwnerProfile {
-  id           Int     @id @default(autoincrement())
-  userId       Int     @unique
-  user         User    @relation(fields: [userId], references: [id])
-  Gender       String?
-  Profession   String?
-  pinCode      String
-  State        String?
-  BusinessName String?
-  BusinessType String?
-  profileImage String?
-
-  BankAcconts BankAccountDetails[]
-}
-
-model TenentProfile {
-  id                      Int       @id @default(autoincrement())
-  userId                  Int       @unique
-  user                    User      @relation(fields: [userId], references: [id])
-  geneder                 String?
-  profession              String?
-  pinCode                 String
-  state                   String?
-  profileImage            String?
-  Address                 String?
-  agreementPeriodinMonths Int?      @default(0)
-  RentalType              String?
-  lockInPeriodsInMonths   Int?      @default(0)
-  noticePeriodInDays      Int?      @default(0)
-  moveOutDate             DateTime?
-  JoiningDate             DateTime
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-}
-
-model BankAccountDetails {
-  id                     Int                  @id @default(autoincrement())
-  propertyOwnerProfileId Int
-  profile                PropertyOwnerProfile @relation(fields: [propertyOwnerProfileId], references: [id])
-}
-
-model Property {
-  id      Int    @id @default(autoincrement())
-  name    String
-  pinCode String
-  ownerId Int
-  owner   User   @relation(fields: [ownerId], references: [id])
-
-  rooms   Room[]
-  tenents Tenancy[]
-
-  maintenanceStaffPropertyAccess MaintenanceStaffPropertyAccess[]
-  complaints                     Complaint[]
-
-  @@index([ownerId])
-}
-
-model Room {
-  id               Int             @id @default(autoincrement())
-  propertyId       Int
-  property         Property        @relation(fields: [propertyId], references: [id])
-  roomNumber       String          @db.Text
-  floorNumber      Int
-  totalBeds        Int
-  occupiedBeds     Int             @default(0)
-  rentPerBed       Decimal         @db.Decimal(10, 2)
-  sharingType      RoomSharingType
-  meterReadingDate DateTime?
-  lastMeterReading Float
-
-  amenity String[]
-  images  RoomImages[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tenants Tenancy[]
-}
-
-model RoomImages {
-  id     Int    @id @default(autoincrement())
-  roomId Int
-  room   Room   @relation(fields: [roomId], references: [id])
-  url    String
-}
-
-// ** tenent section 
-model Tenancy {
-  id       Int @id @default(autoincrement())
-  roomId   Int
-  tenentId Int @unique
-
-  propertyId Int
-
-  property Property @relation(fields: [propertyId], references: [id])
-  room     Room     @relation(fields: [roomId], references: [id])
-  tenent   User     @relation(fields: [tenentId], references: [id])
-
-  rentAmount            Decimal  @db.Decimal(10, 2)
-  securityDeposit       Decimal  @db.Decimal(10, 2)
-  advanceAmount         Decimal? @db.Decimal(10, 2)
-  lockInPeriodsInMonths Int?     @default(0)
-  noticePeriodInDays    Int?     @default(0)
-
-  initialElectricityReading Decimal? @db.Decimal(10, 2)
-
-  joinedAt DateTime  @db.Date
-  leftAt   DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  status    TenantStatus @default(ACTIVE)
-  deletedAt DateTime?
-
-  @@unique([roomId, tenentId])
-  @@index([roomId, tenentId])
-}
-
-model MaintenanceStaffProfile {
-  id     Int  @id @default(autoincrement())
-  userId Int  @unique
-  user   User @relation(fields: [userId], references: [id])
-
-  phoneNumber    String
-  whatsAppNumber String?
-
-  staffType   MaintenanceStaffType
-  jobPosition MaintenanceJobPosition
-
-  monthlySalary Decimal @db.Decimal(10, 2)
-
-  propertyScope PropertyAccessScope
-  isActive      Boolean             @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  employeeBooks                    EmployeeBook?
-  maintenanceStaffPropertyAccesses MaintenanceStaffPropertyAccess[]
-
-  complaints Complaint[]
-}
-
-model MaintenanceStaffPropertyAccess {
-  id             Int                     @id @default(autoincrement())
-  propertyId     Int
-  staffProfileId Int
-  staffProfile   MaintenanceStaffProfile @relation(fields: [staffProfileId], references: [id])
-  property       Property                @relation(fields: [propertyId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}  
-
-model EmployeeBook {
-  id                Int                     @id @default(autoincrement())
-  ownerId           Int
-  owner             User                    @relation(fields: [ownerId], references: [id])
-  employeeProfileId Int                     @unique
-  employeeProfile   MaintenanceStaffProfile @relation(fields: [employeeProfileId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Complaint {
-  id                                Int                      @id @default(autoincrement())
-  title                             String
-  description                       String
-  raisedById                        Int
-  raisedBy                          User                     @relation("ComplaintRaisedBy", fields: [raisedById], references: [id])
-  assignedMaintenanceStaffProfileId Int?
-  assignedMaintenanceStaffProfile   MaintenanceStaffProfile? @relation(fields: [assignedMaintenanceStaffProfileId], references: [id])
-  status                            ComplaintStatus          @default(OPEN)
-
-  images ComplaintPhoto[]
-  logs   ComplaintActivityLog[]
-
-  propertyId Int
-  property   Property @relation(fields: [propertyId], references: [id])
-  roomNumber  String?
-
-  requestedVisitDate DateTime? @db.Date
-  requestedVisitTime DateTime?  @db.Time
-
-  priority MaintenancePriority?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([raisedById])
-  @@index([assignedMaintenanceStaffProfileId])
-  @@index([status])
-}
-
-model ComplaintActivityLog {
-  id    Int    @id @default(autoincrement())
-  title String
-
-  complaintId Int
-  complaint   Complaint @relation(fields: [complaintId], references: [id])
-  createdAt   DateTime  @default(now())
-
-  @@index([complaintId])
-}
-
-model ComplaintPhoto {
-  id          Int       @id @default(autoincrement())
-  complaintId Int
-  complaint   Complaint @relation(fields: [complaintId], references: [id])
-  imageUrl String
-
-  @@index([complaintId])
 }
