@@ -1,4 +1,13 @@
-import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ComplaintStatus } from '@prisma/client';
+import {
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class ComplaintCreateByOwnerDto {
   @IsNotEmpty()
@@ -11,19 +20,24 @@ export class ComplaintCreateByOwnerDto {
 
   @IsInt()
   @IsNotEmpty()
+  @Type(() => Number)
   tenantId: number;
-
 
   @IsInt()
   @IsNotEmpty()
-  propertyId:number;
-
+  @Type(() => Number)
+  propertyId: number;
 
   @IsString()
   @IsNotEmpty()
-  roomNumber:string;
+  roomNumber: string;
+
+  @IsEnum(ComplaintStatus)
+  @IsNotEmpty()
+  status: ComplaintStatus;
 
   @IsInt()
   @IsNotEmpty()
+  @Type(() => Number)
   assignedMaintenanceStaffProfileId?: number;
 }

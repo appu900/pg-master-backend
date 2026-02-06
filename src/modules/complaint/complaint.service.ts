@@ -2,19 +2,32 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { ComplaintCreateByOwnerDto } from './dto/create.complaint-by-owner.dto';
-import { ComplaintStatus, UserRole } from '@prisma/client';
+import {
+  ComplaintStatus,
+  MaintenancePriority,
+  TenantStatus,
+  UserRole,
+} from '@prisma/client';
 import { CreateComplaintDto } from './dto/create-.complaint-by-tenent.dto';
+import { S3Service } from 'src/infra/s3/s3.service';
 
 @Injectable()
 export class ComplaintService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly COMPLAINT_S3_FOLDER_NAME = 'complaints';
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly s3Service: S3Service,
+  ) {}
 
+  // create complaint by owner
   async createComplaintByOwner(
     ownerId: number,
     dto: ComplaintCreateByOwnerDto,
+    images?: Express.Multer.File[],
   ) {
     const owner = await this.prisma.user.findUnique({
       where: { id: ownerId },
@@ -29,6 +42,18 @@ export class ComplaintService {
         throw new BadRequestException('Invalid tenant for this request owner');
     }
 
+    // images upload endpoint
+    let uploadImageUrls: string[] = [];
+    if (images && images.length > 0) {
+      for (const image of images) {
+        const url = await this.s3Service.uploadFile(
+          image,
+          this.COMPLAINT_S3_FOLDER_NAME,
+        );
+        uploadImageUrls.push(url);
+      }
+    }
+
     const complaint = await this.prisma.complaint.create({
       data: {
         title: dto.title,
@@ -37,9 +62,7 @@ export class ComplaintService {
         propertyId: dto.propertyId,
         assignedMaintenanceStaffProfileId:
           dto.assignedMaintenanceStaffProfileId ?? null,
-        status: dto.assignedMaintenanceStaffProfileId
-          ? ComplaintStatus.ASSIGNED
-          : ComplaintStatus.OPEN,
+        status: dto.status as ComplaintStatus,
         roomNumber: dto.roomNumber,
         logs: {
           create: {
@@ -48,11 +71,136 @@ export class ComplaintService {
         },
       },
     });
-    return complaint;
+
+    if (uploadImageUrls.length > 0) {
+      for (const imageUrl of uploadImageUrls) {
+        await this.prisma.complaintPhoto.create({
+          data: {
+            complaintId: complaint.id,
+            imageUrl: imageUrl,
+          },
+        });
+      }
+    }
+    return {
+      message: 'complaint added sucessfully',
+      complaint,
+    };
   }
 
+  // create complaint by tenant
+  async createComplaintByTenant(
+    tenentId: number,
+    dto: CreateComplaintDto,
+    images?: Express.Multer.File[],
+  ) {
+    const tenant = await this.prisma.user.findUnique({
+      where: { id: tenentId },
+      select: { id: true },
+    });
+    if (!tenant) throw new NotFoundException();
+    const activeTenancy = await this.prisma.tenancy.findFirst({
+      where: {
+        tenentId: tenant.id,
+        status: TenantStatus.ACTIVE,
+        deletedAt: null,
+      },
+      select: {
+        propertyId: true,
+        room: {
+          select: {
+            roomNumber: true,
+          },
+        },
+      },
+    });
+    if (!activeTenancy)
+      throw new BadRequestException('No active tenancy found for this tenant');
 
-  async createByTenant(tenantId:number,dto:CreateComplaintDto){
+    let uploadImages: string[] = [];
+    if (images && images.length > 0) {
+      for (const image of images) {
+        const url = await this.s3Service.uploadFile(
+          image,
+          this.COMPLAINT_S3_FOLDER_NAME,
+        );
+        uploadImages.push(url);
+      }
+    }
 
+    const complaint = await this.prisma.complaint.create({
+      data: {
+        title: dto.title,
+        description: dto.description,
+        raisedById: tenant.id,
+        status: ComplaintStatus.OPEN,
+        propertyId: activeTenancy.propertyId,
+        roomNumber: activeTenancy.room.roomNumber,
+        requestedVisitDate: dto.requestedVisitDate
+          ? new Date(`${dto.requestedVisitDate}T00:00:00`)
+          : null,
+        requestedVisitTime: dto.requestedVisitTime
+          ? new Date(`1970-01-01T${dto.requestedVisitTime}`)
+          : null,
+        priority: dto.priority ?? MaintenancePriority.URGENT,
+        logs: {
+          create: {
+            title: 'complaint created',
+          },
+        },
+      },
+    });
+
+    if (uploadImages.length > 0) {
+      for (const imageUrl of uploadImages) {
+        await this.prisma.complaintPhoto.create({
+          data: {
+            imageUrl: imageUrl,
+            complaintId: complaint.id,
+          },
+        });
+      }
+    }
+
+    return {
+      message: 'complaint created sucessfully',
+      complaint,
+    };
+  }
+
+  async getAllComplaints() {
+    const complaints = await this.prisma.complaint.findMany({
+      select: {
+        title: true,
+        description: true,
+        status: true,
+        property: {
+          select: {
+            name: true,
+            id: true,
+          },
+        },
+        roomNumber: true,
+        requestedVisitDate: true,
+        requestedVisitTime: true,
+        priority: true,
+        images: true,
+        logs: true,
+        raisedBy: {
+          select: {
+            fullName: true,
+          },
+        },
+        assignedMaintenanceStaffProfile:{
+          select:{
+            user:{
+              select:{fullName:true}
+            }
+          }
+        },
+        createdAt:true,
+      },
+    });
+    return complaints;
   }
 }

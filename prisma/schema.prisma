@@ -312,6 +312,7 @@ model ComplaintPhoto {
   id          Int       @id @default(autoincrement())
   complaintId Int
   complaint   Complaint @relation(fields: [complaintId], references: [id])
+  imageUrl String
 
   @@index([complaintId])
 }

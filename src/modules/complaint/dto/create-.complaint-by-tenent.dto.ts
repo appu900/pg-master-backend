@@ -25,5 +25,6 @@ export class CreateComplaintDto {
   requestedVisitTime?: string;
 
   @IsEnum(MaintenancePriority)
+  @IsNotEmpty()
   priority: MaintenancePriority;
 }
