@@ -191,14 +191,15 @@ export class ComplaintService {
             fullName: true,
           },
         },
-        assignedMaintenanceStaffProfile:{
-          select:{
-            user:{
-              select:{fullName:true}
-            }
-          }
+        assignedMaintenanceStaffProfile: {
+          select: {
+            user: {
+              select: { fullName: true, phoneNumber: true },
+            },
+            whatsAppNumber: true,
+          },
         },
-        createdAt:true,
+        createdAt: true,
       },
     });
     return complaints;
