@@ -1,19 +1,18 @@
 import {
-  Body,
-  Controller,
-  Param,
-  ParseIntPipe,
-  Post,
-  UseGuards,
-  Get,
+    Body,
+    Controller,
+    Get,
+    Param,
+    ParseIntPipe,
+    Post,
+    UseGuards,
 } from '@nestjs/common';
-import { RoomService } from './room.service';
-import { JwtAuthGuard } from '../auth/guards/jwt.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
-import { AddRoomDto } from '../property/dto/AddRoom.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { AddTenantDto } from './dto/add.tenant.dto';
+import { RoomService } from './room.service';
 
 @Controller('room')
 export class RoomController {

@@ -4,10 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, TenantStatus, UserRole } from '@prisma/client';
+import { TenantStatus, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { AddTenantDto } from './dto/add.tenant.dto';
-import { TargetObjectKeyFormat$ } from '@aws-sdk/client-s3';
 
 @Injectable()
 export class RoomService {
@@ -24,6 +23,26 @@ export class RoomService {
       //   verifying if the room has vacant beds
       if (room.occupiedBeds >= room.totalBeds) {
         throw new BadRequestException('No vacant beds available in this room');
+      }
+
+      //   normalize and validate dates
+      if (!dto.joiningDate || typeof dto.joiningDate !== 'string') {
+        throw new BadRequestException('joiningDate is required');
+      }
+
+      // Parse YYYY-MM-DD string by appending time to force UTC interpretation
+      const joiningDate = new Date(dto.joiningDate + 'T00:00:00.000Z');
+      
+      if (isNaN(joiningDate.getTime())) {
+        throw new BadRequestException('Invalid joiningDate. Expected format: YYYY-MM-DD');
+      }
+
+      let moveOutDateObj: Date | null = null;
+      if (dto.moveoutDate) {
+        moveOutDateObj = new Date(dto.moveoutDate);
+        if (isNaN(moveOutDateObj.getTime())) {
+          throw new BadRequestException('Invalid moveoutDate');
+        }
       }
 
       //   ** check user already exists or not
@@ -75,8 +94,8 @@ export class RoomService {
             RentalType: dto.rentalType,
             lockInPeriodsInMonths: dto.lockinPeriodMonths,
             noticePeriodInDays: dto.noticePeriodInDays,
-            JoiningDate: dto.joiningDate,
-            moveOutDate: dto.moveoutDate,
+            JoiningDate: joiningDate,
+            moveOutDate: moveOutDateObj,
             agreementPeriodinMonths: dto.agreementPeriodMonths,
           },
         });
@@ -94,14 +113,13 @@ export class RoomService {
             RentalType: dto.rentalType,
             lockInPeriodsInMonths: dto.lockinPeriodMonths,
             noticePeriodInDays: dto.noticePeriodInDays,
-            JoiningDate: dto.joiningDate,
-            moveOutDate: dto.moveoutDate,
+            JoiningDate: joiningDate,
+            moveOutDate: moveOutDateObj,
             agreementPeriodinMonths: dto.agreementPeriodMonths,
           },
         });
       }
 
-      //   ** create tenancy
       await tx.tenancy.create({
         data: {
           tenentId: tenent.id,
@@ -111,13 +129,13 @@ export class RoomService {
           securityDeposit: dto.securityDeposit,
           lockInPeriodsInMonths: dto.lockinPeriodMonths,
           noticePeriodInDays: dto.noticePeriodInDays,
-          joinedAt: dto.joiningDate,
+          joinedAt: joiningDate,
           initialElectricityReading: dto.roomElectricityReading,
           status: TenantStatus.ACTIVE,
         },
       });
 
-      //   ** update the occupied beds in room
+   
       await tx.room.update({
         where: { id: roomId },
         data: {
@@ -129,7 +147,7 @@ export class RoomService {
 
   async addTenant(roomId: number, dto: AddTenantDto) {
     return this.prisma.$transaction(async (tx) => {
-      // 1. validation checks
+  
       const room = await tx.room.findUnique({ where: { id: roomId } });
       if (!room) throw new NotFoundException('Room not found');
       if (room.propertyId != dto.propertyId)
@@ -138,6 +156,25 @@ export class RoomService {
         );
       if (room.occupiedBeds >= room.totalBeds)
         throw new BadRequestException('No vacant bed available in this room');
+
+      if (!dto.joiningDate || typeof dto.joiningDate !== 'string') {
+        throw new BadRequestException('joiningDate is required');
+      }
+
+      
+      const joiningDate = new Date(dto.joiningDate + 'T00:00:00.000Z');
+      
+      if (isNaN(joiningDate.getTime())) {
+        throw new BadRequestException('Invalid joiningDate. Expected format: YYYY-MM-DD');
+      }
+
+      let moveOutDateObj: Date | null = null;
+      if (dto.moveoutDate) {
+        moveOutDateObj = new Date(dto.moveoutDate);
+        if (isNaN(moveOutDateObj.getTime())) {
+          throw new BadRequestException('Invalid moveoutDate');
+        }
+      }
 
       //  2. user check validation
       const existingUser = await tx.user.findFirst({
@@ -187,11 +224,12 @@ export class RoomService {
           profession: dto.profession,
           pinCode: dto.pinCode,
           state: dto.state,
+          Address: dto.address,
           RentalType: dto.rentalType,
           lockInPeriodsInMonths: dto.lockinPeriodMonths,
           noticePeriodInDays: dto.noticePeriodInDays,
-          JoiningDate: dto.joiningDate,
-          moveOutDate: dto.moveoutDate,
+          JoiningDate: joiningDate,
+          moveOutDate: moveOutDateObj,
           agreementPeriodinMonths: dto.agreementPeriodMonths,
         },
         create: {
@@ -200,12 +238,13 @@ export class RoomService {
           profession: dto.profession,
           pinCode: dto.pinCode,
           state: dto.state,
+          Address: dto.address,
           profileImage: '',
           RentalType: dto.rentalType,
           lockInPeriodsInMonths: dto.lockinPeriodMonths,
           noticePeriodInDays: dto.noticePeriodInDays,
-          JoiningDate: dto.joiningDate,
-          moveOutDate: dto.moveoutDate,
+          JoiningDate: joiningDate,
+          moveOutDate: moveOutDateObj,
           agreementPeriodinMonths: dto.agreementPeriodMonths,
         },
       });
@@ -222,7 +261,7 @@ export class RoomService {
             securityDeposit: dto.securityDeposit,
             noticePeriodInDays: dto.noticePeriodInDays,
             initialElectricityReading: dto.roomElectricityReading,
-            joinedAt: dto.joiningDate,
+            joinedAt: joiningDate,
             lockInPeriodsInMonths: dto.lockinPeriodMonths,
           },
           select: { id: true },
