@@ -3,11 +3,14 @@ import {
   Body,
   Get,
   Post,
+  Put,
   UseGuards,
+  Param,
   UnauthorizedException,
   ForbiddenException,
   UseInterceptors,
   UploadedFiles,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ComplaintService } from './complaint.service';
 import { CreateComplaintDto } from './dto/create-.complaint-by-tenent.dto';
@@ -19,6 +22,8 @@ import { Role } from 'src/common/enum/role.enum';
 import { UserRole } from '@prisma/client';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ComplaintCreateByOwnerDto } from './dto/create.complaint-by-owner.dto';
+import { ChnageComplaintStatus } from './dto/change.status.dto';
+import { assignMaintenanceStaffDto } from './dto/assign-staff.dto';
 
 @Controller('complaint')
 export class ComplaintController {
@@ -56,10 +61,43 @@ export class ComplaintController {
     );
   }
 
+
+  @Get(':complaintId')
+  @Roles(Role.PROPERTY_OWNER,Role.TENANT)
+  @UseGuards(JwtAuthGuard,RolesGuard)
+  async getComplaintById(@Param('complaintId', ParseIntPipe) complaintId:number){
+    return this.complaintService.getComplaintById(complaintId)
+  }
+
   @Get('')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getAllComplaints() {
     return this.complaintService.getAllComplaints();
+  }
+
+  @Put('status')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard,RolesGuard)
+  async changeStatus(@Body() dto:ChnageComplaintStatus){
+     return this.complaintService.changeStatus(dto.status,dto.complaintId)
+  }
+
+   
+  @Put('assign-staff')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard,RolesGuard)
+  async assignMaintenanceStaff(@Body() dto:assignMaintenanceStaffDto){
+     return this.complaintService.assignMaintenanceStaff(dto.complaintId,dto.staffProfileId)
+  }
+
+  
+  @Get('/raisedby/tenant')
+  @Roles(Role.TENANT)
+  @UseGuards(JwtAuthGuard,RolesGuard)
+  async fetchAllComplaintsByTenant(@GetUser()  user:any){
+      const tenantId = user.userId;
+      if(!tenantId) throw new UnauthorizedException();
+      return this.complaintService.fetchAllComplaintsCreatedByTenant(tenantId)
   }
 }

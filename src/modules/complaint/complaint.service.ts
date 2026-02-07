@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { ComplaintCreateByOwnerDto } from './dto/create.complaint-by-owner.dto';
@@ -14,6 +15,8 @@ import {
 } from '@prisma/client';
 import { CreateComplaintDto } from './dto/create-.complaint-by-tenent.dto';
 import { S3Service } from 'src/infra/s3/s3.service';
+import { error } from 'console';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ComplaintService {
@@ -171,6 +174,7 @@ export class ComplaintService {
   async getAllComplaints() {
     const complaints = await this.prisma.complaint.findMany({
       select: {
+        id: true,
         title: true,
         description: true,
         status: true,
@@ -203,5 +207,93 @@ export class ComplaintService {
       },
     });
     return complaints;
+  }
+
+  async getComplaintById(complaintId: number) {
+    const complaint = await this.prisma.complaint.findUnique({
+      where: { id: complaintId },
+      select: {
+        title: true,
+        description: true,
+        raisedBy: { select: { fullName: true } },
+        status: true,
+        property: { select: { name: true, id: true } },
+        requestedVisitDate: true,
+        requestedVisitTime: true,
+        priority: true,
+        roomNumber: true,
+        assignedMaintenanceStaffProfile: {
+          select: { user: { select: { fullName: true } } },
+        },
+        logs: true,
+        images: true,
+      },
+    });
+    if (!complaint) {
+      throw new NotFoundException('complaint not found');
+    }
+    return complaint;
+  }
+
+  async assignMaintenanceStaff(complaintId: number, staffProfileId: number) {
+    const complaint = await this.prisma.complaint.findUnique({
+      where: { id: complaintId },
+    });
+    const staff = await this.prisma.maintenanceStaffProfile.findUnique({
+      where: { id: staffProfileId },
+    });
+    if (!staff) throw new NotFoundException('staff not found');
+    if (!complaint) throw new NotFoundException();
+    await this.prisma.complaint.update({
+      where: { id: complaintId },
+      data: {
+        assignedMaintenanceStaffProfileId: staffProfileId,
+        status: ComplaintStatus.ASSIGNED,
+      },
+    });
+    // **TODO add notification here to send this event to the staff whatsapp
+    return {
+      message: 'staff assigned sucessfully',
+    };
+  }
+
+  async changeStatus(
+    userRequestedStatus: ComplaintStatus,
+    complaintId: number,
+  ) {
+    try {
+      return await this.prisma.complaint.update({
+        where: { id: complaintId },
+        data: { status: userRequestedStatus },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('Complaint not found');
+      }
+      throw error;
+    }
+  }
+
+  async fetchComplaintByStatus(userRequestedStatus: ComplaintStatus) {
+    return await this.prisma.complaint.findMany({
+      where: { status: userRequestedStatus },
+    });
+  }
+
+  async fetchAllComplaintsCreatedByTenant(tenantId: number) {
+    const exists = await this.prisma.user.findUnique({
+      where: { id: tenantId },
+      select: { id: true },
+    });
+    if (!exists) throw new NotFoundException('tenant not found');
+    const result = await this.prisma.complaint.findMany({
+      where: {
+        raisedById:tenantId
+      },
+    });
+    return result;
   }
 }
