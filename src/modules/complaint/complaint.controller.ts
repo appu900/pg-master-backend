@@ -24,6 +24,7 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ComplaintCreateByOwnerDto } from './dto/create.complaint-by-owner.dto';
 import { ChnageComplaintStatus } from './dto/change.status.dto';
 import { assignMaintenanceStaffDto } from './dto/assign-staff.dto';
+import { AddLogsDto } from './dto/addLogs.dto';
 
 @Controller('complaint')
 export class ComplaintController {
@@ -61,43 +62,55 @@ export class ComplaintController {
     );
   }
 
-
   @Get(':complaintId')
-  @Roles(Role.PROPERTY_OWNER,Role.TENANT)
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  async getComplaintById(@Param('complaintId', ParseIntPipe) complaintId:number){
-    return this.complaintService.getComplaintById(complaintId)
+  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getComplaintById(
+    @Param('complaintId', ParseIntPipe) complaintId: number,
+  ) {
+    return this.complaintService.getComplaintById(complaintId);
   }
 
-  @Get('')
+  @Get('/property/:propertyId')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getAllComplaints() {
-    return this.complaintService.getAllComplaints();
+  async getAllComplaints(@Param('propertyId',ParseIntPipe) propertyId:number) {
+    return this.complaintService.getAllComplaints(propertyId);
   }
 
   @Put('status')
   @Roles(Role.PROPERTY_OWNER)
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  async changeStatus(@Body() dto:ChnageComplaintStatus){
-     return this.complaintService.changeStatus(dto.status,dto.complaintId)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async changeStatus(@Body() dto: ChnageComplaintStatus) {
+    return this.complaintService.changeStatus(dto.status, dto.complaintId);
   }
 
-   
   @Put('assign-staff')
   @Roles(Role.PROPERTY_OWNER)
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  async assignMaintenanceStaff(@Body() dto:assignMaintenanceStaffDto){
-     return this.complaintService.assignMaintenanceStaff(dto.complaintId,dto.staffProfileId)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async assignMaintenanceStaff(@Body() dto: assignMaintenanceStaffDto) {
+    return this.complaintService.assignMaintenanceStaff(
+      dto.complaintId,
+      dto.staffProfileId,
+    );
   }
 
-  
   @Get('/raisedby/tenant')
   @Roles(Role.TENANT)
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  async fetchAllComplaintsByTenant(@GetUser()  user:any){
-      const tenantId = user.userId;
-      if(!tenantId) throw new UnauthorizedException();
-      return this.complaintService.fetchAllComplaintsCreatedByTenant(tenantId)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async fetchAllComplaintsByTenant(@GetUser() user: any) {
+    const tenantId = user.userId;
+    if (!tenantId) throw new UnauthorizedException();
+    return this.complaintService.fetchAllComplaintsCreatedByTenant(tenantId);
   }
+
+
+
+  @Post('/log/:complaintId')
+  @Roles(Role.PROPERTY_OWNER,Role.TENANT)
+  @UseGuards(JwtAuthGuard,RolesGuard)
+  async addLogs(@Body() dto:AddLogsDto,@Param('complaintId', ParseIntPipe) compaintId:number){
+      return this.complaintService.addLogs(compaintId,dto)
+  }
+
 }

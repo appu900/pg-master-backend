@@ -17,6 +17,7 @@ import { CreateComplaintDto } from './dto/create-.complaint-by-tenent.dto';
 import { S3Service } from 'src/infra/s3/s3.service';
 import { error } from 'console';
 import { Prisma } from '@prisma/client';
+import { AddLogsDto } from './dto/addLogs.dto';
 
 @Injectable()
 export class ComplaintService {
@@ -171,8 +172,9 @@ export class ComplaintService {
     };
   }
 
-  async getAllComplaints() {
+  async getAllComplaints(propertyId:number) {
     const complaints = await this.prisma.complaint.findMany({
+      where:{propertyId},
       select: {
         id: true,
         title: true,
@@ -291,7 +293,38 @@ export class ComplaintService {
     if (!exists) throw new NotFoundException('tenant not found');
     const result = await this.prisma.complaint.findMany({
       where: {
-        raisedById:tenantId
+        raisedById: tenantId,
+      },
+      select: {
+        title: true,
+        description: true,
+        status: true,
+        images: true,
+        logs: true,
+        requestedVisitDate: true,
+        requestedVisitTime: true,
+        priority: true,
+        assignedMaintenanceStaffProfile: {
+          select: {
+            whatsAppNumber: true,
+            phoneNumber: true,
+            user: { select: { fullName: true } },
+          },
+        },
+      },
+    });
+    return result;
+  }
+
+  async addLogs(complaintId: number, log: AddLogsDto) {
+    const exists = await this.prisma.complaint.findUnique({
+      where: { id: complaintId },
+    });
+    if (!exists) throw new NotFoundException('complaint not found');
+    const result = await this.prisma.complaintActivityLog.create({
+      data: {
+        title: log.title,
+        complaintId: complaintId,
       },
     });
     return result;

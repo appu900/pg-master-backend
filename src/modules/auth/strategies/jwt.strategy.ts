@@ -11,7 +11,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (!jwtSecret) {
       throw new Error('JWT_SECRET is not configured in environment variables');
     }
-    
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
