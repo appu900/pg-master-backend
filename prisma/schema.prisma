@@ -22,6 +22,7 @@ model User {
   complaints              Complaint[]              @relation("ComplaintRaisedBy")
   employeeBooks           EmployeeBook[]
   maintenanceStaffProfile MaintenanceStaffProfile?
+  adminProfile            AdminProfile?
   property                Property[]
   propertyOwnerProfile    PropertyOwnerProfile?
   tenancy                 Tenancy?
@@ -31,19 +32,29 @@ model User {
   @@index([role])
 }
 
-model PropertyOwnerProfile {
-  id           Int                  @id @default(autoincrement())
-  userId       Int                  @unique
-  Gender       String?
-  Profession   String?
-  pinCode      String
-  State        String?
-  BusinessName String?
-  BusinessType String?
+model AdminProfile {
+  id           Int     @id @default(autoincrement())
+  userId       Int     @unique
+  user         User    @relation(fields: [userId], references: [id])
   profileImage String?
-  BankAcconts  BankAccountDetails[]
-  user         User                 @relation(fields: [userId], references: [id])
-  
+  createdBy    String?
+}
+
+model PropertyOwnerProfile {
+  id                    Int                  @id @default(autoincrement())
+  userId                Int                  @unique
+  Gender                String?
+  Profession            String?
+  pinCode               String
+  State                 String?
+  BusinessName          String?
+  BusinessType          String?
+  profileImage          String?
+  BusinessProfileStatus Boolean              @default(false)
+  BankAcconts           BankAccountDetails[]
+  user                  User                 @relation(fields: [userId], references: [id])
+  businessDetails       BusinessDetails[]
+
   @@index([pinCode])
   @@index([userId])
 }
@@ -74,6 +85,27 @@ model BankAccountDetails {
   id                     Int                  @id @default(autoincrement())
   propertyOwnerProfileId Int
   profile                PropertyOwnerProfile @relation(fields: [propertyOwnerProfileId], references: [id])
+}
+
+model BusinessDetails {
+  id                     Int                    @id @default(autoincrement())
+  businessName           String
+  businessType           BusinessType
+  status                 BusinessApprovalStatus
+  propertyOwnerProfileId Int                    @unique
+
+  aadhaarCard     String
+  panCard         String
+  companyDocument String?
+  rejectionReason String? @db.Text
+
+  propertyOwnerProfile PropertyOwnerProfile @relation(fields: [propertyOwnerProfileId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([propertyOwnerProfileId])
 }
 
 model Property {
@@ -108,7 +140,7 @@ model Room {
   property         Property        @relation(fields: [propertyId], references: [id])
   images           RoomImages[]
   tenants          Tenancy[]
-  
+
   @@index([propertyId])
   @@index([sharingType])
   @@index([propertyId, floorNumber])
@@ -119,7 +151,7 @@ model RoomImages {
   roomId Int
   url    String
   room   Room   @relation(fields: [roomId], references: [id])
-  
+
   @@index([roomId])
 }
 
@@ -167,7 +199,7 @@ model MaintenanceStaffProfile {
   employeeBooks                    EmployeeBook?
   user                             User                             @relation(fields: [userId], references: [id])
   maintenanceStaffPropertyAccesses MaintenanceStaffPropertyAccess[]
-  
+
   @@index([userId])
   @@index([staffType])
   @@index([isActive])
@@ -181,7 +213,7 @@ model MaintenanceStaffPropertyAccess {
   updatedAt      DateTime                @updatedAt
   property       Property                @relation(fields: [propertyId], references: [id])
   staffProfile   MaintenanceStaffProfile @relation(fields: [staffProfileId], references: [id])
-  
+
   @@index([propertyId])
   @@index([staffProfileId])
   @@index([propertyId, staffProfileId])
@@ -195,7 +227,7 @@ model EmployeeBook {
   updatedAt         DateTime                @updatedAt
   employeeProfile   MaintenanceStaffProfile @relation(fields: [employeeProfileId], references: [id])
   owner             User                    @relation(fields: [ownerId], references: [id])
-  
+
   @@index([ownerId])
   @@index([employeeProfileId])
   @@index([ownerId, employeeProfileId])
@@ -301,6 +333,27 @@ enum MaintenanceJobPosition {
   SUPERVISOR
   ACCOUNTANT
   OPERATIONS_HEAD
+}
+
+enum BusinessType {
+  INDIVIDUAL
+  PROPRIETORSHIP
+  PARTNERSHIP
+  PRIVATE_LIMITED
+  LLP
+  OTHER
+}
+
+enum BusinessDetailsStatus {
+  APPROVED
+  REJECTED
+  PENDING
+}
+
+enum BusinessApprovalStatus {
+  APPROVED
+  REJECTED
+  PENDING
 }
 
 enum PropertyAccessScope {

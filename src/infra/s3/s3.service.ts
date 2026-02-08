@@ -47,7 +47,7 @@ export class S3Service {
           Key: key,
         }),
       );
-    } catch (error) {
+    } catch (error:any) {
       this.logger.error(`Failed to delete file from S3: ${error.message}`);
       throw error;
     }

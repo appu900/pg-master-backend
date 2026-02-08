@@ -14,6 +14,7 @@ import { RoomModule } from './modules/room/room.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { TenentModule } from './modules/tenent/tenent.module';
 import { UserModule } from './modules/user/user.module';
+import { PropertyownerModule } from './modules/propertyowner/propertyowner.module';
 
 
 @Module({
@@ -34,6 +35,7 @@ import { UserModule } from './modules/user/user.module';
     RoomModule,
     StaffModule,
     ComplaintModule,
+    PropertyownerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

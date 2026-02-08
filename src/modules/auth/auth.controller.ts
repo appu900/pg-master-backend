@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { CreatePropertyOwnerDto } from './dto/create.Property-owner.dto';
 import { OtpLoginDto } from './dto/auth.otp.login.dto';
 import { SendOtpDto } from './dto/send.otp.dto';
+import { CreateAdminDto } from './dto/create-admin.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -11,6 +12,12 @@ export class AuthController {
   @Post('/property-owner/register')
   async createPropertyOwner(@Body() dto: CreatePropertyOwnerDto) {
     return this.authService.createPropertyOwner(dto);
+  }
+
+
+  @Post('/admin')
+  async createAdmin(@Body() dto:CreateAdminDto){
+     return this.authService.createAdmin(dto);
   }
 
   @Post('send-otp')

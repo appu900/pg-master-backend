@@ -1,18 +1,23 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { User } from '@prisma/client';
+import { User, UserRole } from '@prisma/client';
 import { OtpService } from 'src/infra/notification/OTP/otp.service';
 import { UserService } from '../user/user.service';
 import { OtpLoginDto } from './dto/auth.otp.login.dto';
 import { CreatePropertyOwnerDto } from './dto/create.Property-owner.dto';
+import { CreateAdminDto } from './dto/create-admin.dto';
+import { IsPhoneNumber } from 'class-validator';
+import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
   constructor(
+    private readonly prisma:PrismaService,
     private readonly userService: UserService,
     private readonly otpService: OtpService,
     private readonly jwtService: JwtService,
@@ -39,6 +44,17 @@ export class AuthService {
     }
   }
 
+  async createAdmin(dto:CreateAdminDto){
+     const exists = await this.userService.findUserExists(dto.phoneNumber,dto.email)
+     if(exists) throw new ConflictException("User already exits")
+     const res = await this.userService.createAdmin(dto);
+     await this.otpService.sendOtp(res.phoneNumber)
+     return{
+      message:"admin created plaese verify the otp",
+      phoneNumber:res.phoneNumber
+     }
+  }
+
   async sendOtp(phoneNumber: string) {
     const user = await this.userService.findUserByPhoneNumber(phoneNumber);
     
@@ -61,6 +77,8 @@ export class AuthService {
       isBlockedByAdmin: false,
     };
   }
+
+
 
   async login(dto: OtpLoginDto) {
     try {
@@ -86,7 +104,8 @@ export class AuthService {
       
       // Generate token
       const token = await this.generateToken(user);
-      
+      let profileDetails;
+
       return {
         message: 'Login successful',
         name: user.fullName,

@@ -279,9 +279,9 @@ export class ComplaintService {
     }
   }
 
-  async fetchComplaintByStatus(userRequestedStatus: ComplaintStatus) {
+  async fetchComplaintByStatus(userRequestedStatus: ComplaintStatus,propertyId:number) {
     return await this.prisma.complaint.findMany({
-      where: { status: userRequestedStatus },
+      where: { status: userRequestedStatus,propertyId:propertyId },
     });
   }
 
