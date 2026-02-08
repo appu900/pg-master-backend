@@ -1,8 +1,8 @@
 import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
+    BadRequestException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
 } from '@nestjs/common';
 import { TenantStatus, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
@@ -45,18 +45,55 @@ export class RoomService {
         }
       }
 
-      //   ** check user already exists or not
-      let tenent = await tx.user.findFirst({
-        where: {
-          OR: [{ phoneNumber: dto.phoneNumber }, { email: dto.email }],
+      //   ** check user already exists or not - check phone and email separately for better errors
+      const userByPhone = await tx.user.findFirst({
+        where: { phoneNumber: dto.phoneNumber },
+        select: {
+          id: true,
+          role: true,
+          email: true,
         },
       });
 
+      const userByEmail = await tx.user.findFirst({
+        where: { email: dto.email },
+        select: {
+          id: true,
+          role: true,
+          phoneNumber: true,
+        },
+      });
+
+      // Check if phone number is already used by a different account
+      if (userByPhone && userByEmail && userByPhone.id !== userByEmail.id) {
+        throw new BadRequestException(
+          `Phone number is registered with ${userByPhone.email} and email is registered with ${userByEmail.phoneNumber}. Please use matching credentials.`,
+        );
+      }
+
+      const tenent = userByPhone || userByEmail;
+
       //** if exsist check tenent  already has an active tenancy or not */
       if (tenent) {
+        // Provide specific error messages based on role
         if (tenent.role !== UserRole.TENANT) {
-          throw new BadRequestException('User is not registered as tenant');
+          if (tenent.role === UserRole.PROPERTY_OWNER) {
+            if (userByPhone && userByPhone.id === tenent.id) {
+              throw new BadRequestException(
+                `Phone number ${dto.phoneNumber} is already registered as a Property Owner. Please use a different phone number.`,
+              );
+            }
+            if (userByEmail && userByEmail.id === tenent.id) {
+              throw new BadRequestException(
+                `Email ${dto.email} is already registered as a Property Owner. Please use a different email.`,
+              );
+            }
+          }
+          throw new BadRequestException(
+            `This phone number or email is already registered as ${tenent.role}. Please use different credentials.`,
+          );
         }
+        
         const existingTenancy = await tx.tenancy.findFirst({
           where: {
             tenentId: tenent.id,
@@ -65,11 +102,15 @@ export class RoomService {
           },
         });
         if (existingTenancy) {
-          throw new ConflictException('User already has an active tenancy');
+          throw new ConflictException('This tenant already has an active tenancy in another property');
         }
-      } else {
+      }
+
+      // Create new tenant user if doesn't exist
+      let finalTenant = tenent;
+      if (!finalTenant) {
         //** if not exsist create new user as tenent */
-        tenent = await tx.user.create({
+        finalTenant = await tx.user.create({
           data: {
             email: dto.email,
             phoneNumber: dto.phoneNumber,
@@ -80,12 +121,12 @@ export class RoomService {
       }
       //   ** create tenent profile or update
       const existingProfile = await tx.tenentProfile.findUnique({
-        where: { userId: tenent.id },
+        where: { userId: finalTenant.id },
       });
       if (!existingProfile) {
         await tx.tenentProfile.create({
           data: {
-            userId: tenent.id,
+            userId: finalTenant.id,
             geneder: dto.gender,
             profession: dto.profession,
             pinCode: dto.pinCode,
@@ -102,7 +143,7 @@ export class RoomService {
       } else {
         await tx.tenentProfile.update({
           where: {
-            userId: tenent.id,
+            userId: finalTenant.id,
           },
           data: {
             geneder: dto.gender,
@@ -122,7 +163,7 @@ export class RoomService {
 
       await tx.tenancy.create({
         data: {
-          tenentId: tenent.id,
+          tenentId: finalTenant.id,
           propertyId: dto.propertyId,
           roomId: roomId,
           rentAmount: dto.rentPrice,
@@ -176,12 +217,13 @@ export class RoomService {
         }
       }
 
-      //  2. user check validation
-      const existingUser = await tx.user.findFirst({
-        where: { OR: [{ email: dto.email }, { phoneNumber: dto.phoneNumber }] },
+      //  2. user check validation - check phone and email separately for better error messages
+      const userByPhone = await tx.user.findFirst({
+        where: { phoneNumber: dto.phoneNumber },
         select: {
           id: true,
           role: true,
+          email: true,
           tenancy: {
             where: {
               status: TenantStatus.ACTIVE,
@@ -192,14 +234,55 @@ export class RoomService {
         },
       });
 
+      const userByEmail = await tx.user.findFirst({
+        where: { email: dto.email },
+        select: {
+          id: true,
+          role: true,
+          phoneNumber: true,
+          tenancy: {
+            where: {
+              status: TenantStatus.ACTIVE,
+              deletedAt: null,
+            },
+            select: { id: true },
+          },
+        },
+      });
+
+      // Check if phone number is already used by a different account
+      if (userByPhone && userByEmail && userByPhone.id !== userByEmail.id) {
+        throw new BadRequestException(
+          `Phone number is registered with ${userByPhone.email} and email is registered with ${userByEmail.phoneNumber}. Please use matching credentials.`,
+        );
+      }
+
+      const existingUser = userByPhone || userByEmail;
+
       let tenant;
 
       if (existingUser) {
+        // Provide specific error messages based on role
         if (existingUser.role !== UserRole.TENANT) {
-          throw new BadRequestException('User is not registered as tenant');
+          if (existingUser.role === UserRole.PROPERTY_OWNER) {
+            if (userByPhone && userByPhone.id === existingUser.id) {
+              throw new BadRequestException(
+                `Phone number ${dto.phoneNumber} is already registered as a Property Owner. Please use a different phone number.`,
+              );
+            }
+            if (userByEmail && userByEmail.id === existingUser.id) {
+              throw new BadRequestException(
+                `Email ${dto.email} is already registered as a Property Owner. Please use a different email.`,
+              );
+            }
+          }
+          throw new BadRequestException(
+            `This phone number or email is already registered as ${existingUser.role}. Please use different credentials.`,
+          );
         }
+        
         if (existingUser.tenancy) {
-          throw new ConflictException('User already has an active tenancy');
+          throw new ConflictException('This tenant already has an active tenancy in another property');
         }
 
         tenant = existingUser;
