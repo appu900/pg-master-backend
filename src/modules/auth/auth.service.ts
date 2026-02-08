@@ -104,7 +104,7 @@ export class AuthService {
       
       // Generate token
       const token = await this.generateToken(user);
-      let profileDetails;
+     
 
       return {
         message: 'Login successful',

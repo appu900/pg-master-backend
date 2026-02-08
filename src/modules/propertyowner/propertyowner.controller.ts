@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Post,
   UploadedFiles,
   UseGuards,
@@ -18,6 +19,7 @@ import {
 } from '@nestjs/platform-express';
 import { AddBusinessDetails } from './dto/AddBusiness-details.dto';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
+import { throttlerMessage } from '@nestjs/throttler';
 
 @Controller('propertyowner')
 export class PropertyownerController {
@@ -60,15 +62,27 @@ export class PropertyownerController {
       pan?: Express.Multer.File[];
       companyDocument?: Express.Multer.File[];
     },
-    @GetUser() user:any
+    @GetUser() user: any,
   ) {
-     const propertyOwnerId = user.userId;
-     if(!propertyOwnerId) throw new BadRequestException('Invalid user')
-      const uploadedFiles: Express.Multer.File[] = [
+    const propertyOwnerId = user.userId;
+    if (!propertyOwnerId) throw new BadRequestException('Invalid user');
+    const uploadedFiles: Express.Multer.File[] = [
       ...(files.aadhaar ?? []),
       ...(files.pan ?? []),
       ...(files.companyDocument ?? []),
     ];
-    return this.serviceLayer.addBusinessDetails(propertyOwnerId,dto,uploadedFiles)
+    return this.serviceLayer.addBusinessDetails(
+      propertyOwnerId,
+      dto,
+      uploadedFiles,
+    );
+  }
+
+  @Get('/profile')
+  @UseGuards(JwtAuthGuard)
+  async fetchProfile(@GetUser() user: any) {
+    const userId = user.userId;
+    if (!userId) throw new BadRequestException('Invalid user');
+    return this.serviceLayer.fetchProfileDetails(userId);
   }
 }

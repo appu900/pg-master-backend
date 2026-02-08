@@ -17,6 +17,16 @@ export class PropertyownerService {
     private readonly s3Service: S3Service,
   ) {}
 
+
+
+  async fetchProfileDetails(onwerId:number){
+    return this.prisma.propertyOwnerProfile.findFirst({
+        where:{userId:onwerId},
+        include:{
+            businessDetails:true
+        }
+    })
+  }
   async addBusinessDetails(
     propertyOwnerId: number,
     dto: AddBusinessDetails,
