@@ -1,21 +1,22 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsEmail,
-  IsPhoneNumber,
-  IsNumber,
-  IsInt,
-  Min,
-  Max,
-  IsDate,
-  IsEnum,
-} from 'class-validator';
 import { Type } from 'class-transformer';
+import {
+  IsEmail,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsPhoneNumber,
+  IsString,
+  Max,
+  Min
+} from 'class-validator';
 
 enum RentalType {
   MONTHLY = 'MONTHLY',
   DAILY = 'DAILY',
+  PER_BED = 'PER_BED',
+  FULL_ROOM = 'FULL_ROOM',
 }
 
 export class AddTenantDto {
@@ -63,14 +64,13 @@ export class AddTenantDto {
   @IsNotEmpty()
   roomNo: string;
 
-  @Type(() => Date)
-  @IsDate()
-  joiningDate: Date;
+  @IsNotEmpty()
+  @IsString()
+  joiningDate: string;
 
-
-  @Type(() => Date)
-  @IsDate()
-  moveoutDate: Date;
+  @IsOptional()
+  @IsString()
+  moveoutDate?: string;
 
   @Type(() => Number)
   @IsInt()

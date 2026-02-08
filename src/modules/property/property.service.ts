@@ -266,6 +266,19 @@ export class PropertyService {
         images: true,
         property: {
           select: { ownerId: true }
+        },
+        tenants: {
+          where: {
+            status: 'ACTIVE',
+            deletedAt: null
+          },
+          include: {
+            tenent: {
+              include: {
+                tenentProfile: true
+              }
+            }
+          }
         }
       },
     });
