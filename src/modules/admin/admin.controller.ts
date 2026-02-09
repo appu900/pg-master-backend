@@ -47,4 +47,7 @@ export class AdminController {
     if (!businessId) throw new BadRequestException('business Id is required');
     return this.adminService.rejectBusiness(businessId);
   }
+
+
+  
 }
