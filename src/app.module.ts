@@ -15,6 +15,7 @@ import { StaffModule } from './modules/staff/staff.module';
 import { TenentModule } from './modules/tenent/tenent.module';
 import { UserModule } from './modules/user/user.module';
 import { PropertyownerModule } from './modules/propertyowner/propertyowner.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 
 @Module({
@@ -36,6 +37,7 @@ import { PropertyownerModule } from './modules/propertyowner/propertyowner.modul
     StaffModule,
     ComplaintModule,
     PropertyownerModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],
