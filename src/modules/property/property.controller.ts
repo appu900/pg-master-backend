@@ -58,6 +58,7 @@ export class PropertyController {
     @GetUser() user:any
   ) {
     const userId = user.userId;
+    console.log("userId",userId)
     if(!userId) throw new BadRequestException('User ID not found');
     
     return this.propertyService.addRooms(Number(userId),propertyId, dto, images);
