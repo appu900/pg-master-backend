@@ -2,6 +2,8 @@ import {
   Controller,
   Body,
   Post,
+  Get,
+  Put,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
@@ -36,5 +38,22 @@ export class BanksController {
     const userId = user.userId;
     if (!userId) throw new UnauthorizedException();
     return this.bankService.addUpiId(userId, dto);
+  }
+
+  @Get('/propertyowner')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async fetchAllBankAccounts(@GetUser() user: any) {
+    const userId = user.userId;
+    if (!userId) throw new UnauthorizedException();
+    return this.bankService.fetchAllBankAccountsByPropertyOwner(userId);
+  }
+
+
+  @Put('/account/edit')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard,RolesGuard)
+  async editBankAccount(){
+
   }
 }

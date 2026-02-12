@@ -32,6 +32,7 @@ export class BanksService {
         phoneNumber: dto.phoneNumber,
         PayeeCategory: dto.payeeCategory as payeeCategory,
         AccountNumber: dto.accountNumber,
+        UPIId:dto.upiId ?? null,
         accountType: AccountDetailsType.BANKACCOUNT,
         IFSCcode: dto.IFSC_code,
       },
@@ -65,7 +66,30 @@ export class BanksService {
       },
     });
     return {
-        message:"UPI ACCOUnt added sucessfully"
+      message: 'UPI ACCOUnt added sucessfully',
+    };
+  }
+
+  async fetchAllBankAccountsByPropertyOwner(propertyOwnerId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: propertyOwnerId },
+      select: {
+        id: true,
+        propertyOwnerProfile: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+    if(!user) throw new NotFoundException("user not found")
+    const profileId = user.propertyOwnerProfile!.id
+    const res = await this.prisma.bankAccountDetails.findMany({
+        where:{propertyOwnerProfileId:profileId}
+    })
+    return {
+        message:"all accounts fetched sucessfully",
+        res
     }
   }
 }

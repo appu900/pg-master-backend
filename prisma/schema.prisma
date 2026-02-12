@@ -393,4 +393,5 @@ enum payeeCategory {
 enum AccountDetailsType {
   BANKACCOUNT
   UPI
+  BOTH
 }
