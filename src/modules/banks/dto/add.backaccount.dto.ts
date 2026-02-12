@@ -29,8 +29,8 @@ export class AddBankAccountDto {
   IFSC_code!: string;
 
   @IsString()
-  @IsNotEmpty()
-  upiId!: string;
+  @IsOptional()
+  upiId?: string;
 }
 
 export class AddUPIdetailsDto {
@@ -47,6 +47,6 @@ export class AddUPIdetailsDto {
   payeeCategory!: payeeCategory;
 
   @IsString()
-  @IsOptional()
-  UPIId?: string;
+  @IsNotEmpty()
+  UPIId!: string;
 }
