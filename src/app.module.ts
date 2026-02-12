@@ -16,6 +16,7 @@ import { TenentModule } from './modules/tenent/tenent.module';
 import { UserModule } from './modules/user/user.module';
 import { PropertyownerModule } from './modules/propertyowner/propertyowner.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { BanksModule } from './modules/banks/banks.module';
 
 
 @Module({
@@ -38,6 +39,7 @@ import { AdminModule } from './modules/admin/admin.module';
     ComplaintModule,
     PropertyownerModule,
     AdminModule,
+    BanksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
