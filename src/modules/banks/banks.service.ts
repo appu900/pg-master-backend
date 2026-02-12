@@ -1,17 +1,18 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotAcceptableException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { AddBankAccountDto, AddUPIdetailsDto } from './dto/add.backaccount.dto';
-import { AccountDetailsType, payeeCategory } from '@prisma/client';
+import { AccountDetailsType, payeeCategory, Prisma } from '@prisma/client';
+import { UpdateBankAccountDto } from './dto/update.bankaccount.dto';
 
 @Injectable()
 export class BanksService {
   constructor(private readonly prisma: PrismaService) {}
-
   async addBankAccount(propertyOwnerId: number, dto: AddBankAccountDto) {
     const user = await this.prisma.user.findUnique({
       where: { id: propertyOwnerId },
@@ -32,7 +33,7 @@ export class BanksService {
         phoneNumber: dto.phoneNumber,
         PayeeCategory: dto.payeeCategory as payeeCategory,
         AccountNumber: dto.accountNumber,
-        UPIId:dto.upiId ?? null,
+        UPIId: dto.upiId ?? null,
         accountType: AccountDetailsType.BANKACCOUNT,
         IFSCcode: dto.IFSC_code,
       },
@@ -82,14 +83,64 @@ export class BanksService {
         },
       },
     });
-    if(!user) throw new NotFoundException("user not found")
-    const profileId = user.propertyOwnerProfile!.id
+    if (!user) throw new NotFoundException('user not found');
+    const profileId = user.propertyOwnerProfile!.id;
     const res = await this.prisma.bankAccountDetails.findMany({
-        where:{propertyOwnerProfileId:profileId}
-    })
+      where: { propertyOwnerProfileId: profileId },
+    });
     return {
-        message:"all accounts fetched sucessfully",
-        res
+      message: 'all accounts fetched sucessfully',
+      res,
+    };
+  }
+
+  async updateAccountDetails(
+    accountDetailsId: number,
+    propertyownerId: number,
+    dto: UpdateBankAccountDto,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: propertyownerId },
+      select: { propertyOwnerProfile: { select: { id: true } } },
+    });
+    if (!user || !user.propertyOwnerProfile) {
+      throw new ForbiddenException();
     }
+    const profileId = user.propertyOwnerProfile.id;
+    const accountDetails = await this.prisma.bankAccountDetails.findUnique({
+      where: { id: accountDetailsId, propertyOwnerProfileId: profileId },
+      select: { id: true, propertyOwnerProfileId: true },
+    });
+    if (!accountDetails) {
+      throw new BadRequestException('no account details found');
+    }
+
+    let updatedData: Prisma.BankAccountDetailsUpdateInput = {};
+    if (dto.accountHolderName)
+      updatedData.accountHolderName = dto.accountHolderName;
+    if (dto.AccountNumber) updatedData.AccountNumber = dto.AccountNumber;
+    if (dto.phoneNumber) updatedData.phoneNumber = dto.phoneNumber;
+    if (dto.PayeeCategory)
+      updatedData.PayeeCategory = dto.PayeeCategory as payeeCategory;
+    if (dto.UPIid) updatedData.UPIId = dto.UPIid;
+    if (dto.IFSCcode) updatedData.IFSCcode = dto.IFSCcode;
+
+    const res = await this.prisma.bankAccountDetails.update({
+      where: { id: accountDetailsId },
+      data: updatedData,
+    });
+
+    return {
+      message: 'Account details updated sucessfully',
+    };
+  }
+
+
+  async getAccountDetailsById(accountId:number){
+    const accountInformation = await this.prisma.bankAccountDetails.findUnique({
+        where:{id:accountId}
+    })
+    if(!accountInformation) throw new NotFoundException("account not found")
+    return accountInformation;
   }
 }

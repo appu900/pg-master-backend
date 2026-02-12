@@ -4,8 +4,11 @@ import {
   Post,
   Get,
   Put,
+  Param,
   UnauthorizedException,
   UseGuards,
+  ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { BanksService } from './banks.service';
 import { AddBankAccountDto, AddUPIdetailsDto } from './dto/add.backaccount.dto';
@@ -14,6 +17,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { UpdateBankAccountDto } from './dto/update.bankaccount.dto';
 
 @Controller('banks')
 export class BanksController {
@@ -50,10 +54,17 @@ export class BanksController {
   }
 
 
-  @Put('/account/edit')
+  @Put('/account/:accountId/update')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard,RolesGuard)
-  async editBankAccount(){
+  async editBankAccount(@Body() dto:UpdateBankAccountDto,@GetUser() user:any,@Param('accountId', ParseIntPipe) accountId:number){
+     const userId = user.userId;
+     if(!userId) throw new BadRequestException();
+     return this.bankService.updateAccountDetails(accountId,userId,dto)
+  }
 
+
+  async getAccountById(){
+    
   }
 }
