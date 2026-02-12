@@ -85,6 +85,19 @@ model BankAccountDetails {
   id                     Int                  @id @default(autoincrement())
   propertyOwnerProfileId Int
   profile                PropertyOwnerProfile @relation(fields: [propertyOwnerProfileId], references: [id])
+
+  accountHolderName String
+  phoneNumber       String
+  PayeeCategory     payeeCategory
+  AccountNumber     String?
+  IFSCcode          String?
+  UPIId             String?
+  accountType       AccountDetailsType?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([propertyOwnerProfileId])
 }
 
 model BusinessDetails {
@@ -277,6 +290,14 @@ model ComplaintPhoto {
   @@index([complaintId])
 }
 
+model Invoice {
+  id            Int      @id @default(autoincrement())
+  tenancyId     Int
+  invoiceNumber String   @unique
+  periodStart   DateTime @db.Date
+  periodEnd     DateTime @db.Date
+}
+
 enum TenantStatus {
   ACTIVE
   NOTICE_PERIOD
@@ -359,4 +380,17 @@ enum BusinessApprovalStatus {
 enum PropertyAccessScope {
   ALL_PROPERTIES
   SELECTIVE
+}
+
+enum payeeCategory {
+  OWNER
+  MANAGER
+  STAFF
+  EMPLOYEE
+  OTHER
+}
+
+enum AccountDetailsType {
+  BANKACCOUNT
+  UPI
 }
