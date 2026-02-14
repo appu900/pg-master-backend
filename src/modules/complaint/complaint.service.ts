@@ -215,6 +215,7 @@ export class ComplaintService {
     const complaint = await this.prisma.complaint.findUnique({
       where: { id: complaintId },
       select: {
+        id:true,
         title: true,
         description: true,
         raisedBy: { select: { fullName: true } },
