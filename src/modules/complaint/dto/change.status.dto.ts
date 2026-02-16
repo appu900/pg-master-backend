@@ -4,9 +4,12 @@ import { IsEnum, IsIn, IsInt, IsNotEmpty } from 'class-validator';
 export class ChnageComplaintStatus {
   @IsEnum(ComplaintStatus)
   @IsNotEmpty()
-  status: ComplaintStatus;
+  status!: ComplaintStatus;
 
   @IsInt()
   @IsNotEmpty()
-  complaintId: number;
+  complaintId!: number;
 }
+
+
+
