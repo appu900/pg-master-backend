@@ -1,8 +1,9 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
-import { CreatePropertyOwnerDto } from '../auth/dto/create.Property-owner.dto';
 import { CreateAdminDto } from '../auth/dto/create-admin.dto';
+import { CreatePropertyOwnerDto } from '../auth/dto/create.Property-owner.dto';
 
 @Injectable()
 export class UserService {
@@ -25,14 +26,22 @@ export class UserService {
   }
 
   async createAdmin(payload: CreateAdminDto) {
+    const hashedPassword = await bcrypt.hash(payload.password, 10);
     return this.prisma.user.create({
       data: {
         fullName: payload.fullName,
         phoneNumber: payload.phoneNumber,
         email: payload.email,
         role: UserRole.ADMIN,
-        adminProfile: { create: { createdBy: 'backend team' } },
+        adminProfile: { create: { createdBy: 'backend team', password: hashedPassword } },
       },
+    });
+  }
+
+  async findAdminByEmail(email: string) {
+    return this.prisma.user.findFirst({
+      where: { email, role: UserRole.ADMIN },
+      include: { adminProfile: true },
     });
   }
 

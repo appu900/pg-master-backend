@@ -5,16 +5,15 @@ import {
   Get,
   Param,
   ParseIntPipe,
-  Post,
   Put,
-  UseGuards,
+  UseGuards
 } from '@nestjs/common';
-import { AdminService } from './admin.service';
-import { JwtAuthGuard } from '../auth/guards/jwt.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
-import { GetUser } from 'src/common/decorators/Getuser.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { AdminService } from './admin.service';
 import { BusinessRejectionReasonDto } from './dto/business-rejection.dto';
 
 @Controller('admin')
@@ -45,9 +44,39 @@ export class AdminController {
     @Body() dto: BusinessRejectionReasonDto,
   ) {
     if (!businessId) throw new BadRequestException('business Id is required');
-    return this.adminService.rejectBusiness(businessId);
+    return this.adminService.rejectBusiness(businessId, dto.description);
   }
 
+  @Get('/platform-stats')
+  @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getPlatformStats() {
+    return this.adminService.getPlatformStats();
+  }
 
-  
+  @Get('/properties')
+  @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getAllProperties() {
+    return this.adminService.getAllPropertiesForAdmin();
+  }
+
+  @Get('/properties/:propertyId/full-stats')
+  @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getPropertyFullStats(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+  ) {
+    return this.adminService.getPropertyFullStats(propertyId);
+  }
+
+  @Get('/properties/:propertyId')
+  @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getPropertyDetails(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+  ) {
+    return this.adminService.getPropertyDetailsForAdmin(propertyId);
+  }
+
 }
