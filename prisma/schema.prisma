@@ -95,6 +95,8 @@ model BankAccountDetails {
   UPIId             String?
   accountType       AccountDetailsType?
 
+  linkedProperty Property[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -132,6 +134,9 @@ model Property {
   owner                          User                             @relation(fields: [ownerId], references: [id])
   rooms                          Room[]
   tenents                        Tenancy[]
+
+  bankAccountId Int?
+  bankAccount   BankAccountDetails? @relation(fields: [bankAccountId], references: [id])
 
   @@index([ownerId])
   @@index([pinCode])

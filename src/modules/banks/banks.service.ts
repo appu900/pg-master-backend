@@ -87,6 +87,18 @@ export class BanksService {
     const profileId = user.propertyOwnerProfile!.id;
     const res = await this.prisma.bankAccountDetails.findMany({
       where: { propertyOwnerProfileId: profileId },
+      select: {
+        id:true,
+        accountHolderName: true,
+        accountType: true,
+        PayeeCategory: true,
+        linkedProperty: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
     return {
       message: 'all accounts fetched sucessfully',
@@ -135,12 +147,78 @@ export class BanksService {
     };
   }
 
-
-  async getAccountDetailsById(accountId:number){
+  async getAccountDetailsById(accountId: number) {
     const accountInformation = await this.prisma.bankAccountDetails.findUnique({
-        where:{id:accountId}
-    })
-    if(!accountInformation) throw new NotFoundException("account not found")
+      where: { id: accountId },
+    });
+    if (!accountInformation) throw new NotFoundException('account not found');
     return accountInformation;
+  }
+
+  async linkPropertyToBankAccount(
+    propertyOwnerId: number,
+    propertyId: number,
+    accountId: number,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: propertyOwnerId },
+    });
+    if (!user) throw new NotFoundException('user not found');
+    const [property, bankAccount] = await Promise.all([
+      this.prisma.property.findFirst({
+        where: { id: propertyId, ownerId: propertyOwnerId },
+      }),
+
+      this.prisma.bankAccountDetails.findFirst({
+        where: { id: accountId, profile: { userId: propertyOwnerId } },
+      }),
+    ]);
+    if (!property) throw new NotFoundException('property not found');
+    if (!bankAccount) throw new NotFoundException('Bank account not found');
+    const updatedProperty = await this.prisma.property.update({
+      where: { id: propertyId },
+      data: { bankAccountId: bankAccount.id },
+    });
+    return {
+      message: 'bank account linked sucessfully',
+    };
+  }
+
+  async fetchAllLinkedAccounts(propertyOwnerId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: propertyOwnerId },
+    });
+    if (!user) throw new NotFoundException('user not found');
+    const results = await this.prisma.property.findMany({
+      where: { ownerId: propertyOwnerId },
+      include: { bankAccount: true },
+    });
+    return results;
+  }
+
+  async fetchBankAccountById(bankAccountId: number) {
+    const bankAccount = await this.prisma.bankAccountDetails.findFirst({
+      where: {
+        id: bankAccountId,
+      },
+      select:{
+        id:true,
+        accountHolderName:true,
+        PayeeCategory:true,
+        AccountNumber:true,
+        IFSCcode:true,
+        UPIId:true,
+        accountType:true,
+        createdAt:true,
+        updatedAt:true,
+        linkedProperty:{
+          select:{
+            id:true,
+            name:true,
+          }
+        }
+      }
+    });
+    return bankAccount;
   }
 }
