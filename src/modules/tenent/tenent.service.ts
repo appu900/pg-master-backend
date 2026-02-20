@@ -1,28 +1,33 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { TenantStatus } from '@prisma/client';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { TenantStatus, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { AddTenantDto } from '../room/dto/add.tenant.dto';
 import { RoomService } from '../room/room.service';
 import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { S3Service } from 'src/infra/s3/s3.service';
 
 @Injectable()
 export class TenentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly roomService: RoomService,
+    private readonly s3Serice: S3Service,
   ) {}
 
- 
   async addTenant(roomId: number, dto: AddTenantDto) {
     return this.roomService.addTenant(roomId, dto);
   }
 
-
   async getTenantsByRoom(roomId: number) {
     return this.roomService.fetchAllTenantsOfRoom(roomId);
   }
-
 
   async getTenantById(tenantId: number) {
     const tenant = await this.prisma.user.findUnique({
@@ -47,7 +52,7 @@ export class TenentService {
 
     return tenant;
   }
-  
+
   async getTenantsByProperty(propertyId: number) {
     const tenancies = await this.prisma.tenancy.findMany({
       where: {
@@ -95,9 +100,7 @@ export class TenentService {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-  
     const [statusCounts, todayBookings] = await Promise.all([
-     
       this.prisma.tenancy.groupBy({
         by: ['status'],
         where: {
@@ -108,7 +111,7 @@ export class TenentService {
           id: true,
         },
       }),
-     
+
       this.prisma.tenancy.count({
         where: {
           propertyId: propertyId,
@@ -126,8 +129,8 @@ export class TenentService {
       0,
     );
     const activeTenants =
-      statusCounts.find((group) => group.status === TenantStatus.ACTIVE)
-        ?._count.id || 0;
+      statusCounts.find((group) => group.status === TenantStatus.ACTIVE)?._count
+        .id || 0;
     const underNoticeTenants =
       statusCounts.find((group) => group.status === TenantStatus.NOTICE_PERIOD)
         ?._count.id || 0;
@@ -137,7 +140,7 @@ export class TenentService {
       activeTenants,
       underNoticeTenants,
       todayBookings,
-      pendingDues: 0, 
+      pendingDues: 0,
     };
   }
 
@@ -184,7 +187,6 @@ export class TenentService {
     return this.getTenantById(tenantId);
   }
 
-
   async moveTenantOut(tenancyId: number, dto: MoveOutTenantDto) {
     const tenancy = await this.prisma.tenancy.findUnique({
       where: { id: tenancyId },
@@ -202,7 +204,6 @@ export class TenentService {
     const moveOutDate = new Date(dto.moveOutDate);
 
     return this.prisma.$transaction(async (tx) => {
-      
       await tx.tenancy.update({
         where: { id: tenancyId },
         data: {
@@ -274,4 +275,12 @@ export class TenentService {
       profile: tenancy.tenent.tenentProfile,
     }));
   }
+
+  // async editProfile(tenantId:number,editProfileDto:UpdateProfileDto,image?:Express.Multer.File[]){
+  //    const user = await this.prisma.user.findUnique({where:{id:tenantId},include:{tenentProfile:true}})
+  //    if(!user) throw new NotFoundException('user not found');
+  //    if(!user.tenentProfile || user.role !== UserRole.TENANT) throw new ForbiddenException();
+  //    let updatedData = {};
+  //    if(image)
+  // }
 }

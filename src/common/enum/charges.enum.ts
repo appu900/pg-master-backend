@@ -1,0 +1,7 @@
+export enum ChargesType {
+  ELECTRICITY = 'ELECTRICITY',
+  WATER = 'WATER',
+  MAINTENANCE = 'MAINTENANCE',
+  FINE = 'FINE',
+  OTHER = 'OTHER',
+}

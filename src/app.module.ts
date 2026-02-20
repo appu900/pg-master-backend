@@ -17,6 +17,8 @@ import { UserModule } from './modules/user/user.module';
 import { PropertyownerModule } from './modules/propertyowner/propertyowner.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { BanksModule } from './modules/banks/banks.module';
+import { SqsModule } from './infra/Queue/SQS/sqs.module';
+import { ChargesModule } from './modules/charges/charges.module';
 
 
 @Module({
@@ -26,6 +28,7 @@ import { BanksModule } from './modules/banks/banks.module';
       ttl: 60000, // 60 seconds
       limit: 100, // 100 requests per minute
     }]),
+    SqsModule,
     PrismaModule,
     RedisModule,
     S3Module,
@@ -40,6 +43,7 @@ import { BanksModule } from './modules/banks/banks.module';
     PropertyownerModule,
     AdminModule,
     BanksModule,
+    ChargesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,19 +1,24 @@
 import {
-    BadRequestException,
-    ConflictException,
-    Injectable,
-    NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
-import { TenantStatus, UserRole } from '@prisma/client';
+import { SQSMessageType, TenantStatus, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { AddTenantDto } from './dto/add.tenant.dto';
+import { SqsService } from 'src/infra/Queue/SQS/sqs.service';
+import { SQS_EVENT_TYPES } from 'src/common/sqs/message-types';
 
 @Injectable()
 export class RoomService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sqsService: SqsService,
+  ) {}
 
   async addTenentToRoom(roomId: number, dto: AddTenantDto) {
-    return this.prisma.$transaction(async (tx) => {
+    const res = await this.prisma.$transaction(async (tx) => {
       //   verifying the room
       const room = await tx.room.findUnique({
         where: { id: roomId, propertyId: dto.propertyId },
@@ -32,9 +37,11 @@ export class RoomService {
 
       // Parse YYYY-MM-DD string by appending time to force UTC interpretation
       const joiningDate = new Date(dto.joiningDate + 'T00:00:00.000Z');
-      
+
       if (isNaN(joiningDate.getTime())) {
-        throw new BadRequestException('Invalid joiningDate. Expected format: YYYY-MM-DD');
+        throw new BadRequestException(
+          'Invalid joiningDate. Expected format: YYYY-MM-DD',
+        );
       }
 
       let moveOutDateObj: Date | null = null;
@@ -93,7 +100,7 @@ export class RoomService {
             `This phone number or email is already registered as ${tenent.role}. Please use different credentials.`,
           );
         }
-        
+
         const existingTenancy = await tx.tenancy.findFirst({
           where: {
             tenentId: tenent.id,
@@ -102,7 +109,9 @@ export class RoomService {
           },
         });
         if (existingTenancy) {
-          throw new ConflictException('This tenant already has an active tenancy in another property');
+          throw new ConflictException(
+            'This tenant already has an active tenancy in another property',
+          );
         }
       }
 
@@ -161,7 +170,7 @@ export class RoomService {
         });
       }
 
-      await tx.tenancy.create({
+      const new_tenancy = await tx.tenancy.create({
         data: {
           tenentId: finalTenant.id,
           propertyId: dto.propertyId,
@@ -176,19 +185,41 @@ export class RoomService {
         },
       });
 
-   
       await tx.room.update({
         where: { id: roomId },
         data: {
           occupiedBeds: { increment: 1 },
         },
       });
+
+      return {
+        tenantId: finalTenant.id,
+        tenancyId: new_tenancy.id,
+        propertyId: dto.propertyId,
+        joiningDate: joiningDate.toISOString(),
+        roomId,
+      };
     });
+    await this.sqsService.sendEvent({
+      messageType: SQS_EVENT_TYPES.GENERATE_FIRST_INVOICE,
+      payload: {
+        tenancyId:res.tenancyId,
+        tenantId:res.tenantId,
+        propertyId:dto.propertyId,
+        joinedAt:res.joiningDate
+      },
+    });
+
+    return {
+      success:true,
+      tenantId:res.tenantId,
+      tenancyId:res.tenancyId,
+      roomId:res.roomId
+    }
   }
 
   async addTenant(roomId: number, dto: AddTenantDto) {
     return this.prisma.$transaction(async (tx) => {
-  
       const room = await tx.room.findUnique({ where: { id: roomId } });
       if (!room) throw new NotFoundException('Room not found');
       if (room.propertyId != dto.propertyId)
@@ -202,11 +233,12 @@ export class RoomService {
         throw new BadRequestException('joiningDate is required');
       }
 
-      
       const joiningDate = new Date(dto.joiningDate + 'T00:00:00.000Z');
-      
+
       if (isNaN(joiningDate.getTime())) {
-        throw new BadRequestException('Invalid joiningDate. Expected format: YYYY-MM-DD');
+        throw new BadRequestException(
+          'Invalid joiningDate. Expected format: YYYY-MM-DD',
+        );
       }
 
       let moveOutDateObj: Date | null = null;
@@ -280,9 +312,11 @@ export class RoomService {
             `This phone number or email is already registered as ${existingUser.role}. Please use different credentials.`,
           );
         }
-        
+
         if (existingUser.tenancy) {
-          throw new ConflictException('This tenant already has an active tenancy in another property');
+          throw new ConflictException(
+            'This tenant already has an active tenancy in another property',
+          );
         }
 
         tenant = existingUser;

@@ -137,6 +137,11 @@ model Property {
   bankAccountId Int?
   bankAccount   BankAccountDetails? @relation(fields: [bankAccountId], references: [id])
 
+  billingConfig BillingConfig?
+
+  invoices Invoice[]
+  charges  TenantCharge[]
+
   @@index([ownerId])
   @@index([pinCode])
 }
@@ -178,6 +183,7 @@ model Tenancy {
   roomId                    Int
   tenentId                  Int          @unique
   propertyId                Int
+  tenancyStatus             TenantStatus @default(ACTIVE)
   rentAmount                Decimal      @db.Decimal(10, 2)
   securityDeposit           Decimal      @db.Decimal(10, 2)
   advanceAmount             Decimal?     @db.Decimal(10, 2)
@@ -193,6 +199,15 @@ model Tenancy {
   property                  Property     @relation(fields: [propertyId], references: [id])
   room                      Room         @relation(fields: [roomId], references: [id])
   tenent                    User         @relation(fields: [tenentId], references: [id])
+
+  firstInvoiceGenerated Boolean   @default(false)
+  lastInvoicePeriodEnd  DateTime? @db.Date
+  billingDayOfMonth     Int       @default(1)
+
+  invoices          Invoice[]
+  payments          Payment[]
+  charges           TenantCharge[]
+  reminderSchedules ReminderSchedule[]
 
   @@unique([roomId, tenentId])
   @@index([roomId, tenentId])
@@ -295,15 +310,352 @@ model ComplaintPhoto {
   @@index([complaintId])
 }
 
+// ** biling and invoice service **
+
 model Invoice {
-  id            Int      @id @default(autoincrement())
+  id            Int           @id @default(autoincrement())
   tenancyId     Int
-  invoiceNumber String   @unique
-  periodStart   DateTime @db.Date
-  periodEnd     DateTime @db.Date
+  propertyId    Int
+  invoiceNumber String        @unique
+  invoiceType   InvoiceType
+  status        InvoiceStatus @default(PENDING)
+
+  periodStart DateTime @db.Date
+  periodEnd   DateTime @db.Date
+
+  dueDate        DateTime @db.Date
+  gracePeriodEnd DateTime @db.Date
+
+  baseRentAmount     Decimal @default(0) @db.Decimal(10, 2)
+  electricityAmount  Decimal @default(0) @db.Decimal(10, 2)
+  waterAmount        Decimal @default(0) @db.Decimal(10, 2)
+  maintenanceAmount  Decimal @default(0) @db.Decimal(10, 2)
+  fineAmount         Decimal @default(0) @db.Decimal(10, 2)
+  otherChargesAmount Decimal @default(0) @db.Decimal(10, 2)
+  totalAmount        Decimal @db.Decimal(10, 2)
+  paidAmount         Decimal @default(0) @db.Decimal(10, 2)
+  balanceAmount      Decimal @db.Decimal(10, 2)
+  lateFeeAmount      Decimal @default(0) @db.Decimal(10, 2)
+  discountAmount     Decimal @default(0) @db.Decimal(10, 2)
+
+  notes        String?   @db.Text
+  generatedAt  DateTime  @default(now())
+  paidAt       DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?   @db.Text
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  invoiceLineItems InvoiceLineItem[]
+  payments         Payment[]
+  reminderLogs     ReminderLog[]
+  property         Property          @relation(fields: [propertyId], references: [id])
+  tenency          Tenancy           @relation(fields: [tenancyId], references: [id])
+
+  @@index([tenancyId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([invoiceNumber])
+  @@index([tenancyId, periodStart, periodEnd])
+  @@index([status, dueDate])
+  @@index([propertyId, status])
+  @@index([propertyId, status, dueDate])
+}
+
+model InvoiceLineItem {
+  id          Int        @id @default(autoincrement())
+  invoiceId   Int
+  chargeType  ChargeType
+  description String
+  amount      Decimal    @db.Decimal(10, 2)
+  quantity    Decimal    @default(1) @db.Decimal(10, 2)
+  unitPrice   Decimal?   @db.Decimal(10, 2)
+
+  // For electricity: previous reading, current reading, rate per unit
+  metadata Json?
+
+  // Link to the due/charge that generated this line item
+  tenantChargeId Int?
+  tenantCharge   TenantCharge? @relation(fields: [tenantChargeId], references: [id])
+
+  createdAt DateTime @default(now())
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+  @@index([chargeType])
+  @@index([tenantChargeId])
+}
+
+model TenantCharge {
+  id          Int        @id @default(autoincrement())
+  tenancyId   Int
+  propertyId  Int
+  chargeType  ChargeType
+  title       String
+  description String?    @db.Text
+  amount      Decimal    @db.Decimal(10, 2)
+
+  // Whether this has been attached to an invoice
+  status    ChargeStatus @default(PENDING)
+  invoiceId Int? // Set when attached to an invoice
+
+  // For electricity bills
+  previousReading Decimal? @db.Decimal(10, 2)
+  currentReading  Decimal? @db.Decimal(10, 2)
+  ratePerUnit     Decimal? @db.Decimal(10, 4)
+
+  // For recurring charges
+  isRecurring  Boolean @default(false)
+  recurringDay Int? // Day of month for recurring
+
+  // Metadata
+  addedById   Int // Owner or staff who added
+  attachments String[] // URLs of bill images
+
+  effectiveDate DateTime @db.Date
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenancy   Tenancy           @relation(fields: [tenancyId], references: [id])
+  property  Property          @relation(fields: [propertyId], references: [id])
+  lineItems InvoiceLineItem[]
+
+  @@index([tenancyId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([tenancyId, status])
+  @@index([chargeType])
+  @@index([effectiveDate])
+}
+
+model Payment {
+  id        Int @id @default(autoincrement())
+  invoiceId Int
+  tenancyId Int
+
+  // Payment details
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(INITIATED)
+
+  // Gateway details
+  transactionId    String? @unique
+  gatewayOrderId   String? @unique
+  gatewayPaymentId String?
+  gatewaySignature String?
+  gatewayResponse  Json?
+
+  // Metadata
+  paidAt        DateTime?
+  failedAt      DateTime?
+  refundedAt    DateTime?
+  failureReason String?   @db.Text
+
+  // For manual/cash payments
+  collectedById Int? // Staff who collected
+  receiptNumber String? @unique
+  remarks       String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoice Invoice      @relation(fields: [invoiceId], references: [id])
+  tenancy Tenancy      @relation(fields: [tenancyId], references: [id])
+  logs    PaymentLog[]
+
+  @@index([invoiceId])
+  @@index([tenancyId])
+  @@index([paymentStatus])
+  @@index([transactionId])
+  @@index([gatewayOrderId])
+  @@index([createdAt])
+  @@index([tenancyId, paymentStatus])
+  @@index([invoiceId, paymentStatus])
+  @@index([tenancyId, receiptNumber])
+}
+
+model PaymentLog {
+  id             Int           @id @default(autoincrement())
+  paymentId      Int
+  previousStatus PaymentStatus
+  newStatus      PaymentStatus
+  message        String
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@index([paymentId])
+  @@index([createdAt])
+}
+
+// ============================================
+// REMINDER & NOTIFICATION SYSTEM
+// ============================================
+
+model ReminderSchedule {
+  id           Int                    @id @default(autoincrement())
+  tenancyId    Int
+  invoiceId    Int?
+  reminderType ReminderType
+  scheduledFor DateTime
+  status       ReminderScheduleStatus @default(PENDING)
+
+  // How many times we've attempted
+  attemptCount  Int       @default(0)
+  maxAttempts   Int       @default(3)
+  lastAttemptAt DateTime?
+  nextRetryAt   DateTime?
+
+  // Channel
+  channel        NotificationChannel @default(WHATSAPP)
+  recipientPhone String
+  recipientName  String
+
+  // Message template
+  templateName String
+  templateData Json
+
+  processedAt  DateTime?
+  failedReason String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenancy Tenancy @relation(fields: [tenancyId], references: [id])
+
+  @@index([status, scheduledFor])
+  @@index([tenancyId])
+  @@index([scheduledFor])
+  @@index([status])
+  @@index([reminderType, status])
+}
+
+model ReminderLog {
+  id             Int                 @id @default(autoincrement())
+  invoiceId      Int?
+  tenancyId      Int
+  reminderType   ReminderType
+  channel        NotificationChannel
+  recipientPhone String
+
+  // Delivery status
+  status    DeliveryStatus @default(QUEUED)
+  messageId String? // WhatsApp message ID
+
+  sentAt        DateTime?
+  deliveredAt   DateTime?
+  readAt        DateTime?
+  failedAt      DateTime?
+  failureReason String?   @db.Text
+
+  // SQS message tracking
+  sqsMessageId String?
+
+  templateName String
+  templateData Json
+
+  createdAt DateTime @default(now())
+
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+  @@index([tenancyId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([reminderType, status])
+}
+
+model NotificationPreference {
+  id              Int     @id @default(autoincrement())
+  userId          Int     @unique
+  whatsappEnabled Boolean @default(true)
+  smsEnabled      Boolean @default(false)
+  emailEnabled    Boolean @default(false)
+
+  // Quiet hours
+  quietHoursStart String? // "22:00"
+  quietHoursEnd   String? // "08:00"
+  timezone        String  @default("Asia/Kolkata")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ============================================
+// BILLING CONFIGURATION
+// ============================================
+
+model BillingConfig {
+  id         Int @id @default(autoincrement())
+  propertyId Int @unique
+
+  // Payment window: 25th of current month to 5th of next month
+  paymentWindowStartDay Int @default(25) // Day of month payment window opens
+  paymentWindowEndDay   Int @default(5) // Day of next month payment window closes
+
+  // Grace period after due date
+  gracePeriodDays Int @default(5)
+
+  // Late fee
+  lateFeeType      LateFeeType @default(FIXED)
+  lateFeeAmount    Decimal     @default(0) @db.Decimal(10, 2) // Fixed amount or percentage
+  lateFeeMaxAmount Decimal?    @db.Decimal(10, 2) // Cap for percentage-based
+
+  // Invoice generation: days before period start
+  invoiceGenerationDay Int @default(20) // Generate invoice on 20th
+
+  // Reminder schedule (days relative to due date, negative = before)
+  reminderDaysBeforeDue Int[] @default([-5, -2, -1]) // 5 days, 2 days, 1 day before
+  reminderDaysAfterDue  Int[] @default([1, 3, 5, 7]) // 1, 3, 5, 7 days after
+
+  // Electricity rate
+  electricityRatePerUnit Decimal @default(0) @db.Decimal(10, 4)
+  waterFixedCharge       Decimal @default(0) @db.Decimal(10, 2)
+  maintenanceCharge      Decimal @default(0) @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@index([propertyId])
+}
+
+// ============================================
+// SQS MESSAGE TRACKING (for idempotency)
+// ============================================
+
+model SQSMessageLog {
+  id           Int              @id @default(autoincrement())
+  messageId    String           @unique
+  messageType  SQSMessageType
+  payload      Json
+  status       SQSProcessStatus @default(RECEIVED)
+  processedAt  DateTime?
+  failedAt     DateTime?
+  errorMessage String?          @db.Text
+  retryCount   Int              @default(0)
+  createdAt    DateTime         @default(now())
+
+  @@index([messageId])
+  @@index([messageType])
+  @@index([status])
+  @@index([createdAt])
 }
 
 enum TenantStatus {
+  ACTIVE
+  NOTICE_PERIOD
+  EXITED
+  EVICTED
+  PENDING
+}
+
+enum TenancyStatus {
   ACTIVE
   NOTICE_PERIOD
   EXITED
@@ -399,4 +751,129 @@ enum AccountDetailsType {
   BANKACCOUNT
   UPI
   BOTH
+}
+
+enum InvoiceType {
+  MONTHLY_RENT // Regular monthly invoice
+  PRORATED_FIRST // First month prorated invoice
+  PRORATED_LAST // Last month prorated invoice
+  ADDITIONAL_CHARGES // Standalone charges invoice
+  SECURITY_DEPOSIT // Security deposit invoice
+  FINAL_SETTLEMENT // Move-out settlement
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING // Generated, not yet in payment window
+  DUE // In payment window
+  OVERDUE // Past grace period
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+  WAIVED
+}
+
+enum ChargeType {
+  RENT
+  ELECTRICITY
+  WATER
+  MAINTENANCE
+  FINE
+  LATE_FEE
+  SECURITY_DEPOSIT
+  ADVANCE
+  OTHER
+}
+
+enum ChargeStatus {
+  PENDING // Not yet attached to invoice
+  ATTACHED // Attached to an invoice
+  CANCELLED
+}
+
+enum PaymentMethod {
+  UPI
+  BANK_TRANSFER
+  CASH
+  CHEQUE
+  ONLINE_GATEWAY
+  WALLET
+  AUTO_DEBIT
+}
+
+enum PaymentStatus {
+  INITIATED
+  PROCESSING
+  SUCCESS
+  FAILED
+  REFUND_INITIATED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  CANCELLED
+}
+
+enum ReminderType {
+  PAYMENT_WINDOW_OPEN // Payment window is now open
+  PAYMENT_DUE_SOON // X days before due
+  PAYMENT_DUE_TODAY // Due date
+  PAYMENT_OVERDUE // After due date
+  PAYMENT_RECEIVED // Confirmation
+  INVOICE_GENERATED // New invoice created
+  CHARGE_ADDED // New charge added
+  MOVE_OUT_REMINDER // Notice period reminder
+  WELCOME // New tenant welcome
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+  PUSH
+}
+
+enum DeliveryStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  EXPIRED
+}
+
+enum ReminderScheduleStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum LateFeeType {
+  FIXED
+  PERCENTAGE
+  PER_DAY_FIXED
+  PER_DAY_PERCENTAGE
+}
+
+enum SQSMessageType {
+  GENERATE_INVOICE
+  SEND_REMINDER
+  PROCESS_PAYMENT
+  APPLY_LATE_FEE
+  ATTACH_CHARGES
+  SCHEDULE_REMINDERS
+  SEND_WHATSAPP
+  PAYMENT_CONFIRMATION
+  INVOICE_NOTIFICATION
+  CHARGE_NOTIFICATION
+  CRON_DAILY_BILLING
+  CRON_REMINDER_SCAN
+}
+
+enum SQSProcessStatus {
+  RECEIVED
+  PROCESSING
+  COMPLETED
+  FAILED
+  DEAD_LETTER
 }
