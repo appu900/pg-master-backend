@@ -38,6 +38,7 @@ model AdminProfile {
   user         User    @relation(fields: [userId], references: [id])
   profileImage String?
   createdBy    String?
+  password     String?
 }
 
 model PropertyOwnerProfile {

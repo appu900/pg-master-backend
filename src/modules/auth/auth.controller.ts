@@ -1,9 +1,14 @@
-import { Controller, Body, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { CreatePropertyOwnerDto } from './dto/create.Property-owner.dto';
+import { AdminLoginDto } from './dto/admin-login.dto';
 import { OtpLoginDto } from './dto/auth.otp.login.dto';
-import { SendOtpDto } from './dto/send.otp.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
+import { CreatePropertyOwnerDto } from './dto/create.Property-owner.dto';
+import { SendOtpDto } from './dto/send.otp.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -14,10 +19,14 @@ export class AuthController {
     return this.authService.createPropertyOwner(dto);
   }
 
-
   @Post('/admin')
-  async createAdmin(@Body() dto:CreateAdminDto){
-     return this.authService.createAdmin(dto);
+  async createAdmin(@Body() dto: CreateAdminDto) {
+    return this.authService.createAdmin(dto);
+  }
+
+  @Post('/admin/login')
+  async adminLogin(@Body() dto: AdminLoginDto) {
+    return this.authService.adminLogin(dto);
   }
 
   @Post('send-otp')
@@ -27,6 +36,6 @@ export class AuthController {
 
   @Post('login')
   async login(@Body() dto: OtpLoginDto) {
-    return this.authService.login(dto)
+    return this.authService.login(dto);
   }
 }
