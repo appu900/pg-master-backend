@@ -14,6 +14,18 @@ export class AddChargeDto {
   @IsNotEmpty()
   chargeCategory!: ChargesType;
 
+  @IsNotEmpty()
+  @IsInt()
+  amount!: number;
+
+  @IsOptional()
+  @IsInt()
+  currentMeterReading?: number;
+
+  @IsOptional()
+  @IsInt()
+  perUnitCost?: number;
+
   @IsOptional()
   @IsInt()
   roomId?: number;

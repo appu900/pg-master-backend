@@ -19,10 +19,10 @@ model User {
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   deletedAt               DateTime?
+  adminProfile            AdminProfile?
   complaints              Complaint[]              @relation("ComplaintRaisedBy")
   employeeBooks           EmployeeBook[]
   maintenanceStaffProfile MaintenanceStaffProfile?
-  adminProfile            AdminProfile?
   property                Property[]
   propertyOwnerProfile    PropertyOwnerProfile?
   tenancy                 Tenancy?
@@ -35,10 +35,10 @@ model User {
 model AdminProfile {
   id           Int     @id @default(autoincrement())
   userId       Int     @unique
-  user         User    @relation(fields: [userId], references: [id])
   profileImage String?
   createdBy    String?
   password     String?
+  user         User    @relation(fields: [userId], references: [id])
 }
 
 model PropertyOwnerProfile {
@@ -53,8 +53,8 @@ model PropertyOwnerProfile {
   profileImage          String?
   BusinessProfileStatus Boolean              @default(false)
   BankAcconts           BankAccountDetails[]
+  businessDetails       BusinessDetails?
   user                  User                 @relation(fields: [userId], references: [id])
-  businessDetails       BusinessDetails[]
 
   @@index([pinCode])
   @@index([userId])
@@ -85,20 +85,17 @@ model TenentProfile {
 model BankAccountDetails {
   id                     Int                  @id @default(autoincrement())
   propertyOwnerProfileId Int
+  AccountNumber          String?
+  IFSCcode               String?
+  PayeeCategory          payeeCategory
+  UPIId                  String?
+  accountHolderName      String
+  createdAt              DateTime             @default(now())
+  phoneNumber            String
+  updatedAt              DateTime             @updatedAt
+  accountType            AccountDetailsType?
   profile                PropertyOwnerProfile @relation(fields: [propertyOwnerProfileId], references: [id])
-
-  accountHolderName String
-  phoneNumber       String
-  PayeeCategory     payeeCategory
-  AccountNumber     String?
-  IFSCcode          String?
-  UPIId             String?
-  accountType       AccountDetailsType?
-
-  linkedProperty Property[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  linkedProperty         Property[]
 
   @@index([propertyOwnerProfileId])
 }
@@ -107,18 +104,15 @@ model BusinessDetails {
   id                     Int                    @id @default(autoincrement())
   businessName           String
   businessType           BusinessType
-  status                 BusinessApprovalStatus
   propertyOwnerProfileId Int                    @unique
-
-  aadhaarCard     String
-  panCard         String
-  companyDocument String?
-  rejectionReason String? @db.Text
-
-  propertyOwnerProfile PropertyOwnerProfile @relation(fields: [propertyOwnerProfileId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  panCard                String
+  companyDocument        String?
+  rejectionReason        String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  aadhaarCard            String
+  status                 BusinessApprovalStatus
+  propertyOwnerProfile   PropertyOwnerProfile   @relation(fields: [propertyOwnerProfileId], references: [id])
 
   @@index([status])
   @@index([propertyOwnerProfileId])
@@ -129,19 +123,16 @@ model Property {
   name                           String
   pinCode                        String
   ownerId                        Int
+  bankAccountId                  Int?
+  billingConfig                  BillingConfig?
   complaints                     Complaint[]
+  invoices                       Invoice[]
   maintenanceStaffPropertyAccess MaintenanceStaffPropertyAccess[]
+  bankAccount                    BankAccountDetails?              @relation(fields: [bankAccountId], references: [id])
   owner                          User                             @relation(fields: [ownerId], references: [id])
   rooms                          Room[]
   tenents                        Tenancy[]
-
-  bankAccountId Int?
-  bankAccount   BankAccountDetails? @relation(fields: [bankAccountId], references: [id])
-
-  billingConfig BillingConfig?
-
-  invoices Invoice[]
-  charges  TenantCharge[]
+  charges                        TenantCharge[]
 
   @@index([ownerId])
   @@index([pinCode])
@@ -180,35 +171,33 @@ model RoomImages {
 }
 
 model Tenancy {
-  id                        Int          @id @default(autoincrement())
+  id                        Int                @id @default(autoincrement())
   roomId                    Int
-  tenentId                  Int          @unique
+  tenentId                  Int                @unique
   propertyId                Int
-  tenancyStatus             TenantStatus @default(ACTIVE)
-  rentAmount                Decimal      @db.Decimal(10, 2)
-  securityDeposit           Decimal      @db.Decimal(10, 2)
-  advanceAmount             Decimal?     @db.Decimal(10, 2)
-  lockInPeriodsInMonths     Int?         @default(0)
-  noticePeriodInDays        Int?         @default(0)
-  initialElectricityReading Decimal?     @db.Decimal(10, 2)
-  joinedAt                  DateTime     @db.Date
+  tenancyStatus             TenancyStatus?
+  rentAmount                Decimal            @db.Decimal(10, 2)
+  securityDeposit           Decimal            @db.Decimal(10, 2)
+  advanceAmount             Decimal?           @db.Decimal(10, 2)
+  lockInPeriodsInMonths     Int?               @default(0)
+  noticePeriodInDays        Int?               @default(0)
+  initialElectricityReading Decimal?           @db.Decimal(10, 2)
+  joinedAt                  DateTime           @db.Date
   leftAt                    DateTime?
-  createdAt                 DateTime     @default(now())
-  updatedAt                 DateTime     @updatedAt
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
   deletedAt                 DateTime?
-  status                    TenantStatus @default(ACTIVE)
-  property                  Property     @relation(fields: [propertyId], references: [id])
-  room                      Room         @relation(fields: [roomId], references: [id])
-  tenent                    User         @relation(fields: [tenentId], references: [id])
-
-  firstInvoiceGenerated Boolean   @default(false)
-  lastInvoicePeriodEnd  DateTime? @db.Date
-  billingDayOfMonth     Int       @default(1)
-
-  invoices          Invoice[]
-  payments          Payment[]
-  charges           TenantCharge[]
-  reminderSchedules ReminderSchedule[]
+  status                    TenantStatus       @default(ACTIVE)
+  billingDayOfMonth         Int                @default(1)
+  firstInvoiceGenerated     Boolean            @default(false)
+  lastInvoicePeriodEnd      DateTime?          @db.Date
+  invoices                  Invoice[]
+  payments                  Payment[]
+  reminderSchedules         ReminderSchedule[]
+  property                  Property           @relation(fields: [propertyId], references: [id])
+  room                      Room               @relation(fields: [roomId], references: [id])
+  tenent                    User               @relation(fields: [tenentId], references: [id])
+  charges                   TenantCharge[]
 
   @@unique([roomId, tenentId])
   @@index([roomId, tenentId])
@@ -311,47 +300,40 @@ model ComplaintPhoto {
   @@index([complaintId])
 }
 
-// ** biling and invoice service **
-
 model Invoice {
-  id            Int           @id @default(autoincrement())
-  tenancyId     Int
-  propertyId    Int
-  invoiceNumber String        @unique
-  invoiceType   InvoiceType
-  status        InvoiceStatus @default(PENDING)
-
-  periodStart DateTime @db.Date
-  periodEnd   DateTime @db.Date
-
-  dueDate        DateTime @db.Date
-  gracePeriodEnd DateTime @db.Date
-
-  baseRentAmount     Decimal @default(0) @db.Decimal(10, 2)
-  electricityAmount  Decimal @default(0) @db.Decimal(10, 2)
-  waterAmount        Decimal @default(0) @db.Decimal(10, 2)
-  maintenanceAmount  Decimal @default(0) @db.Decimal(10, 2)
-  fineAmount         Decimal @default(0) @db.Decimal(10, 2)
-  otherChargesAmount Decimal @default(0) @db.Decimal(10, 2)
-  totalAmount        Decimal @db.Decimal(10, 2)
-  paidAmount         Decimal @default(0) @db.Decimal(10, 2)
-  balanceAmount      Decimal @db.Decimal(10, 2)
-  lateFeeAmount      Decimal @default(0) @db.Decimal(10, 2)
-  discountAmount     Decimal @default(0) @db.Decimal(10, 2)
-
-  notes        String?   @db.Text
-  generatedAt  DateTime  @default(now())
-  paidAt       DateTime?
-  cancelledAt  DateTime?
-  cancelReason String?   @db.Text
-
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  invoiceLineItems InvoiceLineItem[]
-  payments         Payment[]
-  reminderLogs     ReminderLog[]
-  property         Property          @relation(fields: [propertyId], references: [id])
-  tenency          Tenancy           @relation(fields: [tenancyId], references: [id])
+  id                 Int               @id @default(autoincrement())
+  tenancyId          Int
+  invoiceNumber      String            @unique
+  periodStart        DateTime          @db.Date
+  periodEnd          DateTime          @db.Date
+  balanceAmount      Decimal           @db.Decimal(10, 2)
+  baseRentAmount     Decimal           @default(0) @db.Decimal(10, 2)
+  cancelReason       String?
+  cancelledAt        DateTime?
+  createdAt          DateTime          @default(now())
+  discountAmount     Decimal           @default(0) @db.Decimal(10, 2)
+  dueDate            DateTime          @db.Date
+  electricityAmount  Decimal           @default(0) @db.Decimal(10, 2)
+  fineAmount         Decimal           @default(0) @db.Decimal(10, 2)
+  generatedAt        DateTime          @default(now())
+  gracePeriodEnd     DateTime          @db.Date
+  invoiceType        InvoiceType
+  lateFeeAmount      Decimal           @default(0) @db.Decimal(10, 2)
+  maintenanceAmount  Decimal           @default(0) @db.Decimal(10, 2)
+  notes              String?
+  otherChargesAmount Decimal           @default(0) @db.Decimal(10, 2)
+  paidAmount         Decimal           @default(0) @db.Decimal(10, 2)
+  paidAt             DateTime?
+  propertyId         Int
+  status             InvoiceStatus     @default(PENDING)
+  totalAmount        Decimal           @db.Decimal(10, 2)
+  updatedAt          DateTime          @updatedAt
+  waterAmount        Decimal           @default(0) @db.Decimal(10, 2)
+  property           Property          @relation(fields: [propertyId], references: [id])
+  tenency            Tenancy           @relation(fields: [tenancyId], references: [id])
+  invoiceLineItems   InvoiceLineItem[]
+  payments           Payment[]
+  reminderLogs       ReminderLog[]
 
   @@index([tenancyId])
   @@index([propertyId])
@@ -365,23 +347,18 @@ model Invoice {
 }
 
 model InvoiceLineItem {
-  id          Int        @id @default(autoincrement())
-  invoiceId   Int
-  chargeType  ChargeType
-  description String
-  amount      Decimal    @db.Decimal(10, 2)
-  quantity    Decimal    @default(1) @db.Decimal(10, 2)
-  unitPrice   Decimal?   @db.Decimal(10, 2)
-
-  // For electricity: previous reading, current reading, rate per unit
-  metadata Json?
-
-  // Link to the due/charge that generated this line item
+  id             Int           @id @default(autoincrement())
+  invoiceId      Int
+  chargeType     ChargeType
+  description    String
+  amount         Decimal       @db.Decimal(10, 2)
+  quantity       Decimal       @default(1) @db.Decimal(10, 2)
+  unitPrice      Decimal?      @db.Decimal(10, 2)
+  metadata       Json?
   tenantChargeId Int?
+  createdAt      DateTime      @default(now())
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id])
   tenantCharge   TenantCharge? @relation(fields: [tenantChargeId], references: [id])
-
-  createdAt DateTime @default(now())
-  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
 
   @@index([invoiceId])
   @@index([chargeType])
@@ -389,38 +366,30 @@ model InvoiceLineItem {
 }
 
 model TenantCharge {
-  id          Int        @id @default(autoincrement())
-  tenancyId   Int
-  propertyId  Int
-  chargeType  ChargeType
-  title       String
-  description String?    @db.Text
-  amount      Decimal    @db.Decimal(10, 2)
-
-  // Whether this has been attached to an invoice
-  status    ChargeStatus @default(PENDING)
-  invoiceId Int? // Set when attached to an invoice
-
-  // For electricity bills
-  previousReading Decimal? @db.Decimal(10, 2)
-  currentReading  Decimal? @db.Decimal(10, 2)
-  ratePerUnit     Decimal? @db.Decimal(10, 4)
-
-  // For recurring charges
-  isRecurring  Boolean @default(false)
-  recurringDay Int? // Day of month for recurring
-
-  // Metadata
-  addedById   Int // Owner or staff who added
-  attachments String[] // URLs of bill images
-
-  effectiveDate DateTime @db.Date
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  tenancy   Tenancy           @relation(fields: [tenancyId], references: [id])
-  property  Property          @relation(fields: [propertyId], references: [id])
-  lineItems InvoiceLineItem[]
+  id              Int               @id @default(autoincrement())
+  tenancyId       Int
+  propertyId      Int
+  chargeType      ChargeType
+  title           String
+  description     String?
+  amount          Decimal           @db.Decimal(10, 2)
+  status          ChargeStatus      @default(PENDING)
+  invoiceId       Int?
+  previousReading Decimal?          @db.Decimal(10, 2)
+  currentReading  Decimal?          @db.Decimal(10, 2)
+  ratePerUnit     Decimal?          @db.Decimal(10, 4)
+  isRecurring     Boolean           @default(false)
+  recurringDay    Int?
+  addedById       Int
+  attachments     String[]
+  effectiveDate   DateTime?         @db.Date
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  startDate       DateTime?         @db.Date
+  endDate         DateTime?         @db.Date
+  lineItems       InvoiceLineItem[]
+  property        Property          @relation(fields: [propertyId], references: [id])
+  tenancy         Tenancy           @relation(fields: [tenancyId], references: [id])
 
   @@index([tenancyId])
   @@index([propertyId])
@@ -431,39 +400,29 @@ model TenantCharge {
 }
 
 model Payment {
-  id        Int @id @default(autoincrement())
-  invoiceId Int
-  tenancyId Int
-
-  // Payment details
-  amount        Decimal       @db.Decimal(10, 2)
-  paymentMethod PaymentMethod
-  paymentStatus PaymentStatus @default(INITIATED)
-
-  // Gateway details
-  transactionId    String? @unique
-  gatewayOrderId   String? @unique
+  id               Int           @id @default(autoincrement())
+  invoiceId        Int
+  tenancyId        Int
+  amount           Decimal       @db.Decimal(10, 2)
+  paymentMethod    PaymentMethod
+  paymentStatus    PaymentStatus @default(INITIATED)
+  transactionId    String?       @unique
+  gatewayOrderId   String?       @unique
   gatewayPaymentId String?
   gatewaySignature String?
   gatewayResponse  Json?
-
-  // Metadata
-  paidAt        DateTime?
-  failedAt      DateTime?
-  refundedAt    DateTime?
-  failureReason String?   @db.Text
-
-  // For manual/cash payments
-  collectedById Int? // Staff who collected
-  receiptNumber String? @unique
-  remarks       String? @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  invoice Invoice      @relation(fields: [invoiceId], references: [id])
-  tenancy Tenancy      @relation(fields: [tenancyId], references: [id])
-  logs    PaymentLog[]
+  paidAt           DateTime?
+  failedAt         DateTime?
+  refundedAt       DateTime?
+  failureReason    String?
+  collectedById    Int?
+  receiptNumber    String?       @unique
+  remarks          String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  invoice          Invoice       @relation(fields: [invoiceId], references: [id])
+  tenancy          Tenancy       @relation(fields: [tenancyId], references: [id])
+  logs             PaymentLog[]
 
   @@index([invoiceId])
   @@index([tenancyId])
@@ -484,47 +443,33 @@ model PaymentLog {
   message        String
   metadata       Json?
   createdAt      DateTime      @default(now())
-
-  payment Payment @relation(fields: [paymentId], references: [id])
+  payment        Payment       @relation(fields: [paymentId], references: [id])
 
   @@index([paymentId])
   @@index([createdAt])
 }
 
-// ============================================
-// REMINDER & NOTIFICATION SYSTEM
-// ============================================
-
 model ReminderSchedule {
-  id           Int                    @id @default(autoincrement())
-  tenancyId    Int
-  invoiceId    Int?
-  reminderType ReminderType
-  scheduledFor DateTime
-  status       ReminderScheduleStatus @default(PENDING)
-
-  // How many times we've attempted
-  attemptCount  Int       @default(0)
-  maxAttempts   Int       @default(3)
-  lastAttemptAt DateTime?
-  nextRetryAt   DateTime?
-
-  // Channel
-  channel        NotificationChannel @default(WHATSAPP)
+  id             Int                    @id @default(autoincrement())
+  tenancyId      Int
+  invoiceId      Int?
+  reminderType   ReminderType
+  scheduledFor   DateTime
+  status         ReminderScheduleStatus @default(PENDING)
+  attemptCount   Int                    @default(0)
+  maxAttempts    Int                    @default(3)
+  lastAttemptAt  DateTime?
+  nextRetryAt    DateTime?
+  channel        NotificationChannel    @default(WHATSAPP)
   recipientPhone String
   recipientName  String
-
-  // Message template
-  templateName String
-  templateData Json
-
-  processedAt  DateTime?
-  failedReason String?   @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tenancy Tenancy @relation(fields: [tenancyId], references: [id])
+  templateName   String
+  templateData   Json
+  processedAt    DateTime?
+  failedReason   String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  tenancy        Tenancy                @relation(fields: [tenancyId], references: [id])
 
   @@index([status, scheduledFor])
   @@index([tenancyId])
@@ -540,26 +485,18 @@ model ReminderLog {
   reminderType   ReminderType
   channel        NotificationChannel
   recipientPhone String
-
-  // Delivery status
-  status    DeliveryStatus @default(QUEUED)
-  messageId String? // WhatsApp message ID
-
-  sentAt        DateTime?
-  deliveredAt   DateTime?
-  readAt        DateTime?
-  failedAt      DateTime?
-  failureReason String?   @db.Text
-
-  // SQS message tracking
-  sqsMessageId String?
-
-  templateName String
-  templateData Json
-
-  createdAt DateTime @default(now())
-
-  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+  status         DeliveryStatus      @default(QUEUED)
+  messageId      String?
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  failedAt       DateTime?
+  failureReason  String?
+  sqsMessageId   String?
+  templateName   String
+  templateData   Json
+  createdAt      DateTime            @default(now())
+  invoice        Invoice?            @relation(fields: [invoiceId], references: [id])
 
   @@index([invoiceId])
   @@index([tenancyId])
@@ -569,66 +506,41 @@ model ReminderLog {
 }
 
 model NotificationPreference {
-  id              Int     @id @default(autoincrement())
-  userId          Int     @unique
-  whatsappEnabled Boolean @default(true)
-  smsEnabled      Boolean @default(false)
-  emailEnabled    Boolean @default(false)
-
-  // Quiet hours
-  quietHoursStart String? // "22:00"
-  quietHoursEnd   String? // "08:00"
-  timezone        String  @default("Asia/Kolkata")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique
+  whatsappEnabled Boolean  @default(true)
+  smsEnabled      Boolean  @default(false)
+  emailEnabled    Boolean  @default(false)
+  quietHoursStart String?
+  quietHoursEnd   String?
+  timezone        String   @default("Asia/Kolkata")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([userId])
 }
 
-// ============================================
-// BILLING CONFIGURATION
-// ============================================
-
 model BillingConfig {
-  id         Int @id @default(autoincrement())
-  propertyId Int @unique
-
-  // Payment window: 25th of current month to 5th of next month
-  paymentWindowStartDay Int @default(25) // Day of month payment window opens
-  paymentWindowEndDay   Int @default(5) // Day of next month payment window closes
-
-  // Grace period after due date
-  gracePeriodDays Int @default(5)
-
-  // Late fee
-  lateFeeType      LateFeeType @default(FIXED)
-  lateFeeAmount    Decimal     @default(0) @db.Decimal(10, 2) // Fixed amount or percentage
-  lateFeeMaxAmount Decimal?    @db.Decimal(10, 2) // Cap for percentage-based
-
-  // Invoice generation: days before period start
-  invoiceGenerationDay Int @default(20) // Generate invoice on 20th
-
-  // Reminder schedule (days relative to due date, negative = before)
-  reminderDaysBeforeDue Int[] @default([-5, -2, -1]) // 5 days, 2 days, 1 day before
-  reminderDaysAfterDue  Int[] @default([1, 3, 5, 7]) // 1, 3, 5, 7 days after
-
-  // Electricity rate
-  electricityRatePerUnit Decimal @default(0) @db.Decimal(10, 4)
-  waterFixedCharge       Decimal @default(0) @db.Decimal(10, 2)
-  maintenanceCharge      Decimal @default(0) @db.Decimal(10, 2)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  property Property @relation(fields: [propertyId], references: [id])
+  id                     Int         @id @default(autoincrement())
+  propertyId             Int         @unique
+  paymentWindowStartDay  Int         @default(25)
+  paymentWindowEndDay    Int         @default(5)
+  gracePeriodDays        Int         @default(5)
+  lateFeeType            LateFeeType @default(FIXED)
+  lateFeeAmount          Decimal     @default(0) @db.Decimal(10, 2)
+  lateFeeMaxAmount       Decimal?    @db.Decimal(10, 2)
+  invoiceGenerationDay   Int         @default(20)
+  reminderDaysBeforeDue  Int[]       @default([-5, -2, -1])
+  reminderDaysAfterDue   Int[]       @default([1, 3, 5, 7])
+  electricityRatePerUnit Decimal     @default(0) @db.Decimal(10, 4)
+  waterFixedCharge       Decimal     @default(0) @db.Decimal(10, 2)
+  maintenanceCharge      Decimal     @default(0) @db.Decimal(10, 2)
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+  property               Property    @relation(fields: [propertyId], references: [id])
 
   @@index([propertyId])
 }
-
-// ============================================
-// SQS MESSAGE TRACKING (for idempotency)
-// ============================================
 
 model SQSMessageLog {
   id           Int              @id @default(autoincrement())
@@ -638,7 +550,7 @@ model SQSMessageLog {
   status       SQSProcessStatus @default(RECEIVED)
   processedAt  DateTime?
   failedAt     DateTime?
-  errorMessage String?          @db.Text
+  errorMessage String?
   retryCount   Int              @default(0)
   createdAt    DateTime         @default(now())
 
@@ -648,15 +560,29 @@ model SQSMessageLog {
   @@index([createdAt])
 }
 
-enum TenantStatus {
-  ACTIVE
-  NOTICE_PERIOD
-  EXITED
-  EVICTED
-  PENDING
+model OutBox {
+  id          Int          @id @default(autoincrement())
+  messageType String
+  payload     Json
+  status      OutboxStatus @default(PENDING)
+  retryCount  Int          @default(0)
+  lastError   String?
+  processedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([messageType])
+  @@index([messageType, status])
 }
 
-enum TenancyStatus {
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum TenantStatus {
   ACTIVE
   NOTICE_PERIOD
   EXITED
@@ -755,19 +681,19 @@ enum AccountDetailsType {
 }
 
 enum InvoiceType {
-  MONTHLY_RENT // Regular monthly invoice
-  PRORATED_FIRST // First month prorated invoice
-  PRORATED_LAST // Last month prorated invoice
-  ADDITIONAL_CHARGES // Standalone charges invoice
-  SECURITY_DEPOSIT // Security deposit invoice
-  FINAL_SETTLEMENT // Move-out settlement
+  MONTHLY_RENT
+  PRORATED_FIRST
+  PRORATED_LAST
+  ADDITIONAL_CHARGES
+  SECURITY_DEPOSIT
+  FINAL_SETTLEMENT
 }
 
 enum InvoiceStatus {
   DRAFT
-  PENDING // Generated, not yet in payment window
-  DUE // In payment window
-  OVERDUE // Past grace period
+  PENDING
+  DUE
+  OVERDUE
   PARTIALLY_PAID
   PAID
   CANCELLED
@@ -787,8 +713,8 @@ enum ChargeType {
 }
 
 enum ChargeStatus {
-  PENDING // Not yet attached to invoice
-  ATTACHED // Attached to an invoice
+  PENDING
+  ATTACHED
   CANCELLED
 }
 
@@ -814,15 +740,15 @@ enum PaymentStatus {
 }
 
 enum ReminderType {
-  PAYMENT_WINDOW_OPEN // Payment window is now open
-  PAYMENT_DUE_SOON // X days before due
-  PAYMENT_DUE_TODAY // Due date
-  PAYMENT_OVERDUE // After due date
-  PAYMENT_RECEIVED // Confirmation
-  INVOICE_GENERATED // New invoice created
-  CHARGE_ADDED // New charge added
-  MOVE_OUT_REMINDER // Notice period reminder
-  WELCOME // New tenant welcome
+  PAYMENT_WINDOW_OPEN
+  PAYMENT_DUE_SOON
+  PAYMENT_DUE_TODAY
+  PAYMENT_OVERDUE
+  PAYMENT_RECEIVED
+  INVOICE_GENERATED
+  CHARGE_ADDED
+  MOVE_OUT_REMINDER
+  WELCOME
 }
 
 enum NotificationChannel {
@@ -877,4 +803,12 @@ enum SQSProcessStatus {
   COMPLETED
   FAILED
   DEAD_LETTER
+}
+
+enum TenancyStatus {
+  ACTIVE
+  NOTICE_PERIOD
+  EXITED
+  EVICTED
+  PENDING
 }

@@ -1,4 +1,4 @@
-import { Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import {
   GetQueueAttributesCommand,
   SQSClient,
@@ -13,6 +13,7 @@ export interface SQSMessagePayload {
   messageId?: string;
 }
 
+@Injectable()
 export class SqsService implements OnModuleInit {
   private readonly logger = new Logger(SqsService.name);
   private readonly client: SQSClient;
@@ -27,6 +28,7 @@ export class SqsService implements OnModuleInit {
 
   async checkConnection(): Promise<boolean> {
     try {
+      console.log(this.queueURL)
       const command = new GetQueueAttributesCommand({
         QueueUrl: this.queueURL,
         AttributeNames: ['QueueArn'],
@@ -69,8 +71,11 @@ export class SqsService implements OnModuleInit {
             StringValue: params.messageType,
           },
         },
+        MessageGroupId:params.messageType,
+        MessageDeduplicationId:messageId
       });
       const result = await this.client.send(command);
+      console.log('message sent to sqs', result);
       this.logger.log(
         `SQS message sent: type ${params.messageType}, message ID: ${result.MessageId}`,
       );
