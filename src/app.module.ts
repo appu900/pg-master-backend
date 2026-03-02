@@ -19,6 +19,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { BanksModule } from './modules/banks/banks.module';
 import { SqsModule } from './infra/Queue/SQS/sqs.module';
 import { ChargesModule } from './modules/charges/charges.module';
+import { OutboxpollerModule } from './modules/outboxpoller/outboxpoller.module';
 
 
 @Module({
@@ -29,6 +30,7 @@ import { ChargesModule } from './modules/charges/charges.module';
       limit: 100, // 100 requests per minute
     }]),
     SqsModule,
+    OutboxpollerModule,
     PrismaModule,
     RedisModule,
     S3Module,
@@ -44,6 +46,7 @@ import { ChargesModule } from './modules/charges/charges.module';
     AdminModule,
     BanksModule,
     ChargesModule,
+    OutboxpollerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

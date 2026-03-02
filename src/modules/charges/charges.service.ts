@@ -4,7 +4,7 @@ import { SqsService } from 'src/infra/Queue/SQS/sqs.service';
 import { AddChargeDto } from './dto/add-charge.dto';
 import { ChargeType, TenancyStatus, TenantStatus } from '@prisma/client';
 import { ElectricityChargeDto } from './dto/add-electricity-charges';
-import { SQS_EVENT_TYPES } from 'src/common/sqs/message-types';
+
 import { describe } from 'node:test';
 
 @Injectable()
@@ -140,30 +140,30 @@ export class ChargesService {
         );
 
         // send sqs event to generate invoice
-        await this.sqsService.sendEvent({
-          messageType: SQS_EVENT_TYPES.ATTACH_CHARGES,
-          payload: {
-            tenancyId: charge.tenancyId,
-            chargeId: charge.id,
-            invoiceId: 0,
-          },
-        });
+        // await this.sqsService.sendEvent({
+        //   messageType: SQS_EVENT_TYPES.ATTACH_CHARGES,
+        //   payload: {
+        //     tenancyId: charge.tenancyId,
+        //     chargeId: charge.id,
+        //     invoiceId: 0,
+        //   },
+        // });
 
-        // notify tenant via whatsapp
-        if (tenancy) {
-          await this.sqsService.sendEvent({
-            messageType: SQS_EVENT_TYPES.SEND_WHATSAPP,
-            payload: {
-              tenancyId: tenancy.id,
-              chargeId: charge.id,
-              tenantId: tenancy.tenent.id,
-              tenantPhoneNumber: tenancy.tenent.phoneNumber,
-              tenantName: tenancy.tenent.fullName,
-              amount: charge.amount,
-              title: transaction_result.title,
-            },
-          });
-        }
+        // // notify tenant via whatsapp
+        // if (tenancy) {
+        //   await this.sqsService.sendEvent({
+        //     messageType: SQS_EVENT_TYPES.SEND_WHATSAPP,
+        //     payload: {
+        //       tenancyId: tenancy.id,
+        //       chargeId: charge.id,
+        //       tenantId: tenancy.tenent.id,
+        //       tenantPhoneNumber: tenancy.tenent.phoneNumber,
+        //       tenantName: tenancy.tenent.fullName,
+        //       amount: charge.amount,
+        //       title: transaction_result.title,
+        //     },
+        //   });
+        // }
       }),
     );
     return {

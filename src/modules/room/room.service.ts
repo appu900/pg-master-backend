@@ -13,7 +13,9 @@ import {
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { AddTenantDto } from './dto/add.tenant.dto';
 import { SqsService } from 'src/infra/Queue/SQS/sqs.service';
-import { SQS_EVENT_TYPES } from 'src/common/sqs/message-types';
+import { SQS_MESSAGE_TYPES } from 'src/common/sqs/message-types';
+import { WHATSAPP_TEMPLATES } from 'src/common/types/Notifications/whatsapp_templates';
+import { WHATSAPP_MESSAGE_TYPE } from 'src/common/types/Notifications/whatsapp.messages.types';
 
 @Injectable()
 export class RoomService {
@@ -24,6 +26,14 @@ export class RoomService {
 
   async addTenant(roomId: number, dto: AddTenantDto) {
     const res = await this.prisma.$transaction(async (tx) => {
+      const pg = await tx.property.findUnique({
+        where: { id: dto.propertyId },
+        select: { id: true, name: true },
+      });
+      if (!pg) {
+        throw new BadRequestException('pg not found');
+      }
+
       const [room, existingUser] = await Promise.all([
         tx.room.findUnique({ where: { id: roomId } }),
         tx.user.findFirst({
@@ -43,6 +53,19 @@ export class RoomService {
           },
         }),
       ]);
+
+      // ****
+      if (!room) throw new NotFoundException('Room not found');
+      if (room.propertyId != dto.propertyId)
+        throw new BadRequestException(
+          'Room does not belong to specified property',
+        );
+      if (room.occupiedBeds >= room.totalBeds)
+        throw new BadRequestException('No vacant bed available in this room');
+
+      if (!dto.joiningDate || typeof dto.joiningDate !== 'string') {
+        throw new BadRequestException('joiningDate is required');
+      }
 
       // ** user validation
       if (existingUser) {
@@ -69,17 +92,6 @@ export class RoomService {
       }
 
       // ** room validation
-      if (!room) throw new NotFoundException('Room not found');
-      if (room.propertyId != dto.propertyId)
-        throw new BadRequestException(
-          'Room does not belong to specified property',
-        );
-      if (room.occupiedBeds >= room.totalBeds)
-        throw new BadRequestException('No vacant bed available in this room');
-
-      if (!dto.joiningDate || typeof dto.joiningDate !== 'string') {
-        throw new BadRequestException('joiningDate is required');
-      }
 
       const joiningDate = new Date(dto.joiningDate + 'T00:00:00.000Z');
 
@@ -154,7 +166,12 @@ export class RoomService {
               roomId,
               propertyId: dto.propertyId,
               joinedAt: joiningDate,
-              rentPrice: dto.rentPrice,
+              rentAmount: dto.rentPrice,
+              securityDeposite: dto.securityDeposit,
+              advanceAmount: 0.0,
+              lockInPeriodInMonths: dto.lockinPeriodMonths,
+              noticePeriodInDays: dto.noticePeriodInDays,
+              initialElectricityReading: dto.roomElectricityReading,
             },
           },
         }),
@@ -162,18 +179,31 @@ export class RoomService {
 
       return {
         success: true,
+        pg: pg.name,
         tenantId: tenant.id,
         joiningDate: joiningDate.toISOString(),
         roomId,
       };
     });
 
-    // await this.sqsService.sendEvent({
-    //   messageType: SQS_EVENT_TYPES.SEND_WHATSAPP,
-    //   payload: {
-    //     tenantId: res.tenantId,
-    //   },
-    // });
+    //  ** send message to sqs to notify tenant that he has been added
+    const messageGroupId = `tenancy-notify-${res.tenantId}`;
+    const ress = await this.sqsService.sendMessage(
+      SQS_MESSAGE_TYPES.SEND_NOTIFICATION,
+      messageGroupId,
+      {
+        channel: 'whatsapp',
+        to: '+917735041901',
+        templateKey:WHATSAPP_MESSAGE_TYPE.ADD_TENANT,
+        data: {
+          name: dto.fullName,
+          pgname: res.pg,
+          link: 'https://pgmaster.in',
+          pg_name: res.pg,
+        },
+      },
+    );
+    console.log(ress)
     return {
       sucess: true,
     };

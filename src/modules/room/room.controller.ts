@@ -1,11 +1,11 @@
 import {
-    Body,
-    Controller,
-    Get,
-    Param,
-    ParseIntPipe,
-    Post,
-    UseGuards,
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  UseGuards,
 } from '@nestjs/common';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
@@ -25,7 +25,7 @@ export class RoomController {
     @Param('id', ParseIntPipe) roomId: number,
     @Body() dto: AddTenantDto,
   ) {
-    return this.roomService.addTenant(roomId, dto);
+    return await this.roomService.addTenant(roomId, dto);
   }
 
   @Get('/tenants/:id')
