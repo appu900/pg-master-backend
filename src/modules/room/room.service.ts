@@ -193,7 +193,7 @@ export class RoomService {
       messageGroupId,
       {
         channel: 'whatsapp',
-        to: '+917735041901',
+        to: dto.phoneNumber,
         templateKey:WHATSAPP_MESSAGE_TYPE.ADD_TENANT,
         data: {
           name: dto.fullName,
