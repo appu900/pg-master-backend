@@ -88,7 +88,7 @@ export class BanksService {
     const res = await this.prisma.bankAccountDetails.findMany({
       where: { propertyOwnerProfileId: profileId },
       select: {
-        id:true,
+        id: true,
         accountHolderName: true,
         accountType: true,
         PayeeCategory: true,
@@ -201,23 +201,24 @@ export class BanksService {
       where: {
         id: bankAccountId,
       },
-      select:{
-        id:true,
-        accountHolderName:true,
-        PayeeCategory:true,
-        AccountNumber:true,
-        IFSCcode:true,
-        UPIId:true,
-        accountType:true,
-        createdAt:true,
-        updatedAt:true,
-        linkedProperty:{
-          select:{
-            id:true,
-            name:true,
-          }
-        }
-      }
+      select: {
+        id: true,
+        phoneNumber: true,
+        accountHolderName: true,
+        PayeeCategory: true,
+        AccountNumber: true,
+        IFSCcode: true,
+        UPIId: true,
+        accountType: true,
+        createdAt: true,
+        updatedAt: true,
+        linkedProperty: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
     return bankAccount;
   }

@@ -82,6 +82,10 @@ model TenentProfile {
   @@index([userId])
 }
 
+model TenantKycDetails{
+  id Int @id @default(autoincrement())
+}
+  
 model BankAccountDetails {
   id                     Int                  @id @default(autoincrement())
   propertyOwnerProfileId Int

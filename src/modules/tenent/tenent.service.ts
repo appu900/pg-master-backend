@@ -276,6 +276,40 @@ export class TenentService {
     }));
   }
 
+  async fetchTenancyDetails(tenantId: number) {
+    const tenant = await this.prisma.user.findUnique({
+      where: { id: tenantId, role:UserRole.TENANT },
+      include: {
+        tenancy: {
+          select: {
+            room: {
+              select: {
+                roomNumber: true,
+                floorNumber: true,
+              },
+            },
+            property: {
+              select: {
+                name: true,
+                pinCode: true,
+                id: true,
+              },
+            },
+            securityDeposit: true,
+            joinedAt: true,
+            rentAmount: true,
+            lockInPeriodsInMonths: true,
+            noticePeriodInDays: true,
+          },
+        },
+      },
+    });
+    if (!tenant) {
+      throw new NotFoundException('No tenancy details found for this tenant');
+    }
+    return tenant;
+  }
+
   // async editProfile(tenantId:number,editProfileDto:UpdateProfileDto,image?:Express.Multer.File[]){
   //    const user = await this.prisma.user.findUnique({where:{id:tenantId},include:{tenentProfile:true}})
   //    if(!user) throw new NotFoundException('user not found');

@@ -17,6 +17,7 @@ import { AddTenantDto } from '../room/dto/add.tenant.dto';
 import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenentService } from './tenent.service';
+import { GetUser } from 'src/common/decorators/Getuser.decorator';
 
 @Controller('tenant')
 export class TenentController {
@@ -90,5 +91,13 @@ export class TenentController {
     @Body() dto: MoveOutTenantDto,
   ) {
     return this.tenentService.moveTenantOut(tenancyId, dto);
+  }
+
+  @Get('/tenancy/details')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TENANT)
+  async fetchTenancyDetails(@GetUser() user: any) {
+    const userId = user.userId;
+    return this.tenentService.fetchTenancyDetails(userId);
   }
 }

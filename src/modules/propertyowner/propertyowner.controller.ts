@@ -3,7 +3,13 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
   Post,
+  Put,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -20,6 +26,8 @@ import {
 import { AddBusinessDetails } from './dto/AddBusiness-details.dto';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { throttlerMessage } from '@nestjs/throttler';
+import { UpdatePropertyOwnerProfileDto } from './dto/update-property-owner.profile.dto';
+import { UpdateTenantProfileByOwnerDto } from './dto/update-tenant_profile.dto';
 
 @Controller('propertyowner')
 export class PropertyownerController {
@@ -84,5 +92,53 @@ export class PropertyownerController {
     const userId = user.userId;
     if (!userId) throw new BadRequestException('Invalid user');
     return this.serviceLayer.fetchProfileDetails(userId);
+  }
+
+  @Put('/profile')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  @UseInterceptors(
+    FileInterceptor('profileImage', {
+      limits: {
+        fileSize: 40 * 1024 * 1024,
+      },
+    }),
+  )
+  async updateProfile(
+    @Body() dto: UpdatePropertyOwnerProfileDto,
+    @GetUser() user: any,
+    @UploadedFile() profileImage?: Express.Multer.File,
+  ) {
+    const propertyOwnerId = user.userId;
+    return this.serviceLayer.updateProfile(propertyOwnerId, dto, profileImage);
+  }
+
+  @Put('tenants/:tenantUserId/profile')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  @UseInterceptors(
+    FileInterceptor('profileImage', { limits: { fileSize: 40 * 1024 * 1024 } }),
+  )
+  async updateTenantProfile(
+    @Body() dto: UpdateTenantProfileByOwnerDto,
+    @Param('tenantUserId', ParseIntPipe) tenantId: number,
+    @GetUser() user: any,
+    @UploadedFile() profileImage?: Express.Multer.File,
+  ) {
+    const userId = user.userId;
+    if (!userId) throw new BadRequestException();
+    if (!tenantId) throw new BadRequestException('tenant id is required');
+    const updatedProfile = await this.serviceLayer.updateTenantProfile(
+      userId,
+      tenantId,
+      dto,
+      profileImage,
+    );
+    return {
+      success: true,
+      message: 'Tenant profile update sucessfully',
+      data: updatedProfile,
+    };
   }
 }
