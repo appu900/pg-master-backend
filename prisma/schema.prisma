@@ -61,8 +61,8 @@ model PropertyOwnerProfile {
 }
 
 model TenentProfile {
-  id                      Int       @id @default(autoincrement())
-  userId                  Int       @unique
+  id                      Int               @id @default(autoincrement())
+  userId                  Int               @unique
   geneder                 String?
   profession              String?
   pinCode                 String
@@ -70,22 +70,33 @@ model TenentProfile {
   profileImage            String?
   Address                 String?
   RentalType              String?
-  lockInPeriodsInMonths   Int?      @default(0)
-  noticePeriodInDays      Int?      @default(0)
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  lockInPeriodsInMonths   Int?              @default(0)
+  noticePeriodInDays      Int?              @default(0)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
   JoiningDate             DateTime
-  agreementPeriodinMonths Int?      @default(0)
+  agreementPeriodinMonths Int?              @default(0)
   moveOutDate             DateTime?
-  user                    User      @relation(fields: [userId], references: [id])
+  user                    User              @relation(fields: [userId], references: [id])
+  tenantKycDetails        TenantKycDetails?
 
   @@index([userId])
 }
 
-model TenantKycDetails{
-  id Int @id @default(autoincrement())
+model TenantKycDetails {
+  id                                Int     @id @default(autoincrement())
+  tenantProfileId                   Int     @unique
+  idProof                           String?
+  rentalAgreement                   String?
+  policeVerification                String?
+  otherDocument                     String?
+  RentingDetailsVerificationStatus  Boolean @default(false)
+  IdVerificationStatus              Boolean @default(false)
+  RentalAgreementVerificationStatus Boolean @default(false)
+
+  TenantProfile TenentProfile @relation(fields: [tenantProfileId], references: [id])
 }
-  
+
 model BankAccountDetails {
   id                     Int                  @id @default(autoincrement())
   propertyOwnerProfileId Int

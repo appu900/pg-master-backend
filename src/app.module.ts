@@ -20,6 +20,7 @@ import { BanksModule } from './modules/banks/banks.module';
 import { SqsModule } from './infra/Queue/SQS/sqs.module';
 import { ChargesModule } from './modules/charges/charges.module';
 import { OutboxpollerModule } from './modules/outboxpoller/outboxpoller.module';
+import { TenantKycModule } from './modules/TenantKyc/tenantkyc.module';
 
 
 @Module({
@@ -47,6 +48,7 @@ import { OutboxpollerModule } from './modules/outboxpoller/outboxpoller.module';
     BanksModule,
     ChargesModule,
     OutboxpollerModule,
+    TenantKycModule
   ],
   controllers: [AppController],
   providers: [AppService],
