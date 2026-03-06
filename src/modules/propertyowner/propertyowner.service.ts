@@ -53,8 +53,7 @@ export class PropertyownerService {
       profileUpdateData.pinCode = editProfilePayload.pinCode;
     if (editProfilePayload.State)
       profileUpdateData.State = editProfilePayload.State;
-    if (newProfileImageUrl)
-      profileUpdateData.profileImage = newProfileImageUrl;
+    if (newProfileImageUrl) profileUpdateData.profileImage = newProfileImageUrl;
 
     const hasUserChanges = Object.keys(userupdateData).length > 0;
     const hasProfileChanges = Object.keys(profileUpdateData).length > 0;
@@ -121,12 +120,13 @@ export class PropertyownerService {
         }
       }
       if (error?.code === 'P2002') {
-        throw new BadRequestException('Email is already in use by another account');
+        throw new BadRequestException(
+          'Email is already in use by another account',
+        );
       }
       throw error;
     }
   }
-
 
   async fetchProfileDetails(onwerId: number) {
     return this.prisma.propertyOwnerProfile.findFirst({
@@ -202,22 +202,23 @@ export class PropertyownerService {
     });
   }
 
-  async fetchTheBuinessDetails(propertyOwnerId:number){
-     const propertyOwner = await this.prisma.user.findUnique({
-      where:{id:propertyOwnerId},
-      select:{
-        propertyOwnerProfile:true
-      }
-     })
-     if(!propertyOwner || !propertyOwner.propertyOwnerProfile){
-       throw new NotFoundException("user not found")
-     }
+  async fetchTheBuinessDetails(propertyOwnerId: number) {
+    const propertyOwner = await this.prisma.user.findUnique({
+      where: { id: propertyOwnerId },
+      select: {
+        propertyOwnerProfile: true,
+      },
+    });
+    if (!propertyOwner || !propertyOwner.propertyOwnerProfile) {
+      throw new NotFoundException('user not found');
+    }
 
-    const buisnessDetails  = await this.prisma.businessDetails.findUnique({
-      where:{
-        propertyOwnerProfileId:propertyOwner.propertyOwnerProfile.id
-      }
-    })
+    const buisnessDetails = await this.prisma.businessDetails.findUnique({
+      where: {
+        propertyOwnerProfileId: propertyOwner.propertyOwnerProfile.id,
+      },
+    });
+    console.log(buisnessDetails);
     return buisnessDetails;
   }
 

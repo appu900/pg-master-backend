@@ -142,13 +142,14 @@ export class PropertyownerController {
     };
   }
 
-  
+
   @Get('/buisnessdetails')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROPERTY_OWNER)
   async fetchBuinessDetails(@GetUser() user: any) {
     const propertyOwnerUserId = user.userId;
-    const res = this.serviceLayer.fetchProfileDetails(propertyOwnerUserId);
+    const res = await this.serviceLayer.fetchTheBuinessDetails(propertyOwnerUserId);
+    console.log("this is the response",res)
     return {
       success: true,
       message: 'buisness details fetched sucessfully',
