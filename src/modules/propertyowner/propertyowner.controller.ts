@@ -141,4 +141,18 @@ export class PropertyownerController {
       data: updatedProfile,
     };
   }
+
+  
+  @Get('/buisnessdetails')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async fetchBuinessDetails(@GetUser() user: any) {
+    const propertyOwnerUserId = user.userId;
+    const res = this.serviceLayer.fetchProfileDetails(propertyOwnerUserId);
+    return {
+      success: true,
+      message: 'buisness details fetched sucessfully',
+      res,
+    };
+  }
 }

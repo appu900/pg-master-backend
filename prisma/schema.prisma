@@ -515,26 +515,34 @@ model PropertyMonthlyMetrics {
   year       Int
   month      Int
 
-  totalIncome Decimal @default(0) @db.Decimal(10, 2)
-  rentIncome  Decimal @default(0) @db.Decimal(10, 2)
-  otherIncome Decimal @default(0) @db.Decimal(10, 2)
+  // Income
+  totalCollected Decimal @default(0) @db.Decimal(10, 2) // payments received this month
+  rentCollected  Decimal @default(0) @db.Decimal(10, 2)
+  otherCollected Decimal @default(0) @db.Decimal(10, 2)
 
-  totalExpenses       Decimal @default(0) @db.Decimal(10, 2)
-  salaryExpenses      Decimal @default(0) @db.Decimal(10, 2)
-  maintenanceExpenses Decimal @default(0) @db.Decimal(10, 2)
-  utilityExpenses     Decimal @default(0) @db.Decimal(10, 2)
-  otherExpenses       Decimal @default(0) @db.Decimal(10, 2)
+  // Invoiced this month
+  totalInvoiced Decimal @default(0) @db.Decimal(10, 2) // sum of invoices generated this month
+  rentInvoiced  Decimal @default(0) @db.Decimal(10, 2)
+  otherInvoiced Decimal @default(0) @db.Decimal(10, 2)
 
-  totalDue        Decimal @default(0) @db.Decimal(10, 2)
-  pendingInvoices Int     @default(0)
+  // Due tracking
+  openingDue Decimal @default(0) @db.Decimal(10, 2) // carried from previous month
+  currentDue Decimal @default(0) @db.Decimal(10, 2) // unpaid invoices of this month
+  totalDue   Decimal @default(0) @db.Decimal(10, 2) // openingDue + currentDue - totalCollected
 
+  // Invoice counts
+  invoicesGenerated Int @default(0)
+  pendingInvoices   Int @default(0)
+  overdueInvoices   Int @default(0)
+  paidInvoices      Int @default(0)
+
+  // Occupancy
   activeTenantsCount Int     @default(0)
   occupancyRate      Decimal @default(0) @db.Decimal(5, 2)
 
   lastCalculatedAt DateTime @default(now())
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   property Property @relation(fields: [propertyId], references: [id])
 

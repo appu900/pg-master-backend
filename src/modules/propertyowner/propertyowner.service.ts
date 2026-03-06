@@ -112,6 +112,7 @@ export class PropertyownerService {
     }
   }
 
+
   async fetchProfileDetails(onwerId: number) {
     return this.prisma.propertyOwnerProfile.findFirst({
       where: { userId: onwerId },
@@ -133,6 +134,7 @@ export class PropertyownerService {
       },
     });
   }
+
   async addBusinessDetails(
     propertyOwnerId: number,
     dto: AddBusinessDetails,
@@ -182,6 +184,25 @@ export class PropertyownerService {
         },
       });
     });
+  }
+
+  async fetchTheBuinessDetails(propertyOwnerId:number){
+     const propertyOwner = await this.prisma.user.findUnique({
+      where:{id:propertyOwnerId},
+      select:{
+        propertyOwnerProfile:true
+      }
+     })
+     if(!propertyOwner || !propertyOwner.propertyOwnerProfile){
+       throw new NotFoundException("user not found")
+     }
+
+    const buisnessDetails  = await this.prisma.businessDetails.findUnique({
+      where:{
+        propertyOwnerProfileId:propertyOwner.propertyOwnerProfile.id
+      }
+    })
+    return buisnessDetails;
   }
 
   async updateTenantProfile(
