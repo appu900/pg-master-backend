@@ -4,12 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
-import { CreateAdminDto } from '../auth/dto/create-admin.dto';
-import { AddBusinessDetails } from './dto/AddBusiness-details.dto';
-import { NotFound } from '@aws-sdk/client-s3';
 import { BusinessApprovalStatus, Prisma, UserRole } from '@prisma/client';
+import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { S3Service } from 'src/infra/s3/s3.service';
+import { AddBusinessDetails } from './dto/AddBusiness-details.dto';
 import { UpdatePropertyOwnerProfileDto } from './dto/update-property-owner.profile.dto';
 import { UpdateTenantProfileByOwnerDto } from './dto/update-tenant_profile.dto';
 
@@ -29,51 +27,46 @@ export class PropertyownerService {
       where: { userId: propertyOwnerId },
     });
     if (!existingProfile) throw new NotFoundException('profile not found');
+
     let newProfileImageUrl: string | undefined;
     if (profileImage) {
       newProfileImageUrl = await this.s3Service.uploadFile(
         profileImage,
         `propertyOnwer-profiles/${propertyOwnerId}`,
       );
-      if (existingProfile.profileImage) {
-        try {
-          await this.s3Service.deleteFile(existingProfile.profileImage);
-        } catch (error: any) {
-          console.error(
-            `failed to delete the image of property owner from s3 with id ${propertyOwnerId}: ${error.message}`,
-          );
-        }
-      }
+    }
 
-      const userupdateData: Prisma.UserUpdateInput = {};
-      if (editProfilePayload.phoneNumber)
-        userupdateData.phoneNumber = editProfilePayload.phoneNumber;
-      if (editProfilePayload.email)
-        userupdateData.email = editProfilePayload.email;
-      if (editProfilePayload.fullName)
-        userupdateData.fullName = editProfilePayload.fullName;
-      const profileUpdateData: Prisma.PropertyOwnerProfileUpdateInput = {};
-      if (editProfilePayload.Gender)
-        profileUpdateData.Gender = editProfilePayload.Gender;
-      if (editProfilePayload.Profession)
-        profileUpdateData.Profession = editProfilePayload.Profession;
-      if (editProfilePayload.pinCode)
-        profileUpdateData.pinCode = editProfilePayload.pinCode;
-      if (editProfilePayload.State)
-        profileUpdateData.State = editProfilePayload.State;
-      if (newProfileImageUrl)
-        profileUpdateData.profileImage = newProfileImageUrl;
+    const userupdateData: Prisma.UserUpdateInput = {};
+    if (editProfilePayload.phoneNumber)
+      userupdateData.phoneNumber = editProfilePayload.phoneNumber;
+    if (editProfilePayload.email)
+      userupdateData.email = editProfilePayload.email;
+    if (editProfilePayload.fullName)
+      userupdateData.fullName = editProfilePayload.fullName;
 
-      const hasUserChages = Object.keys(userupdateData).length > 0;
-      const hasProfileChanges = Object.keys(profileUpdateData).length > 0;
-      if (!hasProfileChanges && !hasUserChages && !newProfileImageUrl) {
-        return this.fetchProfileDetails(propertyOwnerId);
-      }
+    const profileUpdateData: Prisma.PropertyOwnerProfileUpdateInput = {};
+    if (editProfilePayload.Gender)
+      profileUpdateData.Gender = editProfilePayload.Gender;
+    if (editProfilePayload.Profession)
+      profileUpdateData.Profession = editProfilePayload.Profession;
+    if (editProfilePayload.pinCode)
+      profileUpdateData.pinCode = editProfilePayload.pinCode;
+    if (editProfilePayload.State)
+      profileUpdateData.State = editProfilePayload.State;
+    if (newProfileImageUrl)
+      profileUpdateData.profileImage = newProfileImageUrl;
 
-      // start the transaction here
+    const hasUserChanges = Object.keys(userupdateData).length > 0;
+    const hasProfileChanges = Object.keys(profileUpdateData).length > 0;
+
+    if (!hasProfileChanges && !hasUserChanges) {
+      return this.fetchProfileDetails(propertyOwnerId);
+    }
+
+    try {
       const updatedProfileDataResponse = await this.prisma.$transaction(
         async (tx) => {
-          if (hasUserChages) {
+          if (hasUserChanges) {
             await tx.user.update({
               where: { id: propertyOwnerId },
               data: userupdateData,
@@ -85,7 +78,7 @@ export class PropertyownerService {
               data: profileUpdateData,
             });
           }
-          const updatedProfileData = await tx.propertyOwnerProfile.findUnique({
+          return tx.propertyOwnerProfile.findUnique({
             where: { userId: propertyOwnerId },
             select: {
               user: {
@@ -102,13 +95,35 @@ export class PropertyownerService {
               Gender: true,
             },
           });
-          return updatedProfileData
         },
       );
-      return {
-        success: true,
-        data:updatedProfileDataResponse
-      };
+
+      if (newProfileImageUrl && existingProfile.profileImage) {
+        try {
+          await this.s3Service.deleteFile(existingProfile.profileImage);
+        } catch (error: any) {
+          console.error(
+            `failed to delete old profile image for owner ${propertyOwnerId}: ${error.message}`,
+          );
+        }
+      }
+
+      return { success: true, data: updatedProfileDataResponse };
+    } catch (error: any) {
+      // If DB transaction fails and we uploaded a new image, clean it up
+      if (newProfileImageUrl) {
+        try {
+          await this.s3Service.deleteFile(newProfileImageUrl);
+        } catch (cleanupError: any) {
+          console.error(
+            `failed to clean up orphaned profile image for owner ${propertyOwnerId}: ${cleanupError.message}`,
+          );
+        }
+      }
+      if (error?.code === 'P2002') {
+        throw new BadRequestException('Email is already in use by another account');
+      }
+      throw error;
     }
   }
 
@@ -124,6 +139,7 @@ export class PropertyownerService {
             email: true,
           },
         },
+        profileImage: true,
         State: true,
         Profession: true,
         pinCode: true,
