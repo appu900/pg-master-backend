@@ -14,20 +14,19 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { PropertyownerService } from './propertyowner.service';
-import { JwtAuthGuard } from '../auth/guards/jwt.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Role } from 'src/common/enum/role.enum';
 import {
   FileFieldsInterceptor,
   FileInterceptor,
 } from '@nestjs/platform-express';
-import { AddBusinessDetails } from './dto/AddBusiness-details.dto';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
-import { throttlerMessage } from '@nestjs/throttler';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { Role } from 'src/common/enum/role.enum';
+import { JwtAuthGuard } from '../auth/guards/jwt.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { AddBusinessDetails } from './dto/AddBusiness-details.dto';
 import { UpdatePropertyOwnerProfileDto } from './dto/update-property-owner.profile.dto';
 import { UpdateTenantProfileByOwnerDto } from './dto/update-tenant_profile.dto';
+import { PropertyownerService } from './propertyowner.service';
 
 @Controller('propertyowner')
 export class PropertyownerController {
@@ -111,6 +110,7 @@ export class PropertyownerController {
     @UploadedFile() profileImage?: Express.Multer.File,
   ) {
     const propertyOwnerId = user.userId;
+    if (!propertyOwnerId) throw new BadRequestException('Invalid user');
     return this.serviceLayer.updateProfile(propertyOwnerId, dto, profileImage);
   }
 
