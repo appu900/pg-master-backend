@@ -37,16 +37,9 @@ export class TenancyController {
       propertyId,
       dto,
     );
-    if (res) {
-      return {
-        success: true,
-        message: 'Rent details update sucessfully',
-      };
-    } else {
-      return {
-        success: false,
-        message: 'something went wrong in updating the rent details',
-      };
-    }
+    return {
+      res,
+      message: 'update rental details sucessful',
+    };
   }
 }
