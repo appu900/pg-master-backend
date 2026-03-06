@@ -94,15 +94,15 @@ export class AddTenantDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  lockinPeriodMonths: number;
+  lockinPeriodMonths!: number;
 
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  noticePeriodInDays: number;
+  noticePeriodInDays!: number;
 
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  roomElectricityReading: number;
+  roomElectricityReading!: number;
 }

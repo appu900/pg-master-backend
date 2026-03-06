@@ -21,15 +21,17 @@ import { SqsModule } from './infra/Queue/SQS/sqs.module';
 import { ChargesModule } from './modules/charges/charges.module';
 import { OutboxpollerModule } from './modules/outboxpoller/outboxpoller.module';
 import { TenantKycModule } from './modules/TenantKyc/tenantkyc.module';
-
+import { TenancyModule } from './modules/tenancy/tenancy.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000, // 60 seconds
-      limit: 100, // 100 requests per minute
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // 60 seconds
+        limit: 100, // 100 requests per minute
+      },
+    ]),
     SqsModule,
     OutboxpollerModule,
     PrismaModule,
@@ -48,7 +50,8 @@ import { TenantKycModule } from './modules/TenantKyc/tenantkyc.module';
     BanksModule,
     ChargesModule,
     OutboxpollerModule,
-    TenantKycModule
+    TenantKycModule,
+    TenancyModule,
   ],
   controllers: [AppController],
   providers: [AppService],
