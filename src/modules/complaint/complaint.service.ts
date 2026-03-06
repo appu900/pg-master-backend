@@ -172,9 +172,9 @@ export class ComplaintService {
     };
   }
 
-  async getAllComplaints(propertyId:number) {
+  async getAllComplaints(propertyId: number) {
     const complaints = await this.prisma.complaint.findMany({
-      where:{propertyId},
+      where: { propertyId },
       select: {
         id: true,
         title: true,
@@ -215,7 +215,7 @@ export class ComplaintService {
     const complaint = await this.prisma.complaint.findUnique({
       where: { id: complaintId },
       select: {
-        id:true,
+        id: true,
         title: true,
         description: true,
         raisedBy: { select: { fullName: true } },
@@ -280,9 +280,12 @@ export class ComplaintService {
     }
   }
 
-  async fetchComplaintByStatus(userRequestedStatus: ComplaintStatus,propertyId:number) {
+  async fetchComplaintByStatus(
+    userRequestedStatus: ComplaintStatus,
+    propertyId: number,
+  ) {
     return await this.prisma.complaint.findMany({
-      where: { status: userRequestedStatus,propertyId:propertyId },
+      where: { status: userRequestedStatus, propertyId: propertyId },
     });
   }
 
@@ -297,7 +300,7 @@ export class ComplaintService {
         raisedById: tenantId,
       },
       select: {
-        id:true,
+        id: true,
         title: true,
         description: true,
         status: true,
@@ -330,5 +333,43 @@ export class ComplaintService {
       },
     });
     return result;
+  }
+
+  async fetchAllComplaintsForAllPropertiesByOwnerId(propertyOwnerId: number) {
+    const owner = await this.prisma.user.findUnique({
+      where: { id: propertyOwnerId },
+    });
+    if (!owner) {
+      throw new NotFoundException('owner not found or blocked');
+    }
+
+    const allPropertiesOfOwner = await this.prisma.property.findMany({
+      where: {
+        ownerId: propertyOwnerId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const allPropertyIds = allPropertiesOfOwner.map((p) => p.id);
+    console.log(allPropertyIds)
+    const complaints = await this.prisma.complaint.findMany({
+      where: {
+        propertyId: { in: allPropertyIds },
+      },
+      include: {
+        property: true,
+        raisedBy: true,
+        assignedMaintenanceStaffProfile: true,
+        logs: true,
+        images: true,
+      },
+      orderBy:{
+        createdAt:'desc'
+      },
+      take:100
+    });
+    return complaints
   }
 }

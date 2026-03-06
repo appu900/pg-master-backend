@@ -113,4 +113,21 @@ export class ComplaintController {
       return this.complaintService.addLogs(compaintId,dto)
   }
 
+
+
+  @Get('owner/property/all')
+  @UseGuards(JwtAuthGuard,RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async fetchAllComplaintsbyPropertyOwner(@GetUser() user:any){
+      const propertyOwnerUserId = user.userId;
+      console.log("this is propertyownerId",propertyOwnerUserId)
+      const res = await this.complaintService.fetchAllComplaintsForAllPropertiesByOwnerId(propertyOwnerUserId)
+      return {
+        success:true,
+        message:"fetched all complaints",
+        res
+      }
+
+  }
+
 }
