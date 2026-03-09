@@ -116,37 +116,36 @@ export class StaffService {
     };
   }
 
-
-  async getStaffDetailsById(profileId:number){
+  async getStaffDetailsById(profileId: number) {
     const record = await this.prisma.maintenanceStaffProfile.findUnique({
-      where:{
-        id:profileId
+      where: {
+        id: profileId,
       },
-       select:{
-        id:true,
-        phoneNumber:true,
-        whatsAppNumber:true,
-        staffType:true,
-        jobPosition:true,
-        monthlySalary:true,
-        user:{
-          select:{
-            fullName:true,
-          }
+      select: {
+        id: true,
+        phoneNumber: true,
+        whatsAppNumber: true,
+        staffType: true,
+        jobPosition: true,
+        monthlySalary: true,
+        user: {
+          select: {
+            fullName: true,
+          },
         },
-        maintenanceStaffPropertyAccesses:{
-          select:{
-            property:{
-              select:{
-                name:true,
-                id:true
-              }
-            }
-          }
-        }
-       }
-    })
-    if(!record) throw new NotFoundException()
+        maintenanceStaffPropertyAccesses: {
+          select: {
+            property: {
+              select: {
+                name: true,
+                id: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!record) throw new NotFoundException();
     return record;
   }
 
@@ -200,10 +199,9 @@ export class StaffService {
         ownerId: ownerId,
       },
       select: {
-        id:true,
         employeeProfile: {
           select: {
-            id:true,
+            id: true,
             staffType: true,
             jobPosition: true,
             monthlySalary: true,
@@ -221,6 +219,7 @@ export class StaffService {
             },
             user: {
               select: {
+                id: true,
                 fullName: true,
               },
             },
@@ -228,7 +227,23 @@ export class StaffService {
         },
       },
     });
-    return records.map(StaffMapper.toResponse);
+    const formattedResponse = records.map((ep) => ({
+      userInformation: {
+        userId: ep.employeeProfile.user.id,
+        fullName: ep.employeeProfile.user.fullName,
+        phoneNumber:ep.employeeProfile.phoneNumber,
+        whatsappNumber:ep.employeeProfile.whatsAppNumber
+      },
+      profileDetails:{
+        profileId:ep.employeeProfile.id,
+        staffType:ep.employeeProfile.staffType,
+        jobPosition:ep.employeeProfile.jobPosition,
+        salaryPerMonth:ep.employeeProfile.monthlySalary,
+        propertyScope:ep.employeeProfile.propertyScope,
+      },
+      maintenanceStaffPropertyAccesses:ep.employeeProfile.maintenanceStaffPropertyAccesses
+    }));
+    return formattedResponse
   }
 
   async fetchAllocatedStaffByPropertyId(propertyId: number, ownerId: number) {
