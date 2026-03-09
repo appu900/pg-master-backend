@@ -5,12 +5,14 @@ import { S3Service } from 'src/infra/s3/s3.service';
 import { AddRoomDto } from './dto/AddRoom.dto';
 import { CreatePropertyDto } from './dto/create.property.dto';
 import { editRoomDto } from './dto/edit.room.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class PropertyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
+    private eventEmitter:EventEmitter2
   ) {}
 
   async createProperty(propertyOwnerId: number, payload: CreatePropertyDto) {
@@ -21,6 +23,7 @@ export class PropertyService {
         ownerId: Number(propertyOwnerId),
       },
     });
+    this.eventEmitter.emit('property.created',{propertyId:property.id})
     return {
       message: 'property created sucessfully',
       property,

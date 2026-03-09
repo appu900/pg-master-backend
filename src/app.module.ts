@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import {EventEmitterModule} from '@nestjs/event-emitter'
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
@@ -22,10 +23,16 @@ import { ChargesModule } from './modules/charges/charges.module';
 import { OutboxpollerModule } from './modules/outboxpoller/outboxpoller.module';
 import { TenantKycModule } from './modules/TenantKyc/tenantkyc.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
+import { PropertyMatricsController } from './modules/propertyMatrics/propertymatrics.controller';
+import { PropertyMatricsModule } from './modules/propertyMatrics/propertymatrics.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    EventEmitterModule.forRoot({
+      maxListeners:2,
+      verboseMemoryLeak:false,
+    }),
     ThrottlerModule.forRoot([
       {
         ttl: 60000, // 60 seconds
@@ -52,6 +59,7 @@ import { TenancyModule } from './modules/tenancy/tenancy.module';
     OutboxpollerModule,
     TenantKycModule,
     TenancyModule,
+    PropertyMatricsModule
   ],
   controllers: [AppController],
   providers: [AppService],
