@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
+}  
 
 model User {
   id                      Int                      @id @default(autoincrement())
@@ -150,6 +150,7 @@ model Property {
   charges                        TenantCharge[]
   propertyMonthlyMetrics         PropertyMonthlyMetrics[]
   propertyLifetimeMetrics        PropertyLifetimeMetrics?
+  expenses                       Expenses[]
 
   @@index([ownerId])
   @@index([pinCode])
@@ -574,6 +575,30 @@ model PropertyLifetimeMetrics {
   property Property @relation(fields: [propertyId], references: [id])
 
   @@index([propertyId])
+}
+ 
+model Expenses {
+  id              Int           @id @default(autoincrement())
+  propertyId      Int
+  month           Int
+  year            Int
+  amount          Decimal       @default(0) @db.Decimal(10, 2)
+  description     String
+  expenseCategory String
+  modeOfPayment   ModeOfPayment
+  paidbyUserId    Int
+  paidToUserId    Int
+  transactionId   String?
+  paymentDate     DateTime
+  image           String?
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+}
+
+enum ModeOfPayment {
+  ONLINE
+  CASH
 }
 
 enum OutboxStatus {

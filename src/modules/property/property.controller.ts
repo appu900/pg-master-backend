@@ -55,13 +55,18 @@ export class PropertyController {
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Body() dto: AddRoomDto,
     @UploadedFiles() images: Express.Multer.File[],
-    @GetUser() user:any
+    @GetUser() user: any,
   ) {
     const userId = user.userId;
-    console.log("userId",userId)
-    if(!userId) throw new BadRequestException('User ID not found');
-    
-    return this.propertyService.addRooms(Number(userId),propertyId, dto, images);
+    console.log('userId', userId);
+    if (!userId) throw new BadRequestException('User ID not found');
+
+    return this.propertyService.addRooms(
+      Number(userId),
+      propertyId,
+      dto,
+      images,
+    );
   }
 
   @Get('/:propertyId/rooms')
@@ -84,7 +89,7 @@ export class PropertyController {
   ) {
     const userId = user.userId;
     if (!userId) throw new BadRequestException('User ID not found');
-    
+
     return this.propertyService.editRoom(id, dto, userId, files);
   }
 

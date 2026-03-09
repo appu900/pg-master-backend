@@ -26,14 +26,25 @@ export class PropertyMatricsService {
           { year: previousYear, month: previousMonth },
         ],
       },
+      select: {
+        id: true,
+        year: true,
+        month: true,
+        totalCollected: true,
+        totalDue: true,
+        currentDue: true,
+      },
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     });
-    const currentMonthMetrics = matrics.find((m)=>m.year === currentYear && m.month === currentMonth)
-    const previousMonthMatrics = matrics.find((m)=> m.year === previousYear && m.month === previousMonth)
+    const currentMonthMetrics = matrics.find(
+      (m) => m.year === currentYear && m.month === currentMonth,
+    );
+    const previousMonthMatrics = matrics.find(
+      (m) => m.year === previousYear && m.month === previousMonth,
+    );
     return {
-        currentMonth:currentMonthMetrics || null,
-        previousMonth:previousMonthMatrics || null
-    }
+      currentMonth: currentMonthMetrics || null,
+      previousMonth: previousMonthMatrics || null,
+    };
   }
 }
- 
