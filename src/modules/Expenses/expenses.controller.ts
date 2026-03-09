@@ -11,12 +11,15 @@ import {
   UseInterceptors,
   Param,
   ParseIntPipe,
-  BadRequestException
+  BadRequestException,
+  Delete,
+  Put,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from 'src/common/enum/role.enum';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { EditExpensesDto } from './dto/edit-expense.dto';
 
 @Controller('expenses')
 export class ExpensesController {
@@ -32,20 +35,39 @@ export class ExpensesController {
     return this.expensesServices.createExpenses(dto, image);
   }
 
-
-
-
-
   @Get('/property/:propertyId')
-  @UseGuards(JwtAuthGuard,RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROPERTY_OWNER)
-  async fetchExpensesByPropertyId(@Param('propertyId', ParseIntPipe) propertyId:number){
-      if(!propertyId) throw new BadRequestException('property details is required')
-      const result = await this.expensesServices.fetchAllExpensesByPropertyId(propertyId)
-      return {
-        success:true,
-        message:"fetched all property expenses details",
-        result
-      }
+  async fetchExpensesByPropertyId(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+  ) {
+    if (!propertyId)
+      throw new BadRequestException('property details is required');
+    const result =
+      await this.expensesServices.fetchAllExpensesByPropertyId(propertyId);
+    return {
+      success: true,
+      message: 'fetched all property expenses details',
+      result,
+    };
+  }
+
+  @Delete(':expenseId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async deleteExpense(@Param('expenseId', ParseIntPipe) expenseId: number) {
+    if (!expenseId) throw new BadRequestException('expense id is required');
+    return this.expensesServices.deleteExpenses(expenseId);
+  }
+
+  @Put(':expenseId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async updateExpense(
+    @Body() dto: EditExpensesDto,
+    @Param('expenseId', ParseIntPipe) expenseId: number,
+  ) {
+    if (!expenseId) throw new BadRequestException('expense id is required');
+    return this.expensesServices.editExpenses(expenseId, dto);
   }
 }

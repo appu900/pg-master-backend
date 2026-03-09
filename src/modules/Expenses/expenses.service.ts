@@ -7,6 +7,9 @@ import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { S3Service } from 'src/infra/s3/s3.service';
 import { CreateExpensesDto } from './dto/expenses.dto';
 import { executionAsyncId } from 'async_hooks';
+import { EditExpensesDto } from './dto/edit-expense.dto';
+import { NotFound } from '@aws-sdk/client-s3';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ExpensesService {
@@ -103,5 +106,40 @@ export class ExpensesService {
        TotalpreviousMonthExpenses,
        expenses
     }
+  }
+
+
+  async deleteExpenses(expenseId:number){
+     const expense = await this.prisma.expenses.findUnique({where:{id:expenseId}})
+     if(!expense) throw new NotFoundException('expense not found')
+     const deletedResult = await this.prisma.expenses.delete({where:{id:expenseId}})
+     return {
+        message:"expense delete sucessfully",
+        accepted:true
+     }
+  }
+
+
+  async editExpenses(expenseId:number,dto:EditExpensesDto){
+     const expense = await this.prisma.expenses.findUnique({where:{id:expenseId}})
+     if(!expense) throw new NotFoundException('expenses not found')
+     let editExpensesPayload:Prisma.ExpensesUpdateInput = {}
+     
+     if(dto.amount) editExpensesPayload.amount = dto.amount
+     if(dto.description) editExpensesPayload.description = dto.description
+     if(dto.expenseCategory) editExpensesPayload.expenseCategory = dto.expenseCategory
+     if(dto.modeOfPayment) editExpensesPayload.modeOfPayment = dto.modeOfPayment
+     if(dto.payeeName) editExpensesPayload.RecipientName = dto.payeeName
+     if(dto.transactionId) editExpensesPayload.transactionId = dto.transactionId
+     if(dto.paymentDate) editExpensesPayload.paymentDate = dto.paymentDate
+     if(dto.payerUserId) editExpensesPayload.payer = {
+        connect:{id:dto.payerUserId}
+     }
+
+     const update_expense_result = await this.prisma.expenses.update({
+        where:{id:expense.id},
+        data:editExpensesPayload
+     })
+     return update_expense_result
   }
 }
