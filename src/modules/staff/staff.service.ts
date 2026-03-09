@@ -200,6 +200,7 @@ export class StaffService {
         ownerId: ownerId,
       },
       select: {
+        id:true,
         employeeProfile: {
           select: {
             id:true,
