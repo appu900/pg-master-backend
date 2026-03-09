@@ -25,6 +25,7 @@ import { TenantKycModule } from './modules/TenantKyc/tenantkyc.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
 import { PropertyMatricsController } from './modules/propertyMatrics/propertymatrics.controller';
 import { PropertyMatricsModule } from './modules/propertyMatrics/propertymatrics.module';
+import { ExpensesModule } from './modules/Expenses/expenses.module';
 
 @Module({
   imports: [
@@ -59,7 +60,8 @@ import { PropertyMatricsModule } from './modules/propertyMatrics/propertymatrics
     OutboxpollerModule,
     TenantKycModule,
     TenancyModule,
-    PropertyMatricsModule
+    PropertyMatricsModule,
+    ExpensesModule
   ],
   controllers: [AppController],
   providers: [AppService],

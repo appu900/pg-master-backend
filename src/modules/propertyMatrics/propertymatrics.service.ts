@@ -1,5 +1,4 @@
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
-
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 @Injectable()

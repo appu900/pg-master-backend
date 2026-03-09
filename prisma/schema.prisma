@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}  
+}
 
 model User {
   id                      Int                      @id @default(autoincrement())
@@ -27,6 +27,7 @@ model User {
   propertyOwnerProfile    PropertyOwnerProfile?
   tenancy                 Tenancy?
   tenentProfile           TenentProfile?
+  expenses                Expenses[]
 
   @@index([phoneNumber])
   @@index([role])
@@ -576,24 +577,76 @@ model PropertyLifetimeMetrics {
 
   @@index([propertyId])
 }
- 
+
 model Expenses {
-  id              Int           @id @default(autoincrement())
+  id              Int             @id @default(autoincrement())
   propertyId      Int
   month           Int
   year            Int
-  amount          Decimal       @default(0) @db.Decimal(10, 2)
+  amount          Decimal         @default(0) @db.Decimal(10, 2)
   description     String
-  expenseCategory String
+  expenseCategory ExpenseCategory
   modeOfPayment   ModeOfPayment
-  paidbyUserId    Int
-  paidToUserId    Int
+  payerUserId     Int
+  RecipientName   String
   transactionId   String?
   paymentDate     DateTime
   image           String?
 
   property Property @relation(fields: [propertyId], references: [id])
+  payer    User     @relation(fields: [payerUserId], references: [id])
 
+  @@index([payerUserId])
+  @@index([propertyId])
+  @@index([propertyId, modeOfPayment])
+}
+
+model InboxMessages {
+  id             Int                @id @default(autoincrement())
+  queueMessageId String             @unique
+  messageType    String
+  payload        Json
+  status         InboxMessageStatus @default(PENDING)
+  processedAt    DateTime?
+  failedReason   String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([id])
+  @@index([status])
+  @@index([queueMessageId])
+  @@index([messageType, status])
+}
+
+enum InboxMessageStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ExpenseCategory {
+  ELECTRICITY_BILL
+  WATERBILL
+  EMPLOYEE_SALARY
+  CLEANING_STAFF_SALARY
+  SECURITY_GUARD_SALARY
+  MAINTENANCE_REPAIR
+  PLUMBING
+  ELECTRICAL_REPAIR
+  INTERNET_WIFI
+  DRINKING_WATER_CANS
+  LAUNDRY
+  CLEANING_SUPPLIES
+  FURNITURE
+  APPLIANCES
+  PROPERTY_RENT
+  SOCIETY_MAINTENANCE
+  PEST_CONTROL
+  BROKER_COMMISSION
+  TRANSPORT
+  MISCELLANEOUS
+  OTHER
 }
 
 enum ModeOfPayment {

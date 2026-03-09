@@ -18,8 +18,6 @@ export class PropertyMatricsController {
   ) {}
 
   @Get('/:propertyId')
-  // @UseGuards(JwtAuthGuard,RolesGuard)
-  // @Roles(Role.PROPERTY_OWNER)
   async fetchPropertyMonthlyMatrics(
     @Param('propertyId', ParseIntPipe) propertyId: number,
   ) {
