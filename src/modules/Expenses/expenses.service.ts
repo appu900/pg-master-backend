@@ -80,6 +80,7 @@ export class ExpensesService {
         modeOfPayment: true,
         transactionId: true,
         paymentDate: true,
+        RecipientName:true,
         image: true,
         payer: {
           select: {
