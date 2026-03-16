@@ -23,15 +23,7 @@ import { GetUser } from 'src/common/decorators/Getuser.decorator';
 export class TenentController {
   constructor(private readonly tenentService: TenentService) {}
 
-  @Post('/room/:roomId')
-  @Roles(Role.PROPERTY_OWNER)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  async addTenantToRoom(
-    @Param('roomId', ParseIntPipe) roomId: number,
-    @Body() dto: AddTenantDto,
-  ) {
-    return this.tenentService.addTenant(roomId, dto);
-  }
+
 
   @Get('/room/:roomId')
   @Roles(Role.PROPERTY_OWNER)

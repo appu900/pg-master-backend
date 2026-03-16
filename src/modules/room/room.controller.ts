@@ -25,7 +25,7 @@ export class RoomController {
     @Param('id', ParseIntPipe) roomId: number,
     @Body() dto: AddTenantDto,
   ) {
-    return await this.roomService.addTenant(roomId, dto);
+    return 'api not working';
   }
 
   @Get('/tenants/:id')

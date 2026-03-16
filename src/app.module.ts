@@ -19,7 +19,6 @@ import { PropertyownerModule } from './modules/propertyowner/propertyowner.modul
 import { AdminModule } from './modules/admin/admin.module';
 import { BanksModule } from './modules/banks/banks.module';
 import { SqsModule } from './infra/Queue/SQS/sqs.module';
-import { ChargesModule } from './modules/charges/charges.module';
 import { OutboxpollerModule } from './modules/outboxpoller/outboxpoller.module';
 import { TenantKycModule } from './modules/TenantKyc/tenantkyc.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
@@ -56,7 +55,6 @@ import { ExpensesModule } from './modules/Expenses/expenses.module';
     PropertyownerModule,
     AdminModule,
     BanksModule,
-    ChargesModule,
     OutboxpollerModule,
     TenantKycModule,
     TenancyModule,

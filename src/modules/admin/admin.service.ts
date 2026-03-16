@@ -4,7 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BusinessApprovalStatus, TenantStatus, UserRole } from '@prisma/client';
+import {
+  BusinessApprovalStatus,
+  TenancyStatus,
+  UserRole,
+} from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 
 @Injectable()
@@ -15,16 +19,18 @@ export class AdminService {
     const adminExists = await this.prisma.user.findUnique({
       where: { id: adminId },
     });
+
     if (!adminExists) throw new ForbiddenException();
-    const result = await this.prisma.businessDetails.findMany({
+
+    return this.prisma.businessDetails.findMany({
       where: { status: BusinessApprovalStatus.PENDING },
       select: {
-        id:true,
-        businessName:true,
-        businessType:true,
-        aadhaarCard:true,
-        panCard:true,
-        companyDocument:true,
+        id: true,
+        businessName: true,
+        businessType: true,
+        aadhaarCard: true,
+        panCard: true,
+        companyDocument: true,
         propertyOwnerProfile: {
           select: {
             Profession: true,
@@ -40,7 +46,6 @@ export class AdminService {
         },
       },
     });
-    return result;
   }
 
   async approveBusiness(businessId: number) {
@@ -56,9 +61,10 @@ export class AdminService {
 
     if (result.count === 0)
       throw new BadRequestException(
-        'cannot perform this operation. Either record not found or not pending.',
+        'Cannot perform this operation. Either record not found or not pending.',
       );
-    return { message: 'Business appropved sucessfully' };
+
+    return { message: 'Business approved successfully' };
   }
 
   async rejectBusiness(businessId: number, description?: string) {
@@ -69,15 +75,16 @@ export class AdminService {
       },
       data: {
         status: BusinessApprovalStatus.REJECTED,
-        rejectionReason: description ?? ''
+        rejectionReason: description ?? '',
       },
     });
 
     if (result.count === 0)
       throw new BadRequestException(
-        'cannot perform this operation. Either record not found or not pending.',
+        'Cannot perform this operation. Either record not found or not pending.',
       );
-    return { message: 'Business appropved sucessfully' };
+
+    return { message: 'Business rejected successfully' };
   }
 
   async getAllPropertiesForAdmin() {
@@ -89,7 +96,7 @@ export class AdminService {
         owner: { select: { fullName: true } },
         rooms: { select: { id: true, totalBeds: true, occupiedBeds: true } },
         tenents: {
-          where: { status: TenantStatus.ACTIVE, deletedAt: null },
+          where: { tenancyStatus: TenancyStatus.ACTIVE },
           select: { id: true },
         },
       },
@@ -99,8 +106,10 @@ export class AdminService {
       const totalBeds = p.rooms.reduce((s, r) => s + r.totalBeds, 0);
       const occupiedBeds = p.rooms.reduce((s, r) => s + r.occupiedBeds, 0);
       const tenantCount = p.tenents.length;
+
       const occupancyPct =
         totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
+
       return {
         id: p.id,
         name: p.name,
@@ -126,7 +135,7 @@ export class AdminService {
           include: {
             images: { take: 1 },
             tenants: {
-              where: { status: TenantStatus.ACTIVE, deletedAt: null },
+              where: { tenancyStatus: TenancyStatus.ACTIVE },
               include: {
                 tenent: {
                   select: {
@@ -148,7 +157,9 @@ export class AdminService {
         },
       },
     });
+
     if (!property) throw new NotFoundException('Property not found');
+
     return property;
   }
 
@@ -164,7 +175,7 @@ export class AdminService {
           include: {
             images: { take: 1 },
             tenants: {
-              where: { status: TenantStatus.ACTIVE, deletedAt: null },
+              where: { tenancyStatus: TenancyStatus.ACTIVE },
               include: {
                 tenent: {
                   select: {
@@ -186,7 +197,7 @@ export class AdminService {
           },
         },
         tenents: {
-          where: { status: TenantStatus.ACTIVE, deletedAt: null },
+          where: { tenancyStatus: TenancyStatus.ACTIVE },
           orderBy: { joinedAt: 'desc' },
           include: {
             tenent: {
@@ -222,7 +233,6 @@ export class AdminService {
             title: true,
             description: true,
             status: true,
-            priority: true,
             createdAt: true,
             raisedBy: { select: { fullName: true } },
           },
@@ -248,40 +258,16 @@ export class AdminService {
     const totalBeds = property.rooms.reduce((s, r) => s + r.totalBeds, 0);
     const occupiedBeds = property.rooms.reduce((s, r) => s + r.occupiedBeds, 0);
     const vacantBeds = totalBeds - occupiedBeds;
+
     const activeTenants = property.tenents.length;
+
     const occupancyPct =
       totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
+
     const monthlyRevenue = property.tenents.reduce(
       (s, t) => s + Number(t.rentAmount),
       0,
     );
-
-    const sharingTypeBreakdown = property.rooms.reduce<Record<string, number>>(
-      (acc, r) => {
-        acc[r.sharingType] = (acc[r.sharingType] ?? 0) + 1;
-        return acc;
-      },
-      {},
-    );
-
-    const complaintsByStatus = property.complaints.reduce<Record<string, number>>(
-      (acc, c) => {
-        acc[c.status] = (acc[c.status] ?? 0) + 1;
-        return acc;
-      },
-      {},
-    );
-
-    const floorBreakdown = property.rooms.reduce<
-      Record<number, { rooms: number; totalBeds: number; occupiedBeds: number }>
-    >((acc, r) => {
-      if (!acc[r.floorNumber])
-        acc[r.floorNumber] = { rooms: 0, totalBeds: 0, occupiedBeds: 0 };
-      acc[r.floorNumber].rooms += 1;
-      acc[r.floorNumber].totalBeds += r.totalBeds;
-      acc[r.floorNumber].occupiedBeds += r.occupiedBeds;
-      return acc;
-    }, {});
 
     return {
       id: property.id,
@@ -296,18 +282,12 @@ export class AdminService {
         occupancyPct,
         activeTenants,
         totalComplaints: property.complaints.length,
-        openComplaints: complaintsByStatus['OPEN'] ?? 0,
-        resolvedComplaints: complaintsByStatus['COMPLETED'] ?? 0,
-        inProgressComplaints: complaintsByStatus['IN_PROGRESS'] ?? 0,
         staffCount: property.maintenanceStaffPropertyAccess.filter(
           (a) => a.staffProfile.isActive,
         ).length,
         monthlyRevenue,
         avgRentPerTenant:
           activeTenants > 0 ? Math.round(monthlyRevenue / activeTenants) : 0,
-        sharingTypeBreakdown,
-        complaintsByStatus,
-        floorBreakdown,
       },
       rooms: property.rooms,
       tenants: property.tenents,
@@ -339,15 +319,29 @@ export class AdminService {
       rejectedBusinessCount,
       newTenantsThisWeek,
     ] = await this.prisma.$transaction([
-      this.prisma.user.count({ where: { role: UserRole.PROPERTY_OWNER, isActive: true } }),
-      this.prisma.user.count({ where: { role: UserRole.TENANT, isActive: true } }),
+      this.prisma.user.count({
+        where: { role: UserRole.PROPERTY_OWNER, isActive: true },
+      }),
+      this.prisma.user.count({
+        where: { role: UserRole.TENANT, isActive: true },
+      }),
       this.prisma.property.count(),
       this.prisma.complaint.count(),
-      this.prisma.businessDetails.count({ where: { status: BusinessApprovalStatus.PENDING } }),
-      this.prisma.businessDetails.count({ where: { status: BusinessApprovalStatus.APPROVED } }),
-      this.prisma.businessDetails.count({ where: { status: BusinessApprovalStatus.REJECTED } }),
+      this.prisma.businessDetails.count({
+        where: { status: BusinessApprovalStatus.PENDING },
+      }),
+      this.prisma.businessDetails.count({
+        where: { status: BusinessApprovalStatus.APPROVED },
+      }),
+      this.prisma.businessDetails.count({
+        where: { status: BusinessApprovalStatus.REJECTED },
+      }),
       this.prisma.user.count({
-        where: { role: UserRole.TENANT, isActive: true, createdAt: { gte: startOfWeek } },
+        where: {
+          role: UserRole.TENANT,
+          isActive: true,
+          createdAt: { gte: startOfWeek },
+        },
       }),
     ]);
 

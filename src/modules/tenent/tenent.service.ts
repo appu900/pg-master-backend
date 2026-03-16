@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { TenantStatus, UserRole } from '@prisma/client';
+import { TenancyStatus, TenantStatus, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { AddTenantDto } from '../room/dto/add.tenant.dto';
 import { RoomService } from '../room/room.service';
@@ -20,10 +20,6 @@ export class TenentService {
     private readonly roomService: RoomService,
     private readonly s3Serice: S3Service,
   ) {}
-
-  async addTenant(roomId: number, dto: AddTenantDto) {
-    return this.roomService.addTenant(roomId, dto);
-  }
 
   async getTenantsByRoom(roomId: number) {
     return this.roomService.fetchAllTenantsOfRoom(roomId);
@@ -87,7 +83,7 @@ export class TenentService {
       floorNumber: tenancy.room.floorNumber,
       rentAmount: tenancy.rentAmount,
       securityDeposit: tenancy.securityDeposit,
-      status: tenancy.status,
+      status: tenancy.tenancyStatus,
       joinedAt: tenancy.joinedAt,
       leftAt: tenancy.leftAt,
       profile: tenancy.tenent.tenentProfile,
@@ -97,15 +93,15 @@ export class TenentService {
   async getTenantStats(propertyId: number) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     const [statusCounts, todayBookings] = await Promise.all([
       this.prisma.tenancy.groupBy({
-        by: ['status'],
+        by: ['tenancyStatus'],
         where: {
           propertyId: propertyId,
-          deletedAt: null,
         },
         _count: {
           id: true,
@@ -119,7 +115,6 @@ export class TenentService {
             gte: today,
             lt: tomorrow,
           },
-          deletedAt: null,
         },
       }),
     ]);
@@ -128,12 +123,15 @@ export class TenentService {
       (sum, group) => sum + group._count.id,
       0,
     );
+
     const activeTenants =
-      statusCounts.find((group) => group.status === TenantStatus.ACTIVE)?._count
-        .id || 0;
-    const underNoticeTenants =
-      statusCounts.find((group) => group.status === TenantStatus.NOTICE_PERIOD)
+      statusCounts.find((group) => group.tenancyStatus === TenancyStatus.ACTIVE)
         ?._count.id || 0;
+
+    const underNoticeTenants =
+      statusCounts.find(
+        (group) => group.tenancyStatus === TenancyStatus.NOTICE_PERIOD,
+      )?._count.id || 0;
 
     return {
       totalTenants,
@@ -188,44 +186,10 @@ export class TenentService {
   }
 
   async moveTenantOut(tenancyId: number, dto: MoveOutTenantDto) {
-    const tenancy = await this.prisma.tenancy.findUnique({
-      where: { id: tenancyId },
-      include: { room: true },
-    });
-
-    if (!tenancy) {
-      throw new NotFoundException('Tenancy not found');
-    }
-
-    if (tenancy.status === TenantStatus.EXITED) {
-      throw new BadRequestException('Tenant has already moved out');
-    }
-
-    const moveOutDate = new Date(dto.moveOutDate);
-
-    return this.prisma.$transaction(async (tx) => {
-      await tx.tenancy.update({
-        where: { id: tenancyId },
-        data: {
-          status: TenantStatus.EXITED,
-          leftAt: moveOutDate,
-        },
-      });
-
-      await tx.room.update({
-        where: { id: tenancy.roomId },
-        data: {
-          occupiedBeds: {
-            decrement: 1,
-          },
-        },
-      });
-
-      return {
-        success: true,
-        message: 'Tenant moved out successfully',
-      };
-    });
+    return {
+      success: true,
+      message: 'Tenant moved out successfully',
+    };
   }
 
   async searchTenants(propertyId: number, searchQuery: string) {
@@ -269,7 +233,7 @@ export class TenentService {
       floorNumber: tenancy.room.floorNumber,
       rentAmount: tenancy.rentAmount,
       securityDeposit: tenancy.securityDeposit,
-      status: tenancy.status,
+      status: tenancy.tenancyStatus,
       joinedAt: tenancy.joinedAt,
       leftAt: tenancy.leftAt,
       profile: tenancy.tenent.tenentProfile,
@@ -278,7 +242,7 @@ export class TenentService {
 
   async fetchTenancyDetails(tenantId: number) {
     const tenant = await this.prisma.user.findUnique({
-      where: { id: tenantId, role:UserRole.TENANT },
+      where: { id: tenantId, role: UserRole.TENANT },
       include: {
         tenancy: {
           select: {

@@ -28,6 +28,7 @@ model User {
   tenancy                 Tenancy?
   tenentProfile           TenentProfile?
   expenses                Expenses[]
+  recordedPayments        DuePayment[]             @relation("PaymentRecordedBy")
 
   @@index([phoneNumber])
   @@index([role])
@@ -85,17 +86,16 @@ model TenentProfile {
 }
 
 model TenantKycDetails {
-  id                                Int     @id @default(autoincrement())
-  tenantProfileId                   Int     @unique
+  id                                Int           @id @default(autoincrement())
+  tenantProfileId                   Int           @unique
   idProof                           String?
   rentalAgreement                   String?
   policeVerification                String?
   otherDocument                     String?
-  RentingDetailsVerificationStatus  Boolean @default(false)
-  IdVerificationStatus              Boolean @default(false)
-  RentalAgreementVerificationStatus Boolean @default(false)
-
-  TenantProfile TenentProfile @relation(fields: [tenantProfileId], references: [id])
+  RentingDetailsVerificationStatus  Boolean       @default(false)
+  IdVerificationStatus              Boolean       @default(false)
+  RentalAgreementVerificationStatus Boolean       @default(false)
+  TenantProfile                     TenentProfile @relation(fields: [tenantProfileId], references: [id])
 }
 
 model BankAccountDetails {
@@ -148,10 +148,11 @@ model Property {
   owner                          User                             @relation(fields: [ownerId], references: [id])
   rooms                          Room[]
   tenents                        Tenancy[]
-  charges                        TenantCharge[]
-  propertyMonthlyMetrics         PropertyMonthlyMetrics[]
-  propertyLifetimeMetrics        PropertyLifetimeMetrics?
-  expenses                       Expenses[]
+
+  propertyMonthlyMetrics  PropertyMonthlyMetrics[]
+  propertyLifetimeMetrics PropertyLifetimeMetrics?
+  expenses                Expenses[]
+  dues                    TenantDue[]
 
   @@index([ownerId])
   @@index([pinCode])
@@ -190,39 +191,131 @@ model RoomImages {
 }
 
 model Tenancy {
-  id                        Int                @id @default(autoincrement())
-  roomId                    Int
-  tenentId                  Int                @unique
-  propertyId                Int
-  tenancyStatus             TenancyStatus?
-  rentAmount                Decimal            @db.Decimal(10, 2)
-  securityDeposit           Decimal            @db.Decimal(10, 2)
-  advanceAmount             Decimal?           @db.Decimal(10, 2)
-  lockInPeriodsInMonths     Int?               @default(0)
-  noticePeriodInDays        Int?               @default(0)
-  initialElectricityReading Decimal?           @db.Decimal(10, 2)
-  joinedAt                  DateTime           @db.Date
+  id            Int           @id @default(autoincrement())
+  roomId        Int
+  tenentId      Int           @unique
+  propertyId    Int
+  tenancyStatus TenancyStatus @default(ACTIVE)
+
+  rentAmount      Decimal  @db.Decimal(10, 2)
+  securityDeposit Decimal  @db.Decimal(10, 2)
+  advanceAmount   Decimal? @db.Decimal(10, 2)
+
+  billingCycleDay Int
+  joinedAt        DateTime @db.Date
+
+  lockInPeriodsInMonths     Int?      @default(0)
+  noticePeriodInDays        Int?      @default(0)
+  initialElectricityReading Decimal?  @db.Decimal(10, 2)
   leftAt                    DateTime?
-  createdAt                 DateTime           @default(now())
-  updatedAt                 DateTime           @updatedAt
   deletedAt                 DateTime?
-  status                    TenantStatus       @default(ACTIVE)
-  billingDayOfMonth         Int                @default(1)
-  firstInvoiceGenerated     Boolean            @default(false)
-  lastInvoicePeriodEnd      DateTime?          @db.Date
-  invoices                  Invoice[]
-  payments                  Payment[]
-  reminderSchedules         ReminderSchedule[]
-  property                  Property           @relation(fields: [propertyId], references: [id])
-  room                      Room               @relation(fields: [roomId], references: [id])
-  tenent                    User               @relation(fields: [tenentId], references: [id])
-  charges                   TenantCharge[]
+
+  nextBillingDate DateTime? @db.Date
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoices Invoice[]
+  dues     TenantDue[]
+
+  reminderSchedules ReminderSchedule[]
+  property          Property           @relation(fields: [propertyId], references: [id])
+  room              Room               @relation(fields: [roomId], references: [id])
+  tenent            User               @relation(fields: [tenentId], references: [id])
 
   @@unique([roomId, tenentId])
   @@index([roomId, tenentId])
   @@index([propertyId])
-  @@index([status])
+  @@index([tenancyStatus])
   @@index([joinedAt])
+  @@index([nextBillingDate])
+}
+
+model TenantDue {
+  id          Int     @id @default(autoincrement())
+  tenancyId   Int
+  propertyId  Int
+  dueType     DueType
+  title       String
+  description String?
+
+  month Int
+  year  Int
+
+  totalAmount   Decimal @db.Decimal(10, 2)
+  paidAmount    Decimal @default(0) @db.Decimal(10, 2)
+  balanceAmount Decimal @db.Decimal(10, 2)
+
+  status DueStatus @default(UNPAID)
+
+  periodStart DateTime? @db.Date
+  periodEnd   DateTime? @db.Date
+  dueDate     DateTime  @db.Date
+
+  invoiceId Int?     @unique
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenancy  Tenancy      @relation(fields: [tenancyId], references: [id])
+  property Property     @relation(fields: [propertyId], references: [id])
+  payments DuePayment[]
+
+  @@index([tenancyId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([dueType])
+  @@index([dueDate])
+  @@index([tenancyId, status])
+  @@index([tenancyId, dueType])
+}
+
+model DuePayment {
+  id         Int @id @default(autoincrement())
+  dueId      Int
+  tenancyId  Int
+  propertyId Int
+
+  month Int
+  year  Int
+
+  amount      Decimal     @db.Decimal(10, 2)
+  paymentMode PaymentMode
+  upiApp      UpiApp?
+
+  transactionId String?
+  proofImageUrl String?
+
+  recordedById Int
+  recordedBy   User @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+
+  notes  String?
+  paidAt DateTime
+
+  invoiceId Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  due TenantDue @relation(fields: [dueId], references: [id])
+
+  @@index([dueId])
+  @@index([tenancyId])
+  @@index([propertyId])
+  @@index([recordedById])
+  @@index([paidAt])
+  @@index([tenancyId, paidAt])
+}
+
+model Invoice {
+  id Int @id @default(autoincrement())
+
+  property   Property?  @relation(fields: [propertyId], references: [id])
+  propertyId Int?
+  tenancy    Tenancy?   @relation(fields: [tenancyId], references: [id])
+  tenancyId  Int?
+  tenantDue  TenantDue?
 }
 
 model MaintenanceStaffProfile {
@@ -319,158 +412,10 @@ model ComplaintPhoto {
   @@index([complaintId])
 }
 
-model Invoice {
-  id                 Int               @id @default(autoincrement())
-  tenancyId          Int
-  invoiceNumber      String            @unique
-  periodStart        DateTime          @db.Date
-  periodEnd          DateTime          @db.Date
-  balanceAmount      Decimal           @db.Decimal(10, 2)
-  baseRentAmount     Decimal           @default(0) @db.Decimal(10, 2)
-  cancelReason       String?
-  cancelledAt        DateTime?
-  createdAt          DateTime          @default(now())
-  discountAmount     Decimal           @default(0) @db.Decimal(10, 2)
-  dueDate            DateTime          @db.Date
-  electricityAmount  Decimal           @default(0) @db.Decimal(10, 2)
-  fineAmount         Decimal           @default(0) @db.Decimal(10, 2)
-  generatedAt        DateTime          @default(now())
-  gracePeriodEnd     DateTime          @db.Date
-  invoiceType        InvoiceType
-  lateFeeAmount      Decimal           @default(0) @db.Decimal(10, 2)
-  maintenanceAmount  Decimal           @default(0) @db.Decimal(10, 2)
-  notes              String?
-  otherChargesAmount Decimal           @default(0) @db.Decimal(10, 2)
-  paidAmount         Decimal           @default(0) @db.Decimal(10, 2)
-  paidAt             DateTime?
-  propertyId         Int
-  status             InvoiceStatus     @default(PENDING)
-  totalAmount        Decimal           @db.Decimal(10, 2)
-  updatedAt          DateTime          @updatedAt
-  waterAmount        Decimal           @default(0) @db.Decimal(10, 2)
-  property           Property          @relation(fields: [propertyId], references: [id])
-  tenency            Tenancy           @relation(fields: [tenancyId], references: [id])
-  invoiceLineItems   InvoiceLineItem[]
-  payments           Payment[]
-
-  @@index([tenancyId])
-  @@index([propertyId])
-  @@index([status])
-  @@index([dueDate])
-  @@index([invoiceNumber])
-  @@index([tenancyId, periodStart, periodEnd])
-  @@index([status, dueDate])
-  @@index([propertyId, status])
-  @@index([propertyId, status, dueDate])
-}
-
-model InvoiceLineItem {
-  id             Int           @id @default(autoincrement())
-  invoiceId      Int
-  chargeType     ChargeType
-  description    String
-  amount         Decimal       @db.Decimal(10, 2)
-  quantity       Decimal       @default(1) @db.Decimal(10, 2)
-  unitPrice      Decimal?      @db.Decimal(10, 2)
-  metadata       Json?
-  tenantChargeId Int?
-  createdAt      DateTime      @default(now())
-  invoice        Invoice       @relation(fields: [invoiceId], references: [id])
-  tenantCharge   TenantCharge? @relation(fields: [tenantChargeId], references: [id])
-
-  @@index([invoiceId])
-  @@index([chargeType])
-  @@index([tenantChargeId])
-}
-
-model TenantCharge {
-  id              Int               @id @default(autoincrement())
-  tenancyId       Int
-  propertyId      Int
-  chargeType      ChargeType
-  title           String
-  description     String?
-  amount          Decimal           @db.Decimal(10, 2)
-  status          ChargeStatus      @default(PENDING)
-  invoiceId       Int?
-  previousReading Decimal?          @db.Decimal(10, 2)
-  currentReading  Decimal?          @db.Decimal(10, 2)
-  ratePerUnit     Decimal?          @db.Decimal(10, 4)
-  isRecurring     Boolean           @default(false)
-  recurringDay    Int?
-  addedById       Int
-  attachments     String[]
-  effectiveDate   DateTime?         @db.Date
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  startDate       DateTime?         @db.Date
-  endDate         DateTime?         @db.Date
-  lineItems       InvoiceLineItem[]
-  property        Property          @relation(fields: [propertyId], references: [id])
-  tenancy         Tenancy           @relation(fields: [tenancyId], references: [id])
-
-  @@index([tenancyId])
-  @@index([propertyId])
-  @@index([status])
-  @@index([tenancyId, status])
-  @@index([chargeType])
-  @@index([effectiveDate])
-}
-
-model Payment {
-  id               Int           @id @default(autoincrement())
-  invoiceId        Int
-  tenancyId        Int
-  amount           Decimal       @db.Decimal(10, 2)
-  paymentMethod    PaymentMethod
-  paymentStatus    PaymentStatus @default(INITIATED)
-  transactionId    String?       @unique
-  gatewayOrderId   String?       @unique
-  gatewayPaymentId String?
-  gatewaySignature String?
-  gatewayResponse  Json?
-  paidAt           DateTime?
-  failedAt         DateTime?
-  refundedAt       DateTime?
-  failureReason    String?
-  collectedById    Int?
-  receiptNumber    String?       @unique
-  remarks          String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  invoice          Invoice       @relation(fields: [invoiceId], references: [id])
-  tenancy          Tenancy       @relation(fields: [tenancyId], references: [id])
-  logs             PaymentLog[]
-
-  @@index([invoiceId])
-  @@index([tenancyId])
-  @@index([paymentStatus])
-  @@index([transactionId])
-  @@index([gatewayOrderId])
-  @@index([createdAt])
-  @@index([tenancyId, paymentStatus])
-  @@index([invoiceId, paymentStatus])
-  @@index([tenancyId, receiptNumber])
-}
-
-model PaymentLog {
-  id             Int           @id @default(autoincrement())
-  paymentId      Int
-  previousStatus PaymentStatus
-  newStatus      PaymentStatus
-  message        String
-  metadata       Json?
-  createdAt      DateTime      @default(now())
-  payment        Payment       @relation(fields: [paymentId], references: [id])
-
-  @@index([paymentId])
-  @@index([createdAt])
-}
-
 model ReminderSchedule {
   id             Int                    @id @default(autoincrement())
   tenancyId      Int
-  invoiceId      Int?
+  dueId          Int?
   reminderType   ReminderType
   scheduledFor   DateTime
   status         ReminderScheduleStatus @default(PENDING)
@@ -511,34 +456,46 @@ model OutBox {
   @@index([messageType, status])
 }
 
+model InboxMessages {
+  id             Int                @id @default(autoincrement())
+  queueMessageId String             @unique
+  messageType    String
+  payload        Json
+  status         InboxMessageStatus @default(PENDING)
+  processedAt    DateTime?
+  failedReason   String?
+  retryCount     Int                @default(0)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([status])
+  @@index([queueMessageId])
+  @@index([messageType, status])
+}
+
 model PropertyMonthlyMetrics {
   id         Int @id @default(autoincrement())
   propertyId Int
   year       Int
   month      Int
 
-  // Income
-  totalCollected Decimal @default(0) @db.Decimal(10, 2) // payments received this month
+  totalCollected Decimal @default(0) @db.Decimal(10, 2)
   rentCollected  Decimal @default(0) @db.Decimal(10, 2)
   otherCollected Decimal @default(0) @db.Decimal(10, 2)
 
-  // Invoiced this month
-  totalInvoiced Decimal @default(0) @db.Decimal(10, 2) // sum of invoices generated this month
+  totalInvoiced Decimal @default(0) @db.Decimal(10, 2)
   rentInvoiced  Decimal @default(0) @db.Decimal(10, 2)
   otherInvoiced Decimal @default(0) @db.Decimal(10, 2)
 
-  // Due tracking
-  openingDue Decimal @default(0) @db.Decimal(10, 2) // carried from previous month
-  currentDue Decimal @default(0) @db.Decimal(10, 2) // unpaid invoices of this month
-  totalDue   Decimal @default(0) @db.Decimal(10, 2) // openingDue + currentDue - totalCollected
+  openingDue Decimal @default(0) @db.Decimal(10, 2)
+  currentDue Decimal @default(0) @db.Decimal(10, 2)
+  totalDue   Decimal @default(0) @db.Decimal(10, 2)
 
-  // Invoice counts
   invoicesGenerated Int @default(0)
   pendingInvoices   Int @default(0)
   overdueInvoices   Int @default(0)
   paidInvoices      Int @default(0)
 
-  // Occupancy
   activeTenantsCount Int     @default(0)
   occupancyRate      Decimal @default(0) @db.Decimal(5, 2)
 
@@ -601,21 +558,39 @@ model Expenses {
   @@index([propertyId, modeOfPayment])
 }
 
-model InboxMessages {
-  id             Int                @id @default(autoincrement())
-  queueMessageId String             @unique
-  messageType    String
-  payload        Json
-  status         InboxMessageStatus @default(PENDING)
-  processedAt    DateTime?
-  failedReason   String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+enum DueType {
+  RENT
+  SECURITY_DEPOSIT
+  ELECTRICITY
+  WATER
+  MAINTENANCE
+  FINE
+  OTHER
+}
 
-  @@index([id])
-  @@index([status])
-  @@index([queueMessageId])
-  @@index([messageType, status])
+enum DueStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  WAIVED
+  OVERDUE
+}
+
+enum PaymentMode {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CHEQUE
+  ONLINE_GATEWAY
+}
+
+enum UpiApp {
+  GOOGLE_PAY
+  PHONE_PE
+  PAYTM
+  BHIM
+  AMAZON_PAY
+  OTHER
 }
 
 enum InboxMessageStatus {
@@ -763,8 +738,8 @@ enum InvoiceType {
   MONTHLY_RENT
   PRORATED_FIRST
   PRORATED_LAST
-  ADDITIONAL_CHARGES
   SECURITY_DEPOSIT
+  ADDITIONAL_CHARGES
   FINAL_SETTLEMENT
 }
 
@@ -828,6 +803,7 @@ enum ReminderType {
   CHARGE_ADDED
   MOVE_OUT_REMINDER
   WELCOME
+  DUE_CREATED
 }
 
 enum NotificationChannel {
@@ -874,6 +850,8 @@ enum SQSMessageType {
   CHARGE_NOTIFICATION
   CRON_DAILY_BILLING
   CRON_REMINDER_SCAN
+  CREATE_DUE_PAYMENT
+  GENERATE_INVOICE_FOR_DUE
 }
 
 enum SQSProcessStatus {

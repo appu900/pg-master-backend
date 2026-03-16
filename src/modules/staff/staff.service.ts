@@ -10,7 +10,7 @@ import { CreateStaffDto } from './dto/create.staff.dto';
 import {
   MaintenanceJobPosition,
   MaintenanceStaffType,
-  PropertyAccessScope,
+  PropertyAccessScope,  
   UserRole,
 } from '@prisma/client';
 import { StaffMapper } from './mappers/staff.mappers';

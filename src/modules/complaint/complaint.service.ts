@@ -10,6 +10,7 @@ import { ComplaintCreateByOwnerDto } from './dto/create.complaint-by-owner.dto';
 import {
   ComplaintStatus,
   MaintenancePriority,
+  TenancyStatus,
   TenantStatus,
   UserRole,
 } from '@prisma/client';
@@ -106,7 +107,7 @@ export class ComplaintService {
     const activeTenancy = await this.prisma.tenancy.findFirst({
       where: {
         tenentId: tenant.id,
-        status: TenantStatus.ACTIVE,
+        tenancyStatus:TenancyStatus.ACTIVE,
         deletedAt: null,
       },
       select: {

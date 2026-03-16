@@ -4,6 +4,7 @@ import {
   Controller,
   Param,
   ParseIntPipe,
+  Post,
   Put,
   UseGuards,
 } from '@nestjs/common';
@@ -18,6 +19,11 @@ import { EditTenancyDto } from './dto/update-tenancy.dto';
 @Controller('tenancy')
 export class TenancyController {
   constructor(private readonly tenancyService: TenancyService) {}
+
+  @Post('onboard')
+  async onBoardTenancy() {
+    
+  }
 
   @Put('/tenant/:tenantId/property/:propertyId')
   @UseGuards(JwtAuthGuard, RolesGuard)
