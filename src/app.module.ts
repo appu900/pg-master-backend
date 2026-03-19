@@ -40,7 +40,7 @@ import { ExpensesModule } from './modules/Expenses/expenses.module';
       },
     ]),
     SqsModule,
-    OutboxpollerModule,
+    // OutboxpollerModule,
     PrismaModule,
     RedisModule,
     S3Module,

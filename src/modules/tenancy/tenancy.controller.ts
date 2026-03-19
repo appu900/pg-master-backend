@@ -15,14 +15,22 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { EditTenancyDto } from './dto/update-tenancy.dto';
+import { AddTenantDto } from './dto/add.tenant.dto';
 
 @Controller('tenancy')
 export class TenancyController {
   constructor(private readonly tenancyService: TenancyService) {}
 
   @Post('onboard')
-  async onBoardTenancy() {
-    
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async onBoardTenancy(@Body() dto: AddTenantDto, @GetUser() user: any) {
+    const requestOwnerId = user.userId;
+    const res = await this.tenancyService.createTenant(dto, requestOwnerId);
+    return {
+      message: 'Tenant create sucessfully',
+      res,
+    };
   }
 
   @Put('/tenant/:tenantId/property/:propertyId')
