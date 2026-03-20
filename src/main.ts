@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import * as bodyParser from 'body-parser';
+import { AuthService } from './modules/auth/auth.service';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -51,6 +52,8 @@ async function bootstrap() {
       },
     }),
   );
+
+  
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
