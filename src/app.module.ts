@@ -18,7 +18,6 @@ import { UserModule } from './modules/user/user.module';
 import { PropertyownerModule } from './modules/propertyowner/propertyowner.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { BanksModule } from './modules/banks/banks.module';
-import { SqsModule } from './infra/Queue/SQS/sqs.module';
 import { OutboxpollerModule } from './modules/outboxpoller/outboxpoller.module';
 import { TenantKycModule } from './modules/TenantKyc/tenantkyc.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
@@ -36,12 +35,12 @@ import { DueModule } from './modules/due/due.module';
     }),
     ThrottlerModule.forRoot([
       {
-        ttl: 60000, // 60 seconds
-        limit: 100, // 100 requests per minute
+        ttl: 60000, 
+        limit: 100, 
       },
     ]),
-    SqsModule,
-    // OutboxpollerModule,
+    
+   
     PrismaModule,
     RedisModule,
     S3Module,
