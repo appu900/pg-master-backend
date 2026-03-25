@@ -85,7 +85,7 @@ export class AuthService {
   async login(dto: OtpLoginDto) {
     try {
       const DEMO_PHONE = '+918888888888'
-      const DEMO_PHONE2 = '+918260826082'
+      const DEMO_PHONE2 = '8260826082'
       const DEMO_OTP = '123456'
       if(dto.phoneNumber === DEMO_PHONE || dto.phoneNumber === DEMO_PHONE2){
         if(dto.otp !== DEMO_OTP){
