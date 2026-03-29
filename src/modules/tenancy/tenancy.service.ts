@@ -19,6 +19,8 @@ import {
 } from 'src/utils/Proration.utils';
 import { join } from 'path';
 import e from 'express';
+import { EventPublisher } from 'src/infra/events/publisher/event-publisher';
+import { DOMAIN_EVENTS } from 'src/infra/events/domain-events';
 
 const BLOCKING_TENANCY_STATUSES = new Set(['ACTIVE', 'NOTICE_PERIOD']);
 const MAX_FUTURE_JOINING_DAYS = 90;
@@ -26,7 +28,10 @@ const MAX_FUTURE_JOINING_DAYS = 90;
 @Injectable()
 export class TenancyService {
   private readonly logger = new Logger(TenancyService.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventPublisher: EventPublisher,
+  ) {}
 
   private resolveUserfromPerFlight(
     dto: AddTenantDto,
@@ -446,6 +451,15 @@ export class TenancyService {
   async createTenant(dto: AddTenantDto, requestingOwnerId: number) {
     const joinDate = toDateOnly(new Date(dto.joiningDate));
     const preflight = await this.runPreFlightChecks(dto, requestingOwnerId);
+    const property = await this.prisma.property.findUnique({
+      where: { id: dto.propertyId },
+      select: { name: true, id: true },
+    });
+    if (!property) {
+      throw new BadRequestException(
+        `property not found with id ${dto.propertyId}`,
+      );
+    }
     const { periodStart, periodEnd, proratedAmount } = calculateProratedRent(
       joinDate,
       dto.rentCycleDay,
@@ -480,6 +494,8 @@ export class TenancyService {
         `rentDueId=${txResult.rentDueId} ` +
         `depositDueId=${txResult.depositDueId ?? 'none'}`,
     );
+    // publish the event after successful transaction commit
+    await this.PublishTenantOnboardingEvents(dto, property.name);
     return {
       tenantUserId: txResult.resolvedUserId,
       tenancyId: txResult.tenancyId,
@@ -575,5 +591,30 @@ export class TenancyService {
         'LockInPeriodMonths cannot exceed agreementPeriod In months',
       );
     }
+  }
+
+  async PublishTenantOnboardingEvents(
+    dto: AddTenantDto,
+    propertyName: string,
+  ): Promise<void> {
+    const payload = {
+      to: '+91' + dto.phoneNumber,
+      templateKey: 'TENANT_WELCOME',
+      templateData: {
+        tenantName: dto.fullName,
+        propertyName: propertyName,
+        appLink:
+          'https://play.google.com/store/apps/details?id=com.pocketpg.app',
+        pg_name: propertyName,
+      },
+      isReminder: false,
+      externalId: '',
+    };
+    await this.eventPublisher.publish(
+      DOMAIN_EVENTS.NOTIFY_WHATSAPP,
+      payload,
+      {},
+    );
+    console.log('Event published successfully');
   }
 }

@@ -28,7 +28,7 @@ export class TenancyController {
     const requestOwnerId = user.userId;
     const res = await this.tenancyService.createTenant(dto, requestOwnerId);
     return {
-      message: 'Tenant create sucessfully',
+      message: 'Tenant created successfully',
       res,
     };
   }

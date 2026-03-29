@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import {EventEmitterModule} from '@nestjs/event-emitter'
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
@@ -25,24 +25,27 @@ import { PropertyMatricsController } from './modules/propertyMatrics/propertymat
 import { PropertyMatricsModule } from './modules/propertyMatrics/propertymatrics.module';
 import { ExpensesModule } from './modules/Expenses/expenses.module';
 import { DueModule } from './modules/due/due.module';
+import { QueueModule } from './infra/queue/queue.module';
+import { EventsModule } from './infra/events/domain-module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     EventEmitterModule.forRoot({
-      maxListeners:2,
-      verboseMemoryLeak:false,
+      maxListeners: 2,
+      verboseMemoryLeak: false,
     }),
     ThrottlerModule.forRoot([
       {
-        ttl: 60000, 
-        limit: 100, 
+        ttl: 60000,
+        limit: 100,
       },
     ]),
-    
-   
+
     PrismaModule,
     RedisModule,
+    QueueModule,
+    EventsModule,
     S3Module,
     AuthModule,
     UserModule,
@@ -60,7 +63,7 @@ import { DueModule } from './modules/due/due.module';
     TenancyModule,
     PropertyMatricsModule,
     ExpensesModule,
-    DueModule
+    DueModule,
   ],
   controllers: [AppController],
   providers: [AppService],
