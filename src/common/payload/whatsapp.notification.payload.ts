@@ -97,3 +97,13 @@ export interface ResolvedTemplate {
   templateName: string;
   components: any[];
 }
+
+
+export interface WhatsappNotificationPayload{
+    to:string;
+    templateKey:WhatsappTemplateKey;
+    templateData: TemplatePayloadMap[WhatsappTemplateKey];
+    reminderId?:number;
+    isReminder?:boolean;
+    externalId?:string;
+}

@@ -1,11 +1,8 @@
-import { Module,Global } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { BullMQAdapter } from './adapters/bullmq.adapters';
 import { Queue } from 'bullmq';
 import { QUEUE_SERVICE } from './queue.interface';
-
-
-
 
 @Global()
 @Module({

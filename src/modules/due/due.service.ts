@@ -10,6 +10,14 @@ export class DueService {
   private async runTenantOwnerShipValidation(tenancyId:number,propertyOwnerId:number){
     //  ** to be implemented soon
   }
+
+
+
+  async addDueToTenant(tenancyId: number, dto: any){
+    
+  }
+
+
   async fetchAllDuesByTenantId(requestingTenantId: number) {
     const tenancy = await this.prisma.tenancy.findFirst({
         where:{

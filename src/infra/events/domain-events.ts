@@ -12,6 +12,11 @@ export const DOMAIN_EVENTS = {
   NOTIFY_EMAIL: 'notify.email',
   NOTIFY_PUSH: 'notify.push',
 
+  RENT_DUE_CREATE: 'rent.due.create',
+  PAYMENT_COLLECTED: 'payment.collected',
+  DAILY_REMINDER_ENQUEUE: 'reminder.daily.enqueue',
+  DAILY_REMINDER_DEQUEUE: 'reminder.daily.dequeue',
+
   CACHE_INVALIDATE: 'cache.invalidate',
 } as const;
 
@@ -117,10 +122,10 @@ export interface DomainEventPayloadMap {
   [DOMAIN_EVENTS.CACHE_INVALIDATE]: CacheInvalidatePayload;
 }
 
-export function createEvent<T extends DomainEventType>(
-  type: T,
-  payload: DomainEventPayloadMap[T],
-  correlationId?: string,
-): DomainEvent<DomainEventPayloadMap[T]> {
-  return { type, payload, occurredAt: new Date(), correlationId };
-}
+// export function createEvent<T extends DomainEventType>(
+//   type: T,
+//   payload: DomainEventPayloadMap[T],
+//   correlationId?: string,
+// ): DomainEvent<DomainEventPayloadMap[T]> {
+//   return { type, payload, occurredAt: new Date(), correlationId };
+// }

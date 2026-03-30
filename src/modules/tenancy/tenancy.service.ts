@@ -598,7 +598,7 @@ export class TenancyService {
     propertyName: string,
   ): Promise<void> {
     const payload = {
-      to: '+91' + dto.phoneNumber,
+      to: dto.phoneNumber,
       templateKey: 'TENANT_WELCOME',
       templateData: {
         tenantName: dto.fullName,
@@ -610,11 +610,7 @@ export class TenancyService {
       isReminder: false,
       externalId: '',
     };
-    await this.eventPublisher.publish(
-      DOMAIN_EVENTS.NOTIFY_WHATSAPP,
-      payload,
-      {},
-    );
+    await this.eventPublisher.publish(DOMAIN_EVENTS.NOTIFY_WHATSAPP, payload);
     console.log('Event published successfully');
   }
 }

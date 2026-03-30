@@ -1,4 +1,4 @@
-import { Inject, Logger, OnModuleInit,Injectable } from '@nestjs/common';
+import { Inject, Logger, OnModuleInit, Injectable } from '@nestjs/common';
 import {
   EVENT_STRATEGY,
   IEventStrategy,
@@ -9,8 +9,6 @@ import {
   QUEUE_SERVICE,
 } from 'src/infra/queue/queue.interface';
 import e from 'express';
-
-
 
 @Injectable()
 export class EventPublisher implements OnModuleInit {
@@ -23,7 +21,9 @@ export class EventPublisher implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    const strategies = Array.isArray(this.strategies) ? this.strategies : [this.strategies];
+    const strategies = Array.isArray(this.strategies)
+      ? this.strategies
+      : [this.strategies];
     for (const starategy of strategies) {
       for (const eventName of starategy.supports) {
         if (this.registry.has(eventName)) {
@@ -64,6 +64,12 @@ export class EventPublisher implements OnModuleInit {
       envelope.jobName,
       envelope.data,
       opts,
+    );
+  }
+
+  async publishAll(events: Array<{ name: string; payload: unknown }>) {
+    await Promise.all(
+      events.map((event) => this.publish(event.name, event.payload)),
     );
   }
 }

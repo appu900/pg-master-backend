@@ -38,7 +38,7 @@ export class AddTenantDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^[6-9]\d{9}$/, { message: 'phoneNumber must be a valid 10-digit Indian mobile number' })
+  // @Matches(/^[6-9]\d{9}$/, { message: 'phoneNumber must be a valid 10-digit Indian mobile number' })
   phoneNumber!: string;
 
   @IsOptional()

@@ -27,6 +27,7 @@ import { ExpensesModule } from './modules/Expenses/expenses.module';
 import { DueModule } from './modules/due/due.module';
 import { QueueModule } from './infra/queue/queue.module';
 import { EventsModule } from './infra/events/domain-module';
+import { BillingModule } from './modules/billing/billing.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { EventsModule } from './infra/events/domain-module';
     PropertyMatricsModule,
     ExpensesModule,
     DueModule,
+    BillingModule
   ],
   controllers: [AppController],
   providers: [AppService],

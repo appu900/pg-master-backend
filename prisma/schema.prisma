@@ -153,6 +153,7 @@ model Property {
   propertyLifetimeMetrics PropertyLifetimeMetrics?
   expenses                Expenses[]
   dues                    TenantDue[]
+  dailyReminderQueues     DailyReminderQueue[]
 
   @@index([ownerId])
   @@index([pinCode])
@@ -218,10 +219,10 @@ model Tenancy {
   invoices Invoice[]
   dues     TenantDue[]
 
-  reminderSchedules ReminderSchedule[]
-  property          Property           @relation(fields: [propertyId], references: [id])
-  room              Room               @relation(fields: [roomId], references: [id])
-  tenent            User               @relation(fields: [tenentId], references: [id])
+  property            Property             @relation(fields: [propertyId], references: [id])
+  room                Room                 @relation(fields: [roomId], references: [id])
+  tenent              User                 @relation(fields: [tenentId], references: [id])
+  dailyReminderQueues DailyReminderQueue[]
 
   @@unique([roomId, tenentId])
   @@index([roomId, tenentId])
@@ -258,9 +259,10 @@ model TenantDue {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenancy  Tenancy      @relation(fields: [tenancyId], references: [id])
-  property Property     @relation(fields: [propertyId], references: [id])
-  payments DuePayment[]
+  tenancy            Tenancy             @relation(fields: [tenancyId], references: [id])
+  property           Property            @relation(fields: [propertyId], references: [id])
+  payments           DuePayment[]
+  dailyReminderQueue DailyReminderQueue?
 
   @@index([tenancyId])
   @@index([propertyId])
@@ -412,33 +414,30 @@ model ComplaintPhoto {
   @@index([complaintId])
 }
 
-model ReminderSchedule {
-  id             Int                    @id @default(autoincrement())
-  tenancyId      Int
-  dueId          Int?
-  reminderType   ReminderType
-  scheduledFor   DateTime
-  status         ReminderScheduleStatus @default(PENDING)
-  attemptCount   Int                    @default(0)
-  maxAttempts    Int                    @default(3)
-  lastAttemptAt  DateTime?
-  nextRetryAt    DateTime?
-  channel        NotificationChannel    @default(WHATSAPP)
-  recipientPhone String
-  recipientName  String
-  templateName   String
-  templateData   Json
-  processedAt    DateTime?
-  failedReason   String?
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  tenancy        Tenancy                @relation(fields: [tenancyId], references: [id])
+model DailyReminderQueue {
+  id                     Int                     @id @default(autoincrement())
+  dueId                  Int                     @unique
+  tenancyId              Int
+  propertyId             Int
+  tenantPhone            String
+  dueType                DueType
+  TenantName             String
+  dueAmount              Decimal                 @db.Decimal(10, 2)
+  dueDate                DateTime                @db.Date
+  title                  String
+  lastSentAt             DateTime?
+  sentCount              Int                     @default(0)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  lastReminderSendStatus ReminderScheduleStatus?
 
-  @@index([status, scheduledFor])
+  due      TenantDue @relation(fields: [dueId], references: [id])
+  tenancy  Tenancy   @relation(fields: [tenancyId], references: [id])
+  property Property  @relation(fields: [propertyId], references: [id])
+
   @@index([tenancyId])
-  @@index([scheduledFor])
-  @@index([status])
-  @@index([reminderType, status])
+  @@index([propertyId])
+  @@index([dueDate])
 }
 
 model OutBox {
