@@ -149,33 +149,35 @@ model Property {
   rooms                          Room[]
   tenents                        Tenancy[]
 
-  propertyMonthlyMetrics  PropertyMonthlyMetrics[]
-  propertyLifetimeMetrics PropertyLifetimeMetrics?
-  expenses                Expenses[]
-  dues                    TenantDue[]
-  dailyReminderQueues     DailyReminderQueue[]
+  expenses            Expenses[]
+  dues                TenantDue[]
+  dailyReminderQueues DailyReminderQueue[]
+  propertyMetrics     PropertyMetrics[]
 
   @@index([ownerId])
   @@index([pinCode])
 }
 
 model Room {
-  id               Int             @id @default(autoincrement())
-  propertyId       Int
-  floorNumber      Int
-  totalBeds        Int
-  occupiedBeds     Int             @default(0)
-  rentPerBed       Decimal         @db.Decimal(10, 2)
-  sharingType      RoomSharingType
-  meterReadingDate DateTime?
-  amenity          String[]
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  lastMeterReading Float
-  roomNumber       String
-  property         Property        @relation(fields: [propertyId], references: [id])
-  images           RoomImages[]
-  tenants          Tenancy[]
+  id                 Int             @id @default(autoincrement())
+  propertyId         Int
+  floorNumber        Int
+  totalBeds          Int
+  occupiedBeds       Int             @default(0)
+  rentPerBed         Decimal         @db.Decimal(10, 2)
+  sharingType        RoomSharingType
+  meterReadingDate   DateTime?
+  amenity            String[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  hasMeter           Boolean         @default(false)
+  intialMeterReading Int?
+  isAcRoom           Boolean         @default(false)
+  lastMeterReading   Float
+  roomNumber         String
+  property           Property        @relation(fields: [propertyId], references: [id])
+  images             RoomImages[]
+  tenants            Tenancy[]
 
   @@index([propertyId])
   @@index([sharingType])
@@ -472,68 +474,6 @@ model InboxMessages {
   @@index([messageType, status])
 }
 
-model PropertyMonthlyMetrics {
-  id         Int @id @default(autoincrement())
-  propertyId Int
-  year       Int
-  month      Int
-
-  totalCollected Decimal @default(0) @db.Decimal(10, 2)
-  rentCollected  Decimal @default(0) @db.Decimal(10, 2)
-  otherCollected Decimal @default(0) @db.Decimal(10, 2)
-
-  totalInvoiced Decimal @default(0) @db.Decimal(10, 2)
-  rentInvoiced  Decimal @default(0) @db.Decimal(10, 2)
-  otherInvoiced Decimal @default(0) @db.Decimal(10, 2)
-
-  openingDue Decimal @default(0) @db.Decimal(10, 2)
-  currentDue Decimal @default(0) @db.Decimal(10, 2)
-  totalDue   Decimal @default(0) @db.Decimal(10, 2)
-
-  invoicesGenerated Int @default(0)
-  pendingInvoices   Int @default(0)
-  overdueInvoices   Int @default(0)
-  paidInvoices      Int @default(0)
-
-  activeTenantsCount Int     @default(0)
-  occupancyRate      Decimal @default(0) @db.Decimal(5, 2)
-
-  lastCalculatedAt DateTime @default(now())
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  property Property @relation(fields: [propertyId], references: [id])
-
-  @@unique([propertyId, year, month])
-  @@index([propertyId])
-  @@index([year, month])
-  @@index([propertyId, year, month])
-}
-
-model PropertyLifetimeMetrics {
-  id         Int @id @default(autoincrement())
-  propertyId Int @unique
-
-  totalIncomeAllTime   Decimal @default(0) @db.Decimal(10, 2)
-  totalExpensesAllTime Decimal @default(0) @db.Decimal(10, 2)
-  totalDueAllTime      Decimal @default(0) @db.Decimal(10, 2)
-
-  totalTenantsAllTime  Int @default(0)
-  totalInvoicesAllTime Int @default(0)
-  totalPaymentsAllTime Int @default(0)
-
-  firstActivityDate DateTime?
-  lastActivityDate  DateTime?
-
-  lastCalculatedAt DateTime @default(now())
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  property Property @relation(fields: [propertyId], references: [id])
-
-  @@index([propertyId])
-}
-
 model Expenses {
   id              Int             @id @default(autoincrement())
   propertyId      Int
@@ -555,6 +495,41 @@ model Expenses {
   @@index([payerUserId])
   @@index([propertyId])
   @@index([propertyId, modeOfPayment])
+}
+
+model PropertyMetrics {
+  id         Int @id @default(autoincrement())
+  propertyId Int
+  ownerId    Int
+  month      Int
+  year       Int
+
+  totalRentCollected  Decimal @default(0) @db.Decimal(10, 2)
+  totalElecCollected  Decimal @default(0) @db.Decimal(10, 2)
+  totalOtherCollected Decimal @default(0) @db.Decimal(10, 2)
+  totalExpenses       Decimal @default(0) @db.Decimal(10, 2)
+
+  totalBeds     Int @default(0)
+  occupiedBeds  Int @default(0)
+  activeTenants Int @default(0)
+
+  totalDuesGenerated Decimal @default(0) @db.Decimal(10, 2)
+  totalDuesPaid      Decimal @default(0) @db.Decimal(10, 2)
+  totalDuesUnpaid    Decimal @default(0) @db.Decimal(10, 2)
+  overdueCount       Int     @default(0)
+
+  collectionRate Decimal @default(0) @db.Decimal(5, 2)
+  netProfit      Decimal @default(0) @db.Decimal(10, 2)
+  occupancyRate  Decimal @default(0) @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([propertyId, month, year])
+  @@index([ownerId, month, year])
+  @@index([propertyId])
 }
 
 enum DueType {

@@ -19,8 +19,7 @@ import {
 } from 'src/utils/Proration.utils';
 import { join } from 'path';
 import e from 'express';
-import { EventPublisher } from 'src/infra/events/publisher/event-publisher';
-import { DOMAIN_EVENTS } from 'src/infra/events/domain-events';
+
 
 const BLOCKING_TENANCY_STATUSES = new Set(['ACTIVE', 'NOTICE_PERIOD']);
 const MAX_FUTURE_JOINING_DAYS = 90;
@@ -30,7 +29,6 @@ export class TenancyService {
   private readonly logger = new Logger(TenancyService.name);
   constructor(
     private readonly prisma: PrismaService,
-    private readonly eventPublisher: EventPublisher,
   ) {}
 
   private resolveUserfromPerFlight(
@@ -495,7 +493,7 @@ export class TenancyService {
         `depositDueId=${txResult.depositDueId ?? 'none'}`,
     );
     // publish the event after successful transaction commit
-    await this.PublishTenantOnboardingEvents(dto, property.name);
+    // await this.PublishTenantOnboardingEvents(dto, property.name);
     return {
       tenantUserId: txResult.resolvedUserId,
       tenancyId: txResult.tenancyId,
@@ -610,7 +608,9 @@ export class TenancyService {
       isReminder: false,
       externalId: '',
     };
-    await this.eventPublisher.publish(DOMAIN_EVENTS.NOTIFY_WHATSAPP, payload);
     console.log('Event published successfully');
   }
 }
+
+
+

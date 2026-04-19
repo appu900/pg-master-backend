@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { DueType } from '@prisma/client';
 import { WhatsappNotificationPayload } from 'src/common/payload/Notification.payload';
+import { DailyReminderEnqueuePayload } from 'src/common/payload/rent-due-payload';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
-import { DOMAIN_EVENTS } from 'src/infra/events/domain-events';
-import { EventPublisher } from 'src/infra/events/publisher/event-publisher';
+
 
 @Injectable()
 export class BillingEventHandler {
   constructor(
-    private readonly eventPublisher: EventPublisher,
+
     private readonly prisma: PrismaService,
   ) {}
 
@@ -34,7 +34,7 @@ export class BillingEventHandler {
     }
 
     const whatsappPayload = {
-      to: '+917735041901',
+      to: '+918260397998',
       templateKey: 'ADD_DUE_NOTIFY',
       templateData: {
         tenantName: tenanatName,
@@ -51,7 +51,7 @@ export class BillingEventHandler {
       externalId: undefined,
     };
 
-    const addReminderPayload = {
+    const addReminderPayload:DailyReminderEnqueuePayload = {
       dueId: dueId,
       tenancyId: tenancyId,
       propertyId: propertyId,
@@ -59,15 +59,9 @@ export class BillingEventHandler {
       tenantName: tenanatName,
       dueType: dueType as DueType,
       dueDate: dueDate,
-      amount: amount,
+      dueAmount: amount,
       title: `${dueType} for ${new Date(dueDate).toLocaleString('default', { month: 'long', year: 'numeric' })}`,
     };
-    await this.eventPublisher.publishAll([
-      { name: DOMAIN_EVENTS.NOTIFY_WHATSAPP, payload: whatsappPayload },
-      {
-        name: DOMAIN_EVENTS.DAILY_REMINDER_ENQUEUE,
-        payload: addReminderPayload,
-      },
-    ]);
+   
   }
 }

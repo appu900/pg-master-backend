@@ -3,6 +3,7 @@ import { MulterModule } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { PropertyController } from './property.controller';
 import { PropertyService } from './property.service';
+import { PropertyEvents } from './property.event';
 
 @Module({
   imports: [
@@ -14,6 +15,6 @@ import { PropertyService } from './property.service';
     }),
   ],
   controllers: [PropertyController],
-  providers: [PropertyService]
+  providers: [PropertyService,PropertyEvents]
 })
 export class PropertyModule {}

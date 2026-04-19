@@ -1,41 +1,50 @@
 import { Transform, Type } from 'class-transformer';
 import {
-    IsArray,
-    IsDate,
-    IsNotEmpty,
-    IsNumber,
-    IsOptional,
-    IsString,
+  IsArray,
+  IsBoolean,
+  IsDate,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
 } from 'class-validator';
 
 export class AddRoomDto {
   @IsString()
   @IsNotEmpty()
-  roomNumber: string;
+  roomNumber!: string;
 
   @Type(() => Number)
   @IsNumber()
-  floorNumber: number;
+  floorNumber!: number;
 
   @Type(() => Number)
   @IsNumber()
-  totalBeds: number;
+  totalBeds!: number;
 
   @Type(() => Number)
   @IsNumber()
-  rentPricePerBed: number;
+  rentPricePerBed!: number;
 
   @IsString()
   @IsNotEmpty()
-  sharingType: string;
+  sharingType!: string;
 
   @Type(() => Date)
   @IsDate()
-  meterReadingDate: Date;
+  meterReadingDate!: Date;
 
   @Type(() => Number)
   @IsNumber()
-  lastMeterReading: number;
+  lastMeterReading!: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isAcRoom?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  hasMeter?: boolean;
 
   @IsOptional()
   @Transform(({ value }) => {

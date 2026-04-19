@@ -25,9 +25,14 @@ import { PropertyMatricsController } from './modules/propertyMatrics/propertymat
 import { PropertyMatricsModule } from './modules/propertyMatrics/propertymatrics.module';
 import { ExpensesModule } from './modules/Expenses/expenses.module';
 import { DueModule } from './modules/due/due.module';
-import { QueueModule } from './infra/queue/queue.module';
-import { EventsModule } from './infra/events/domain-module';
 import { BillingModule } from './modules/billing/billing.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
+import { WorkerModule } from './workers/worker.module';
+import { BullMqModule } from './core/adapters/bullmq/bullmq.module';
+import { EventModule } from './core/events/event-bus.module';
+import { CoreModule } from './core/core.module';
+import { TestModule } from './modules/Test/test.module';
+
 
 @Module({
   imports: [
@@ -42,11 +47,10 @@ import { BillingModule } from './modules/billing/billing.module';
         limit: 100,
       },
     ]),
-
+    
     PrismaModule,
     RedisModule,
-    QueueModule,
-    EventsModule,
+    CoreModule,
     S3Module,
     AuthModule,
     UserModule,
@@ -65,7 +69,10 @@ import { BillingModule } from './modules/billing/billing.module';
     PropertyMatricsModule,
     ExpensesModule,
     DueModule,
-    BillingModule
+    BillingModule,
+    MetricsModule,
+    WorkerModule,
+    TestModule
   ],
   controllers: [AppController],
   providers: [AppService],

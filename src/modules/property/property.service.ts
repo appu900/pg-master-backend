@@ -10,6 +10,7 @@ import { AddRoomDto } from './dto/AddRoom.dto';
 import { CreatePropertyDto } from './dto/create.property.dto';
 import { editRoomDto } from './dto/edit.room.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { PropertyEvents } from './property.event';
 
 @Injectable()
 export class PropertyService {
@@ -17,6 +18,7 @@ export class PropertyService {
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
     private eventEmitter: EventEmitter2,
+    private readonly events:PropertyEvents
   ) {}
 
   async createProperty(propertyOwnerId: number, payload: CreatePropertyDto) {
@@ -87,6 +89,8 @@ export class PropertyService {
         meterReadingDate: dto.meterReadingDate,
         lastMeterReading: dto.lastMeterReading,
         amenity: dto.amenity || [],
+        isAcRoom:dto.isAcRoom ?? false,
+        hasMeter:dto.hasMeter ?? false,
       },
     });
 
@@ -100,7 +104,11 @@ export class PropertyService {
         });
       }
     }
-
+    this.events.emitCreateRoomEvent({
+      roomId:room.id,
+      propertyId:propertyId,
+      ownerId:ownerId
+    })
     return this.prisma.room.findUnique({
       where: { id: room.id },
       include: { images: true },

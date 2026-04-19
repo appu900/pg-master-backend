@@ -34,7 +34,7 @@ export interface DailyReminderEnqueuePayload {
   tenantPhone: string;
   tenantName: string;
   dueAmount: number;
-  dueDate: string;
+  dueDate: Date;
   dueType: string;
   title: string;
 }

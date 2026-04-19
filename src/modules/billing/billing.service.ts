@@ -1,5 +1,4 @@
 import { BadRequestException, Logger } from '@nestjs/common';
-import { EventPublisher } from 'src/infra/events/publisher/event-publisher';
 import { Injectable } from '@nestjs/common';
 import { AddDueDto } from './dto/add-due.dto';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';

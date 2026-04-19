@@ -1,7 +1,6 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { DOMAIN_EVENTS } from 'src/infra/events/domain-events';
-import { EventPublisher } from 'src/infra/events/publisher/event-publisher';
+import { IQueueProducer, QUEUE_PRODUCER } from 'src/core/ports/queue-producer.port';
 import { RedisService } from 'src/infra/redis/redis.service';
 
 @Injectable()
@@ -11,7 +10,7 @@ export class OtpService {
 
   constructor(
     private redisService: RedisService,
-    private readonly eventPublisher: EventPublisher,
+    @Inject(QUEUE_PRODUCER) private readonly queue:IQueueProducer
   ) {}
 
   async sendOtp(
@@ -27,7 +26,7 @@ export class OtpService {
     );
 
     const payload = {
-      to: phoneNumber,
+      to: '+91'+phoneNumber,
       templateKey: 'OTP',
       templateData: {
         otp: otp,
@@ -35,18 +34,21 @@ export class OtpService {
       isReminder: false,
       externalId: '',
     };
-    await this.eventPublisher.publish(
-      DOMAIN_EVENTS.NOTIFY_WHATSAPP,
-      payload,
-      {},
-    );
 
-    // await this.redisService.xadd('notification_stream', {
-    //   type: 'otp',
-    //   phone: phoneNumber,
-    //   otp,
-    // });
 
+    console.log("blocking starts here")
+    await this.queue.enqueue('notification','send',{
+      type:'OTP',
+      phone:'+91'+phoneNumber,
+      channels: ['whatsapp'],
+      data: { otp },
+    },{
+       jobId: `otp-${phoneNumber}-${Date.now()}`,
+      priority: 1, 
+      attempts: 2, 
+    })
+    console.log("no blocking here bro")
+    
     this.logger.log(`OTP sent to ${phoneNumber.slice(-4).padStart(10, '*')}`);
 
     return {
