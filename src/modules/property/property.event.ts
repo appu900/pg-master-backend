@@ -1,6 +1,7 @@
 import { Logger, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { RoomCreatedEvent } from 'src/core/events/metrics.events';
+import { PropertyCreateEvent } from 'src/core/events/property-events';
 
 @Injectable()
 export class PropertyEvents {
@@ -15,12 +16,32 @@ export class PropertyEvents {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
-    this.eventBus.emit('room.created',new RoomCreatedEvent(
+    this.eventBus.emit(
+      'room.created',
+      new RoomCreatedEvent(
         data.roomId,
         data.propertyId,
         data.ownerId,
         currentMonth,
-        currentYear
-    ))
+        currentYear,
+      ),
+    );
+  }
+
+  emitCreatePropertyEvent(data: {
+    propertyId: number;
+    ownerId: number;
+    year: number;
+    month: number;
+  }) {
+    this.eventBus.emit(
+      'property.create',
+      new PropertyCreateEvent(
+        data.propertyId,
+        data.ownerId,
+        data.month,
+        data.year,
+      ),
+    );
   }
 }

@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
+import { isSetIterator } from 'util/types';
 
 export class AddRoomDto {
   @IsString()
@@ -32,19 +33,21 @@ export class AddRoomDto {
 
   @Type(() => Date)
   @IsDate()
-  meterReadingDate!: Date;
+  @IsOptional()
+  meterReadingDate?: Date;
 
   @Type(() => Number)
   @IsNumber()
-  lastMeterReading!: number;
+  @IsOptional()
+  lastMeterReading?: number;
 
   @IsOptional()
-  @IsBoolean()
-  isAcRoom?: boolean;
+  @IsString()
+  isAcRoom?:string;
 
   @IsOptional()
-  @IsBoolean()
-  hasMeter?: boolean;
+  @IsString()
+  hasMeter?:string;
 
   @IsOptional()
   @Transform(({ value }) => {

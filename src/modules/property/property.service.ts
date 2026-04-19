@@ -11,6 +11,7 @@ import { CreatePropertyDto } from './dto/create.property.dto';
 import { editRoomDto } from './dto/edit.room.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PropertyEvents } from './property.event';
+import { PropertyCreateEvent } from 'src/core/events/property-events';
 
 @Injectable()
 export class PropertyService {
@@ -18,7 +19,7 @@ export class PropertyService {
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
     private eventEmitter: EventEmitter2,
-    private readonly events:PropertyEvents
+    private readonly events: PropertyEvents,
   ) {}
 
   async createProperty(propertyOwnerId: number, payload: CreatePropertyDto) {
@@ -29,7 +30,15 @@ export class PropertyService {
         ownerId: Number(propertyOwnerId),
       },
     });
-    this.eventEmitter.emit('property.created', { propertyId: property.id });
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    this.events.emitCreatePropertyEvent({
+      propertyId: property.id,
+      ownerId: propertyOwnerId,
+      year: currentYear,
+      month: currentMonth,
+    });
     return {
       message: 'property created sucessfully',
       property,
@@ -78,6 +87,7 @@ export class PropertyService {
     }
 
     const sharingType = dto.sharingType.toUpperCase() as RoomSharingType;
+    console.log('payload is', dto);
     const room = await this.prisma.room.create({
       data: {
         propertyId: propertyId,
@@ -86,11 +96,11 @@ export class PropertyService {
         totalBeds: dto.totalBeds,
         rentPerBed: dto.rentPricePerBed,
         sharingType: sharingType,
-        meterReadingDate: dto.meterReadingDate,
-        lastMeterReading: dto.lastMeterReading,
+        meterReadingDate: dto.meterReadingDate ?? null,
+        lastMeterReading: dto.lastMeterReading ?? null,
         amenity: dto.amenity || [],
-        isAcRoom:dto.isAcRoom ?? false,
-        hasMeter:dto.hasMeter ?? false,
+        isAcRoom: dto.isAcRoom === 'false' ? false : true,
+        hasMeter: dto.hasMeter === 'false' ? false : true,
       },
     });
 
@@ -105,10 +115,10 @@ export class PropertyService {
       }
     }
     this.events.emitCreateRoomEvent({
-      roomId:room.id,
-      propertyId:propertyId,
-      ownerId:ownerId
-    })
+      roomId: room.id,
+      propertyId: propertyId,
+      ownerId: ownerId,
+    });
     return this.prisma.room.findUnique({
       where: { id: room.id },
       include: { images: true },

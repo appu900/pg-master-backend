@@ -173,7 +173,7 @@ model Room {
   hasMeter           Boolean         @default(false)
   intialMeterReading Int?
   isAcRoom           Boolean         @default(false)
-  lastMeterReading   Float
+  lastMeterReading   Float?
   roomNumber         String
   property           Property        @relation(fields: [propertyId], references: [id])
   images             RoomImages[]

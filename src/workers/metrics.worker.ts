@@ -25,6 +25,7 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
   async process(job: Job): Promise<any> {
     switch (job.name) {
       case 'room.created':
+        console.log(job.name)
         await this.handleRoomCreated(job.data);
         break;
       default:
