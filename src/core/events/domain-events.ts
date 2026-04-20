@@ -27,3 +27,36 @@ export class RentDueGeneratedEvent {
     public readonly dueDate: string,
   ) {}
 }
+
+export class DuePaymentCollectedEvent {
+  readonly eventName = 'due.payment.collected' as const;
+
+  constructor(
+    public readonly dueId: number,
+    public readonly tenancyId: number,
+    public readonly propertyId: number,
+    public readonly tenantPhone: string,
+    public readonly tenantName: string,
+    public readonly amountPaid: number,
+    public readonly balanceAmount: number,
+    public readonly dueType: string,
+    public readonly paymentMode: string,
+    public readonly isFullyPaid: boolean,
+    public readonly month: number,
+    public readonly year: number,
+  ) {}
+}
+
+export class DueCreatedEvent {
+  readonly eventName = 'due.created' as const;
+
+  constructor(
+    public readonly dueId: number,
+    public readonly tenancyId: number,
+    public readonly propertyId: number,
+    public readonly dueType: string,
+    public readonly totalAmount: number,
+    public readonly month: number,
+    public readonly year: number,
+  ) {}
+}

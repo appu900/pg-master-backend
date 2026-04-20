@@ -34,11 +34,15 @@ import { CoreModule } from './core/core.module';
 import { TestModule } from './modules/Test/test.module';
 
 
+
+
+
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     EventEmitterModule.forRoot({
-      maxListeners: 2,
+      maxListeners: 5,
       verboseMemoryLeak: false,
     }),
     ThrottlerModule.forRoot([
@@ -72,7 +76,8 @@ import { TestModule } from './modules/Test/test.module';
     BillingModule,
     MetricsModule,
     WorkerModule,
-    TestModule
+    TestModule,
+    DueModule
   ],
   controllers: [AppController],
   providers: [AppService],

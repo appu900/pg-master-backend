@@ -25,11 +25,16 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
   async process(job: Job): Promise<any> {
     switch (job.name) {
       case 'room.created':
-        console.log(job.data);
         await this.handleRoomCreated(job.data);
+        break;
       case 'tenant.added':
-        console.log(job.data);
         await this.handleTenantAdded(job);
+        break;
+      case 'due.created':
+        await this.handleDueCreated(job.data);
+        break;
+      case 'due.payment.collected':
+        await this.handleDuePaymentCollected(job.data);
         break;
       default:
         this.logger.warn(`Unknown metrics job recived ${job.name}`);
@@ -66,15 +71,9 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
         },
       },
       data: {
-        totalDuesGenerated: {
-          increment: securityDepositeAmount,
-        },
-        activeTenants: {
-          increment: 1,
-        },
-        occupiedBeds: {
-          increment: 1,
-        },
+        totalDuesGenerated: { increment: securityDepositeAmount },
+        activeTenants: { increment: 1 },
+        occupiedBeds: { increment: 1 },
       },
     });
     console.log(securityDepositeAmount + 'security deposit amount');
@@ -83,6 +82,72 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
     pipeline.hincrby(propertyKey, 'dues_generated', securityDepositeAmount);
     pipeline.hincrby(propertyKey, 'active_tenants', 1);
     pipeline.hincrby(propertyKey, 'occupied_beds', 1);
+    pipeline.expire(propertyKey, METRICS_REDIS_TTL);
+    await pipeline.exec();
+  }
+
+  private async handleDueCreated(data: {
+    dueId: number;
+    propertyId: number;
+    dueType: string;
+    totalAmount: number;
+    month: number;
+    year: number;
+  }) {
+    const { propertyId, totalAmount, month, year } = data;
+    await this.prisma.propertyMetrics.update({
+      where: { propertyId_month_year: { propertyId, month, year } },
+      data: {
+        totalDuesGenerated: { increment: totalAmount },
+        totalDuesUnpaid: { increment: totalAmount },
+      },
+    });
+    const propertyKey = `dash:property:${propertyId}:${year}:${month}`;
+    const pipeline = this.redis.getClient().pipeline();
+    pipeline.hincrbyfloat(propertyKey, 'dues_generated', totalAmount);
+    pipeline.hincrbyfloat(propertyKey, 'dues_unpaid', totalAmount);
+    pipeline.expire(propertyKey, METRICS_REDIS_TTL);
+    await pipeline.exec();
+  }
+
+  private async handleDuePaymentCollected(data: {
+    dueId: number;
+    propertyId: number;
+    dueType: string;
+    amountPaid: number;
+    month: number;
+    year: number;
+  }) {
+    const { propertyId, dueType, amountPaid, month, year } = data;
+
+    const collectedField =
+      dueType === 'RENT'
+        ? 'totalRentCollected'
+        : dueType === 'ELECTRICITY'
+          ? 'totalElecCollected'
+          : 'totalOtherCollected';
+
+    await this.prisma.propertyMetrics.update({
+      where: { propertyId_month_year: { propertyId, month, year } },
+      data: {
+        totalDuesPaid: { increment: amountPaid },
+        totalDuesUnpaid: { decrement: amountPaid },
+        [collectedField]: { increment: amountPaid },
+      },
+    });
+
+    const redisCollectedField =
+      dueType === 'RENT'
+        ? 'rent_collected'
+        : dueType === 'ELECTRICITY'
+          ? 'elec_collected'
+          : 'other_collected';
+
+    const propertyKey = `dash:property:${propertyId}:${year}:${month}`;
+    const pipeline = this.redis.getClient().pipeline();
+    pipeline.hincrbyfloat(propertyKey, 'dues_paid', amountPaid);
+    pipeline.hincrbyfloat(propertyKey, 'dues_unpaid', -amountPaid);
+    pipeline.hincrbyfloat(propertyKey, redisCollectedField, amountPaid);
     pipeline.expire(propertyKey, METRICS_REDIS_TTL);
     await pipeline.exec();
   }

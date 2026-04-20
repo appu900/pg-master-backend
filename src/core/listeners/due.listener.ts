@@ -1,5 +1,5 @@
 import { Logger, Injectable, Inject } from '@nestjs/common';
-import { TenantAddedEvent } from '../events/domain-events';
+import { TenantAddedEvent, DuePaymentCollectedEvent } from '../events/domain-events';
 import { OnEvent } from '@nestjs/event-emitter';
 import { IQueueProducer, QUEUE_PRODUCER } from '../ports/queue-producer.port';
 import { QUEUES } from '../queue/queue.constants';
@@ -23,5 +23,27 @@ export class DueListner {
         payment_link: 'https://app.rentpe.com',
       },
     });
+  }
+
+  @OnEvent('due.payment.collected')
+  async onDuePaymentCollected(event: DuePaymentCollectedEvent) {
+    await this.queue.enqueue(
+      QUEUES.NOTIFICATION,
+      'due.payment.collected',
+      {
+        type: 'PAYMENT_COLLECTED_NOTIFY',
+        phone: '+91' + event.tenantPhone,
+        channels: ['whatsapp'],
+        data: {
+          tenantName: event.tenantName,
+          due_type: event.dueType,
+          amount_paid: event.amountPaid,
+          balance_amount: event.balanceAmount,
+          payment_mode: event.paymentMode,
+          is_fully_paid: event.isFullyPaid,
+        },
+      },
+      { jobId: `payment-collected-${event.dueId}-${Date.now()}` },
+    );
   }
 }

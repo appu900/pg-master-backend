@@ -5,7 +5,11 @@ import { RoomCreatedEvent } from '../events/metrics.events';
 import { QUEUES } from '../queue/queue.constants';
 import { PropertyCreateEvent } from '../events/property-events';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
-import { TenantAddedEvent } from '../events/domain-events';
+import {
+  DueCreatedEvent,
+  DuePaymentCollectedEvent,
+  TenantAddedEvent,
+} from '../events/domain-events';
 
 @Injectable()
 export class MetricsListner {
@@ -66,5 +70,40 @@ export class MetricsListner {
       { jobId: `metrics-tenant-added-${event.tenantId}` },
     );
     console.log(`enqued to tenant update matrics with tenantid ${event.tenantId}`)
+  }
+
+  @OnEvent('due.created')
+  async onDueCreated(event: DueCreatedEvent) {
+    await this.queue.enqueue(
+      QUEUES.METRICS,
+      'due.created',
+      {
+        dueId: event.dueId,
+        tenancyId: event.tenancyId,
+        propertyId: event.propertyId,
+        dueType: event.dueType,
+        totalAmount: event.totalAmount,
+        month: event.month,
+        year: event.year,
+      },
+      { jobId: `metrics-due-created-${event.dueId}` },
+    );
+  }
+
+  @OnEvent('due.payment.collected')
+  async onDuePaymentCollected(event: DuePaymentCollectedEvent) {
+    await this.queue.enqueue(
+      QUEUES.METRICS,
+      'due.payment.collected',
+      {
+        dueId: event.dueId,
+        propertyId: event.propertyId,
+        dueType: event.dueType,
+        amountPaid: event.amountPaid,
+        month: event.month,
+        year: event.year,
+      },
+      { jobId: `metrics-due-paid-${event.dueId}-${Date.now()}` },
+    );
   }
 }
