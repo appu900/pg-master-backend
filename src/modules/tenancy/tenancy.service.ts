@@ -19,7 +19,8 @@ import {
 } from 'src/utils/Proration.utils';
 import { join } from 'path';
 import e from 'express';
-
+import { TenancyEvents, TenantAddedEventPayload } from './tenancy.event';
+import { TenantAddedEvent } from 'src/core/events/domain-events';
 
 const BLOCKING_TENANCY_STATUSES = new Set(['ACTIVE', 'NOTICE_PERIOD']);
 const MAX_FUTURE_JOINING_DAYS = 90;
@@ -29,6 +30,7 @@ export class TenancyService {
   private readonly logger = new Logger(TenancyService.name);
   constructor(
     private readonly prisma: PrismaService,
+    private readonly events: TenancyEvents,
   ) {}
 
   private resolveUserfromPerFlight(
@@ -492,8 +494,24 @@ export class TenancyService {
         `rentDueId=${txResult.rentDueId} ` +
         `depositDueId=${txResult.depositDueId ?? 'none'}`,
     );
+
     // publish the event after successful transaction commit
-    // await this.PublishTenantOnboardingEvents(dto, property.name);
+    const tenantCreateEventPayload: TenantAddedEventPayload = {
+      tenancyId: txResult.tenancyId,
+      tenantId: txResult.resolvedUserId,
+      propertyId: dto.propertyId,
+      ownerId: requestingOwnerId,
+      roomId: dto.roomId,
+      rentAmount: dto.rentAmount,
+      securityDepositeAmount: dto.securityDeposit,
+      tenantPhone:dto.phoneNumber,
+      tenantName: dto.fullName,
+      propertyName: property.name,
+      roomNumber: preflight.roomNumber,
+      billingCycleDay: dto.rentCycleDay,
+      dueDate: formatDate(periodEnd),
+    };
+    this.events.emitTenancyCreated(tenantCreateEventPayload);
     return {
       tenantUserId: txResult.resolvedUserId,
       tenancyId: txResult.tenancyId,
@@ -611,6 +629,3 @@ export class TenancyService {
     console.log('Event published successfully');
   }
 }
-
-
-

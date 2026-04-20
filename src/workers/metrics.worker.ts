@@ -19,14 +19,17 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
     super();
   }
   onModuleInit() {
-    console.log("Metrics worker started")
+    console.log('Metrics worker started');
   }
 
   async process(job: Job): Promise<any> {
     switch (job.name) {
       case 'room.created':
-        console.log(job.name)
+        console.log(job.data);
         await this.handleRoomCreated(job.data);
+      case 'tenant.added':
+        console.log(job.data);
+        await this.handleTenantAdded(job);
         break;
       default:
         this.logger.warn(`Unknown metrics job recived ${job.name}`);
@@ -38,14 +41,48 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
     roomId: number;
     propertyId: number;
     ownerId: number;
+    bedCount: number;
     month: number;
     year: number;
   }) {
-    const { roomId, propertyId, ownerId, month, year } = data;
+    const { roomId, propertyId, ownerId, bedCount, month, year } = data;
     const ownerKey = ``;
     const propertyKey = `dash:property:${propertyId}:${year}:${month}`;
     const pipeline = this.redis.getClient().pipeline();
     pipeline.hincrby(propertyKey, 'total_rooms', 1);
+    pipeline.hincrby(propertyKey, 'total_beds', bedCount);
+    pipeline.expire(propertyKey, METRICS_REDIS_TTL);
+    await pipeline.exec();
+  }
+
+  private async handleTenantAdded(job: Job) {
+    const { tenantId, propertyId, ownerId, securityDepositeAmount } = job.data;
+    await this.prisma.propertyMetrics.update({
+      where: {
+        propertyId_month_year: {
+          propertyId: propertyId,
+          month: new Date().getMonth() + 1,
+          year: new Date().getFullYear(),
+        },
+      },
+      data: {
+        totalDuesGenerated: {
+          increment: securityDepositeAmount,
+        },
+        activeTenants: {
+          increment: 1,
+        },
+        occupiedBeds: {
+          increment: 1,
+        },
+      },
+    });
+    console.log(securityDepositeAmount + 'security deposit amount');
+    const propertyKey = `dash:property:${propertyId}:${new Date().getFullYear()}:${new Date().getMonth() + 1}`;
+    const pipeline = this.redis.getClient().pipeline();
+    pipeline.hincrby(propertyKey, 'dues_generated', securityDepositeAmount);
+    pipeline.hincrby(propertyKey, 'active_tenants', 1);
+    pipeline.hincrby(propertyKey, 'occupied_beds', 1);
     pipeline.expire(propertyKey, METRICS_REDIS_TTL);
     await pipeline.exec();
   }

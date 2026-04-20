@@ -1,4 +1,4 @@
-import { Logger,Injectable } from '@nestjs/common';
+import { Logger, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { RedisService } from 'src/infra/redis/redis.service';
 
@@ -22,7 +22,6 @@ export interface DashBoardMetrics {
   totalRooms: number;
 }
 
-
 @Injectable()
 export class MetricsService {
   private readonly logger = new Logger(MetricsService.name);
@@ -37,7 +36,7 @@ export class MetricsService {
 
     const redisKey = `dash:${ownerId}:${y}:${m}`;
     const cached = await this.redis.getClient().hgetall(redisKey);
-    if (cached && Object.keys(cached).length > 5) {
+    if (cached && Object.keys(cached).length > 2) {
       return {
         source: 'cache' as const,
         rentCollected: Number(cached.rent_collected || 0),
@@ -131,9 +130,9 @@ export class MetricsService {
 
     const redisKey = `dash:property:${propertyId}:${y}:${mon}`;
     const cached = await this.redis.getClient().hgetall(redisKey);
-    console.log("cahed data",cached)
+    console.log('cahed data of property matrics', cached);
 
-    if (cached && Object.keys(cached).length > 5) {
+    if (cached && Object.keys(cached).length >= 2) {
       return {
         source: 'cache' as const,
         rentCollected: Number(cached.rent_collected || 0),
@@ -146,7 +145,10 @@ export class MetricsService {
         duesPaid: Number(cached.dues_paid || 0),
         duesUnpaid: Number(cached.dues_unpaid || 0),
         overdueCount: Number(cached.overdue_count || 0),
-        collectionRate: Number(cached.collection_rate || 0),
+        totalBeds: Number(cached.total_beds),
+        occupiedBeds: Number(cached.occupied_beds || 0),
+        activeTenants: Number(cached.active_tenants || 0),
+        occupancyRate: Number(cached.occupancy_rate || 0),
         totalRooms: Number(cached.total_rooms || 0),
       };
     }
@@ -183,7 +185,7 @@ export class MetricsService {
       totalRooms: Number(roomCount),
     };
   }
- 
+
   async getMonthOverMonth(ownerId: number) {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;

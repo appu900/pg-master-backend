@@ -12,6 +12,7 @@ export class PropertyEvents {
     roomId: number;
     propertyId: number;
     ownerId: number;
+    bedCount:number;
   }) {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
@@ -22,6 +23,7 @@ export class PropertyEvents {
         data.roomId,
         data.propertyId,
         data.ownerId,
+        data.bedCount,
         currentMonth,
         currentYear,
       ),

@@ -5,6 +5,7 @@ import { RoomCreatedEvent } from '../events/metrics.events';
 import { QUEUES } from '../queue/queue.constants';
 import { PropertyCreateEvent } from '../events/property-events';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
+import { TenantAddedEvent } from '../events/domain-events';
 
 @Injectable()
 export class MetricsListner {
@@ -23,6 +24,7 @@ export class MetricsListner {
         roomId: event.roomId,
         propertyId: event.propertyId,
         ownerId: event.ownerId,
+        bedCount:event.totalBedCount,
         month: event.month,
         year: event.year,
       },
@@ -44,5 +46,25 @@ export class MetricsListner {
     this.logger.log(
       `property matrics created for the property ${event.propertyId}`,
     );
+  }
+
+  @OnEvent('tenant.added')
+  async onTenantAdded(event:TenantAddedEvent){
+    console.log(event.securityDepositeAmount)
+    await this.queue.enqueue(
+      QUEUES.METRICS,
+      'tenant.added',
+      {
+        tenantId: event.tenantId,
+        propertyId: event.propertyId,
+        ownerId: event.ownerId,
+        rentAmount: event.rentAmount,
+        securityDepositeAmount: event.securityDepositeAmount,
+        billingCycleDay: event.billingCycleDay,
+        dueDate: event.dueDate,
+      },
+      { jobId: `metrics-tenant-added-${event.tenantId}` },
+    );
+    console.log(`enqued to tenant update matrics with tenantid ${event.tenantId}`)
   }
 }

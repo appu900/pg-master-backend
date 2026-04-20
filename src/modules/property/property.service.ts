@@ -13,6 +13,21 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PropertyEvents } from './property.event';
 import { PropertyCreateEvent } from 'src/core/events/property-events';
 
+const sharingMap:Record<RoomSharingType,number> = {
+  SINGLE_SHARING: 1,
+  DOUBLE_SHARING: 2,
+  TRIPLE_SHARING: 3,
+  QUAD_SHARING: 4,
+  FIVE_SHARING: 5,
+  SIX_SHARING: 6,
+  SEVEN_SHARING: 7,
+  EIGHT_SHARING: 8,
+  NINE_SHARING: 9,
+  TEN_SHARING: 10,
+}
+
+
+
 @Injectable()
 export class PropertyService {
   constructor(
@@ -21,6 +36,11 @@ export class PropertyService {
     private eventEmitter: EventEmitter2,
     private readonly events: PropertyEvents,
   ) {}
+
+
+  private getSharingTypeValue(type:RoomSharingType):number{
+     return sharingMap[type]
+  }
 
   async createProperty(propertyOwnerId: number, payload: CreatePropertyDto) {
     const property = await this.prisma.property.create({
@@ -114,10 +134,12 @@ export class PropertyService {
         });
       }
     }
+    const totalBedCount = this.getSharingTypeValue(sharingType)
     this.events.emitCreateRoomEvent({
       roomId: room.id,
       propertyId: propertyId,
       ownerId: ownerId,
+      bedCount:totalBedCount
     });
     return this.prisma.room.findUnique({
       where: { id: room.id },
