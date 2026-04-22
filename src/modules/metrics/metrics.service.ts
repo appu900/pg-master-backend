@@ -36,7 +36,7 @@ export class MetricsService {
 
     const redisKey = `dash:${ownerId}:${y}:${m}`;
     const cached = await this.redis.getClient().hgetall(redisKey);
-    if (cached && Object.keys(cached).length > 2) {
+    if (cached && Object.keys(cached).length > 200) {
       return {
         source: 'cache' as const,
         rentCollected: Number(cached.rent_collected || 0),

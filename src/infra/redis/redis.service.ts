@@ -3,7 +3,7 @@ import Redis, { RedisOptions } from 'ioredis';
 
 @Injectable()
 export class RedisService implements OnModuleDestroy {
-  private readonly logger = new Logger(RedisService.name)
+  private readonly logger = new Logger(RedisService.name);
   private readonly client: Redis;
 
   constructor() {
@@ -27,9 +27,8 @@ export class RedisService implements OnModuleDestroy {
     if (process.env.REDIS_URL) {
       const url = process.env.REDIS_URL.replace(/^redis:\/\//, 'rediss://');
       this.client = new Redis(url, options);
-      console.log("redis client",this.client)
-      this.logger.debug("REDIS CLIENT - ",this.client)
-      
+      console.log('redis client', this.client);
+      this.logger.debug('REDIS CLIENT - ', this.client);
     } else {
       this.client = new Redis({
         host: process.env.REDIS_HOST || '127.0.0.1',
@@ -94,6 +93,10 @@ export class RedisService implements OnModuleDestroy {
       password: process.env.REDIS_PASSWORD,
       maxRetriesPerRequest: null,
     };
+  }
+
+  async flushAll() {
+    return this.client.flushall();
   }
 
   async onModuleDestroy() {
