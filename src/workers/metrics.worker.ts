@@ -80,6 +80,7 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
     const propertyKey = `dash:property:${propertyId}:${new Date().getFullYear()}:${new Date().getMonth() + 1}`;
     const pipeline = this.redis.getClient().pipeline();
     pipeline.hincrby(propertyKey, 'dues_generated', securityDepositeAmount);
+    pipeline.hincrby(propertyKey, 'dues_unpaid', securityDepositeAmount);
     pipeline.hincrby(propertyKey, 'active_tenants', 1);
     pipeline.hincrby(propertyKey, 'occupied_beds', 1);
     pipeline.expire(propertyKey, METRICS_REDIS_TTL);
@@ -104,8 +105,8 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
     });
     const propertyKey = `dash:property:${propertyId}:${year}:${month}`;
     const pipeline = this.redis.getClient().pipeline();
-    pipeline.hincrbyfloat(propertyKey, 'dues_generated', totalAmount);
-    pipeline.hincrbyfloat(propertyKey, 'dues_unpaid', totalAmount);
+    pipeline.hincrby(propertyKey, 'dues_generated', totalAmount);
+    pipeline.hincrby(propertyKey, 'dues_unpaid', totalAmount);
     pipeline.expire(propertyKey, METRICS_REDIS_TTL);
     await pipeline.exec();
   }
@@ -145,9 +146,9 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
 
     const propertyKey = `dash:property:${propertyId}:${year}:${month}`;
     const pipeline = this.redis.getClient().pipeline();
-    pipeline.hincrbyfloat(propertyKey, 'dues_paid', amountPaid);
-    pipeline.hincrbyfloat(propertyKey, 'dues_unpaid', -amountPaid);
-    pipeline.hincrbyfloat(propertyKey, redisCollectedField, amountPaid);
+    pipeline.hincrby(propertyKey, 'dues_paid', amountPaid);
+    pipeline.hincrby(propertyKey, 'dues_unpaid', - amountPaid);
+    pipeline.hincrby(propertyKey, redisCollectedField, amountPaid);
     pipeline.expire(propertyKey, METRICS_REDIS_TTL);
     await pipeline.exec();
   }
