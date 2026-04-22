@@ -132,7 +132,7 @@ export class MetricsService {
     const cached = await this.redis.getClient().hgetall(redisKey);
     console.log('cahed data of property matrics', cached);
 
-    if (cached && Object.keys(cached).length >= 2) {
+    if (cached && Object.keys(cached).length >= 200) {
       return {
         source: 'cache' as const,
         rentCollected: Number(cached.rent_collected || 0),
