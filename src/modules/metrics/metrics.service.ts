@@ -156,9 +156,27 @@ export class MetricsService {
     const metrics = await this.prisms.propertyMetrics.findUnique({
       where: { propertyId_month_year: { propertyId, month: mon, year: y } },
     });
-    const roomCount = await this.prisms.room.count({
+    const rooms = await this.prisms.room.findMany({
       where: { propertyId: propertyId },
+      select: {
+        totalBeds: true,
+        occupiedBeds: true,
+      },
     });
+
+    const result = await this.prisms.room.aggregate({
+      where: { propertyId: propertyId },
+      _sum: {
+        totalBeds: true,
+        occupiedBeds: true,
+      },
+      _count: {
+        id: true,
+      },
+    });
+    const totalBeds = result._sum.totalBeds || 0;
+    const occupiedBeds = result._sum.occupiedBeds || 0;
+    const roomCount = result._count.id || 0;
     if (!metrics) {
       return this.emptyMetrics('db', roomCount);
     }
@@ -177,8 +195,8 @@ export class MetricsService {
       duesPaid: Number(metrics.totalDuesPaid),
       duesUnpaid: Number(metrics.totalDuesUnpaid),
       overdueCount: metrics.overdueCount,
-      totalBeds: metrics.totalBeds,
-      occupiedBeds: metrics.occupiedBeds,
+      totalBeds: totalBeds,
+      occupiedBeds: occupiedBeds,
       activeTenants: metrics.activeTenants,
       occupancyRate: Number(metrics.occupancyRate),
       collectionRate: Number(metrics.collectionRate),

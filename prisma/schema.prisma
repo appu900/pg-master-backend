@@ -62,6 +62,80 @@ model PropertyOwnerProfile {
   @@index([userId])
 }
 
+model PropertyMeterReading {
+  id              Int                @id @default(autoincrement())
+  propertyId      Int
+  month           Int
+  year            Int
+  previousReading Decimal            @db.Decimal(10, 2)
+  currentReading  Decimal            @db.Decimal(10, 2)
+  unitConsumed    Decimal            @db.Decimal(10, 2)
+  unitPrice       Decimal            @db.Decimal(10, 4)
+  status          MeterReadingStatus @default(PENDING)
+  submittedAt     DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([propertyId, month, year])
+  @@index([propertyId])
+  @@index([propertyId, month, year])
+  @@index([status])
+}
+
+model RoomMeterReading {
+  id              Int       @id @default(autoincrement())
+  roomId          Int
+  propertyId      Int
+  month           Int
+  year            Int
+  previousReading Decimal   @db.Decimal(10, 2)
+  currentReading  Decimal   @db.Decimal(10, 2)
+  unitConsumed    Decimal   @db.Decimal(10, 2)
+  isSkipped       Boolean   @default(false)
+  submittedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  room     Room     @relation(fields: [roomId], references: [id])
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([roomId, month, year])
+  @@index([roomId])
+  @@index([propertyId, month, year])
+  @@index([isSkipped])
+}
+
+model ElectricityBillingRun {
+  id                Int              @id @default(autoincrement())
+  propertyId        Int
+  month             Int
+  year              Int
+  status            BillingRunStatus @default(PENDING)
+  mainMeterUnits    Decimal          @db.Decimal(10, 2)
+  privateRoomsUnits Decimal          @db.Decimal(10, 2)
+  sharedPoolUnits   Decimal          @db.Decimal(10, 2)
+  unitPrice         Decimal          @db.Decimal(10, 4)
+  totalDaysPool     Int?
+  perDayRate        Decimal?         @db.Decimal(10, 6)
+
+  roomReminderSentAt   DateTime?
+  mainMeterReminder1At DateTime?
+  mainMeterReminder2At DateTime?
+
+  ranAt     DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([propertyId, month, year])
+  @@index([propertyId])
+  @@index([status])
+  @@index([propertyId, month, year])
+}
+
 model TenentProfile {
   id                      Int               @id @default(autoincrement())
   userId                  Int               @unique
@@ -149,35 +223,39 @@ model Property {
   rooms                          Room[]
   tenents                        Tenancy[]
 
-  expenses            Expenses[]
-  dues                TenantDue[]
-  dailyReminderQueues DailyReminderQueue[]
-  propertyMetrics     PropertyMetrics[]
+  expenses               Expenses[]
+  dues                   TenantDue[]
+  dailyReminderQueues    DailyReminderQueue[]
+  propertyMetrics        PropertyMetrics[]
+  propertyMeterReadings  PropertyMeterReading[]
+  roomMeterReadings      RoomMeterReading[]
+  electricityBillingRuns ElectricityBillingRun[]
 
   @@index([ownerId])
   @@index([pinCode])
 }
 
 model Room {
-  id                 Int             @id @default(autoincrement())
+  id                 Int                @id @default(autoincrement())
   propertyId         Int
   floorNumber        Int
   totalBeds          Int
-  occupiedBeds       Int             @default(0)
-  rentPerBed         Decimal         @db.Decimal(10, 2)
+  occupiedBeds       Int                @default(0)
+  rentPerBed         Decimal            @db.Decimal(10, 2)
   sharingType        RoomSharingType
   meterReadingDate   DateTime?
   amenity            String[]
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  hasMeter           Boolean         @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  hasMeter           Boolean            @default(false)
   intialMeterReading Int?
-  isAcRoom           Boolean         @default(false)
+  isAcRoom           Boolean            @default(false)
   lastMeterReading   Float?
   roomNumber         String
-  property           Property        @relation(fields: [propertyId], references: [id])
+  property           Property           @relation(fields: [propertyId], references: [id])
   images             RoomImages[]
   tenants            Tenancy[]
+  roomMeterReadings  RoomMeterReading[]
 
   @@index([propertyId])
   @@index([sharingType])
@@ -572,6 +650,19 @@ enum InboxMessageStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+enum MeterReadingStatus {
+  PENDING
+  SUBMITTED
+  SKIPPED
+}
+
+enum BillingRunStatus {
+  PENDING
+  WAITING_MAIN_METER
+  COMPLETED
+  SKIPPED
 }
 
 enum ExpenseCategory {

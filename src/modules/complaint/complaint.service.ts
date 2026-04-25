@@ -336,6 +336,37 @@ export class ComplaintService {
     return result;
   }
 
+  async getComplaintSummaryByProperty(propertyId: number, ownerUserId: number) {
+    const property = await this.prisma.property.findFirst({
+      where: { id: propertyId, ownerId: ownerUserId },
+      select: { id: true },
+    });
+    if (!property) throw new NotFoundException('Property not found');
+
+    const counts = await this.prisma.complaint.groupBy({
+      by: ['status'],
+      where: { propertyId },
+      _count: { id: true },
+    });
+
+    const summary = {
+      open: 0,
+      assigned: 0,
+      resolved: 0,
+      total: 0,
+    };
+
+    for (const row of counts) {
+      const count = row._count.id;
+      summary.total += count;
+      if (row.status === ComplaintStatus.OPEN) summary.open = count;
+      else if (row.status === ComplaintStatus.ASSIGNED) summary.assigned = count;
+      else if (row.status === ComplaintStatus.COMPLETED) summary.resolved = count;
+    }
+
+    return summary;
+  }
+
   async fetchAllComplaintsForAllPropertiesByOwnerId(propertyOwnerId: number) {
     const owner = await this.prisma.user.findUnique({
       where: { id: propertyOwnerId },

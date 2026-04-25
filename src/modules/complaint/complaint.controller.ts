@@ -62,6 +62,16 @@ export class ComplaintController {
     );
   }
 
+  @Get('/summary/property/:propertyId')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getComplaintSummary(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
+  ) {
+    return this.complaintService.getComplaintSummaryByProperty(propertyId, user.userId);
+  }
+
   @Get(':complaintId')
   @Roles(Role.PROPERTY_OWNER, Role.TENANT)
   @UseGuards(JwtAuthGuard, RolesGuard)

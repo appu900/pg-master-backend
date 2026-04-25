@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
@@ -33,5 +35,15 @@ export class RoomController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getAlltenantsOfRoom(@Param('id', ParseIntPipe) roomId: number) {
     return this.roomService.fetchAllTenantsOfRoom(roomId);
+  }
+
+  @Delete('/:id')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async deleteRoom(
+    @Param('id', ParseIntPipe) roomId: number,
+    @GetUser() user: any,
+  ) {
+    return this.roomService.deleteRoom(roomId, user.userId);
   }
 }

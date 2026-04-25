@@ -1,8 +1,9 @@
-import { BadRequestException, Logger } from '@nestjs/common';
+import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { Injectable } from '@nestjs/common';
 import { AddDueDto } from './dto/add-due.dto';
+import { EditDueDto } from './dto/edit-due.dto';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
-import { TenancyStatus } from '@prisma/client';
+import { DueStatus, TenancyStatus } from '@prisma/client';
 import { BillingEventHandler } from './biiling.eventpublisher';
 
 @Injectable()
@@ -123,5 +124,51 @@ export class BillingService {
       tenant.phoneNumber,
       res.id,
     );
+  }
+
+  async deleteDue(dueId: number, ownerUserId: number) {
+    const due = await this.prisma.tenantDue.findFirst({
+      where: {
+        id: dueId,
+        property: { ownerId: ownerUserId },
+      },
+    });
+    if (!due) {
+      throw new NotFoundException('Due not found');
+    }
+    if (due.status !== DueStatus.UNPAID) {
+      throw new BadRequestException('Only unpaid dues can be deleted');
+    }
+    await this.prisma.tenantDue.delete({ where: { id: dueId } });
+    return { message: 'Due deleted successfully' };
+  }
+
+  async editDue(dueId: number, dto: EditDueDto, ownerUserId: number) {
+    const due = await this.prisma.tenantDue.findFirst({
+      where: {
+        id: dueId,
+        property: { ownerId: ownerUserId },
+      },
+    });
+    if (!due) {
+      throw new NotFoundException('Due not found');
+    }
+    if (due.status === DueStatus.PAID) {
+      throw new BadRequestException('Paid dues cannot be edited');
+    }
+
+    const updated = await this.prisma.tenantDue.update({
+      where: { id: dueId },
+      data: {
+        ...(dto.fromDate && { periodStart: dto.fromDate }),
+        ...(dto.toDate && { periodEnd: dto.toDate }),
+        ...(dto.dueAmount !== undefined && {
+          totalAmount: dto.dueAmount,
+          balanceAmount: dto.dueAmount - Number(due.paidAmount),
+        }),
+        ...(dto.dueType && { dueType: dto.dueType }),
+      },
+    });
+    return updated;
   }
 }

@@ -32,6 +32,7 @@ import { BullMqModule } from './core/adapters/bullmq/bullmq.module';
 import { EventModule } from './core/events/event-bus.module';
 import { CoreModule } from './core/core.module';
 import { TestModule } from './modules/Test/test.module';
+import { ElectricityModule } from './modules/electricity/electricity.module';
 
 
 
@@ -77,7 +78,8 @@ import { TestModule } from './modules/Test/test.module';
     MetricsModule,
     WorkerModule,
     TestModule,
-    DueModule
+    DueModule,
+    ElectricityModule,
   ],
   controllers: [AppController],
   providers: [AppService],

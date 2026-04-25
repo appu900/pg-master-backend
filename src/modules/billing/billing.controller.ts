@@ -1,6 +1,7 @@
 import { BillingService } from './billing.service';
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { AddDueDto } from './dto/add-due.dto';
+import { EditDueDto } from './dto/edit-due.dto';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -26,5 +27,23 @@ export class BillingController {
       message: 'Due created successfully',
       res,
     };
+  }
+
+  @Delete('delete-due/:dueId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async deleteDue(@Param('dueId', ParseIntPipe) dueId: number, @GetUser() user: any) {
+    return this.billingService.deleteDue(dueId, user.userId);
+  }
+
+  @Patch('edit-due/:dueId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async editDue(
+    @Param('dueId', ParseIntPipe) dueId: number,
+    @Body() dto: EditDueDto,
+    @GetUser() user: any,
+  ) {
+    return this.billingService.editDue(dueId, dto, user.userId);
   }
 }
