@@ -6,6 +6,7 @@ import {
 import { TenancyStatus } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { SubmitMainMeterDto } from './dto/submit.mainmeter.dto';
+import { SubmitAllReadingsDto } from './dto/submit-all-readings.dto';
 import { Decimal } from '@prisma/client/runtime/library';
 
 
@@ -15,12 +16,7 @@ export class ElectricityService {
 
 
 
-  async updateMeterReadingData(propertyId:number,month:number,year:number){
-     const property = await this.prisma.property.findUnique({where:{id:propertyId}})
-     if(!property) throw new BadRequestException("Property not found")
-     
-     
-  }
+
 
   async getMeterReadingPageData(propertyId:number,month:number,year:number){
     const property = await this.prisma.property.findUnique({
@@ -170,6 +166,155 @@ export class ElectricityService {
       },
     });
     return reading;
+  }
+
+  async getMeterReadingsForMonth(propertyId: number, month: number, year: number) {
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+
+    const [property, rooms, currentMainMeter, prevMainMeter, currentRoomReadings, prevRoomReadings] =
+      await Promise.all([
+        this.prisma.property.findUnique({
+          where: { id: propertyId },
+          select: { id: true, name: true },
+        }),
+        this.prisma.room.findMany({
+          where: { propertyId, hasMeter: true },
+          select: { id: true, roomNumber: true, floorNumber: true, intialMeterReading: true },
+          orderBy: { roomNumber: 'asc' },
+        }),
+        this.prisma.propertyMeterReading.findUnique({
+          where: { propertyId_month_year: { propertyId, month, year } },
+        }),
+        this.prisma.propertyMeterReading.findUnique({
+          where: { propertyId_month_year: { propertyId, month: prevMonth, year: prevYear } },
+        }),
+        this.prisma.roomMeterReading.findMany({
+          where: { propertyId, month, year },
+        }),
+        this.prisma.roomMeterReading.findMany({
+          where: { propertyId, month: prevMonth, year: prevYear },
+        }),
+      ]);
+
+    if (!property) throw new NotFoundException('Property not found');
+
+    const currentRoomMap = new Map(currentRoomReadings.map((r) => [r.roomId, r]));
+    const prevRoomMap = new Map(prevRoomReadings.map((r) => [r.roomId, r]));
+
+    const mainMeter = currentMainMeter
+      ? {
+          previousReading: currentMainMeter.previousReading,
+          currentReading: currentMainMeter.currentReading,
+          unitPrice: currentMainMeter.unitPrice,
+          unitConsumed: currentMainMeter.unitConsumed,
+          status: currentMainMeter.status,
+        }
+      : {
+          previousReading: prevMainMeter?.currentReading ?? 0,
+          currentReading: null,
+          unitPrice: null,
+          unitConsumed: null,
+          status: 'PENDING',
+        };
+
+    const roomsData = rooms.map((room) => {
+      const current = currentRoomMap.get(room.id);
+      const prev = prevRoomMap.get(room.id);
+      return {
+        roomId: room.id,
+        roomNumber: room.roomNumber,
+        floorNumber: room.floorNumber,
+        previousReading: current?.previousReading ?? prev?.currentReading ?? room.intialMeterReading ?? 0,
+        currentReading: current?.currentReading ?? null,
+        unitConsumed: current?.unitConsumed ?? null,
+        status: current ? 'SUBMITTED' : 'PENDING',
+      };
+    });
+
+    return {
+      propertyId: property.id,
+      propertyName: property.name,
+      month,
+      year,
+      mainMeter,
+      rooms: roomsData,
+    };
+  }
+
+  async submitAllReadings(propertyId: number, dto: SubmitAllReadingsDto) {
+    const { month, year, mainMeter, rooms } = dto;
+
+    const mainUnitConsumed = new Decimal(mainMeter.currentReading).sub(
+      new Decimal(mainMeter.previousReading),
+    );
+    if (mainUnitConsumed.lt(0)) {
+      throw new BadRequestException(
+        'Main meter: current reading must be greater than previous reading',
+      );
+    }
+
+    const roomData = rooms.map((room) => {
+      const unitConsumed = new Decimal(room.currentReading).sub(
+        new Decimal(room.previousReading),
+      );
+      if (unitConsumed.lt(0)) {
+        throw new BadRequestException(
+          `Room ${room.roomId}: current reading must be greater than previous reading`,
+        );
+      }
+      return { ...room, unitConsumed };
+    });
+
+    const [mainMeterResult, ...roomResults] = await Promise.all([
+      this.prisma.propertyMeterReading.upsert({
+        where: { propertyId_month_year: { propertyId, month, year } },
+        create: {
+          propertyId,
+          month,
+          year,
+          previousReading: mainMeter.previousReading,
+          currentReading: mainMeter.currentReading,
+          unitConsumed: mainUnitConsumed,
+          unitPrice: mainMeter.unitPrice,
+          status: 'SUBMITTED',
+          submittedAt: new Date(),
+        },
+        update: {
+          previousReading: mainMeter.previousReading,
+          currentReading: mainMeter.currentReading,
+          unitConsumed: mainUnitConsumed,
+          unitPrice: mainMeter.unitPrice,
+          status: 'SUBMITTED',
+          submittedAt: new Date(),
+        },
+      }),
+      ...roomData.map(({ roomId, previousReading, currentReading, unitConsumed }) =>
+        this.prisma.roomMeterReading.upsert({
+          where: { roomId_month_year: { roomId, month, year } },
+          create: {
+            roomId,
+            propertyId,
+            month,
+            year,
+            previousReading,
+            currentReading,
+            unitConsumed,
+            isSkipped: false,
+            submittedAt: new Date(),
+          },
+          update: {
+            previousReading,
+            currentReading,
+            unitConsumed,
+            isSkipped: false,
+            submittedAt: new Date(),
+          },
+        }),
+      ),
+    ]);
+
+    return { mainMeter: mainMeterResult, rooms: roomResults };
   }
 
   async getMeterReadingStatus(propertyId: number, month: number, year: number) {
