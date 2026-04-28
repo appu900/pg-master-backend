@@ -31,7 +31,7 @@ export class ElectricityController {
   ) {
     return this.electricityService.getMeterReadingsForMonth(propertyId, month, year);
   }
-
+  
   @Post('/submit-readings/:propertyId')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
