@@ -6,6 +6,7 @@ import { QUEUES } from 'src/core/queue/queue.constants';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { RedisService } from 'src/infra/redis/redis.service';
 
+
 // metrics ttl for 45 days
 const METRICS_REDIS_TTL = 60 * 60 * 24 * 45;
 @Processor(QUEUES.METRICS, { concurrency: 50 })

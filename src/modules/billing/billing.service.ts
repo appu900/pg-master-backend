@@ -5,6 +5,7 @@ import { EditDueDto } from './dto/edit-due.dto';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { DueStatus, TenancyStatus } from '@prisma/client';
 import { BillingEventHandler } from './biiling.eventpublisher';
+import { RedisService } from 'src/infra/redis/redis.service';
 
 @Injectable()
 export class BillingService {
@@ -12,6 +13,7 @@ export class BillingService {
   constructor(
     private readonly billingEventHandler: BillingEventHandler,
     private readonly prisma: PrismaService,
+    private readonly redis:RedisService
   ) {}
 
   /**
@@ -81,10 +83,14 @@ export class BillingService {
     }
 
     const tenancy = validationCheck.tenancy;
-    const tenant = await this.prisma.user.findUnique({where:{id:duePayload.tenantId}})
-    if(!tenant){
-        this.logger.error(`Tenant with id ${duePayload.tenantId} not found in database`)
-        throw new BadRequestException('Tenant not found')
+    const tenant = await this.prisma.user.findUnique({
+      where: { id: duePayload.tenantId },
+    });
+    if (!tenant) {
+      this.logger.error(
+        `Tenant with id ${duePayload.tenantId} not found in database`,
+      );
+      throw new BadRequestException('Tenant not found');
     }
 
     // check due endDate should not be in the past
@@ -136,10 +142,18 @@ export class BillingService {
     if (!due) {
       throw new NotFoundException('Due not found');
     }
+    const propertyId = due.propertyId;
+    const dueMonth = due.month;
+    const dueYear = due.year;
+    const dueAmount = due.balanceAmount
     if (due.status !== DueStatus.UNPAID) {
       throw new BadRequestException('Only unpaid dues can be deleted');
     }
     await this.prisma.tenantDue.delete({ where: { id: dueId } });
+    const propertyKey = `dash:property:${propertyId}:${dueYear}:${dueMonth}`;
+    this.redis.getClient().hincrby(propertyKey,'dues_generated',-dueAmount)
+
+
     return { message: 'Due deleted successfully' };
   }
 

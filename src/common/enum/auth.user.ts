@@ -1,10 +1,3 @@
-
-
-
-
-
-
-
 export enum AuthUser{
     
 }
