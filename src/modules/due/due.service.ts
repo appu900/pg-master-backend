@@ -396,6 +396,61 @@ export class DueService {
     return result;
   }
 
+  async getDueById(dueId: number) {
+    const due = await this.prisma.tenantDue.findUnique({
+      where: { id: dueId },
+      select: {
+        id: true,
+        dueType: true,
+        title: true,
+        description: true,
+        month: true,
+        year: true,
+        totalAmount: true,
+        paidAmount: true,
+        balanceAmount: true,
+        status: true,
+        periodStart: true,
+        periodEnd: true,
+        dueDate: true,
+        createdAt: true,
+        property: {
+          select: { id: true, name: true },
+        },
+        tenancy: {
+          select: {
+            id: true,
+            room: { select: { id: true, roomNumber: true } },
+            tenent: {
+              select: {
+                id: true,
+                fullName: true,
+                phoneNumber: true,
+                tenentProfile: { select: { profileImage: true } },
+              },
+            },
+          },
+        },
+        payments: {
+          select: {
+            id: true,
+            amount: true,
+            paymentMode: true,
+            upiApp: true,
+            transactionId: true,
+            notes: true,
+            proofImageUrl: true,
+            paidAt: true,
+          },
+          orderBy: { paidAt: 'desc' },
+        },
+      },
+    });
+
+    if (!due) throw new NotFoundException('Due not found');
+    return due;
+  }
+
   async getPropertyCollections(propertyId: number) {
     const payments = await this.prisma.duePayment.findMany({
       where: { propertyId },

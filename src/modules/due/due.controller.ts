@@ -92,4 +92,11 @@ export class DuesController {
   ) {
     return this.dueService.getPropertyCollections(propertyId);
   }
+
+  @Get('/:dueId')
+  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getDueById(@Param('dueId', ParseIntPipe) dueId: number) {
+    return this.dueService.getDueById(dueId);
+  }
 }
