@@ -13,7 +13,7 @@ export class BillingService {
   constructor(
     private readonly billingEventHandler: BillingEventHandler,
     private readonly prisma: PrismaService,
-    private readonly redis:RedisService
+    private readonly redis: RedisService,
   ) {}
 
   /**
@@ -145,14 +145,21 @@ export class BillingService {
     const propertyId = due.propertyId;
     const dueMonth = due.month;
     const dueYear = due.year;
-    const dueAmount = due.balanceAmount
+    const dueAmount = due.balanceAmount;
     if (due.status !== DueStatus.UNPAID) {
       throw new BadRequestException('Only unpaid dues can be deleted');
     }
     await this.prisma.tenantDue.delete({ where: { id: dueId } });
+    await this.prisma.propertyMetrics.update({
+      where: {
+        propertyId_month_year: { propertyId, month: dueMonth, year: dueYear },
+      },
+      data: {
+        totalDuesGenerated: { decrement: dueAmount },
+      },
+    });
     const propertyKey = `dash:property:${propertyId}:${dueYear}:${dueMonth}`;
-    this.redis.getClient().hincrby(propertyKey,'dues_generated',-dueAmount)
-
+    this.redis.getClient().hincrby(propertyKey, 'dues_generated', -dueAmount);
 
     return { message: 'Due deleted successfully' };
   }
