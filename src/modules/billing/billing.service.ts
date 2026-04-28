@@ -15,7 +15,6 @@ export class BillingService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
   ) {}
-
   /**
    * 1. Check if the tenant belongs to the property owner
     2. Check if the due for the tenant for the month and year already exists, if yes return an error response
@@ -174,8 +173,18 @@ export class BillingService {
     if (!due) {
       throw new NotFoundException('Due not found');
     }
-    if (due.status === DueStatus.PAID) {
+    if (due.status === DueStatus.PAID || due.status === DueStatus.PARTIAL) {
       throw new BadRequestException('Paid dues cannot be edited');
+    }
+
+    const month = due.month;
+    const year = due.year;
+    const propertyId = due.propertyId;
+    const propertyKey = `dash:property:${propertyId}:${year}:${month}`;
+    let dueTobeDeleted = due.totalAmount;
+    let dueTobeAdded;
+    if (dto.dueAmount) {
+      dueTobeAdded = dto.dueAmount;
     }
 
     const updated = await this.prisma.tenantDue.update({
@@ -188,6 +197,22 @@ export class BillingService {
           balanceAmount: dto.dueAmount - Number(due.paidAmount),
         }),
         ...(dto.dueType && { dueType: dto.dueType }),
+      },
+    });
+    await this.prisma.propertyMetrics.update({
+      where: {
+        propertyId_month_year: { propertyId, month, year },
+      },
+      data: {
+        totalDuesGenerated: { decrement: dueTobeDeleted },
+      },
+    });
+    await this.prisma.propertyMetrics.update({
+      where: {
+        propertyId_month_year: { propertyId, month, year },
+      },
+      data: {
+        totalDuesGenerated: { increment: dueTobeAdded },
       },
     });
     return updated;
