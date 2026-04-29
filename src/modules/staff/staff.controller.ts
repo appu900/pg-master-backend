@@ -14,7 +14,6 @@ import { StaffService } from './staff.service';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from 'src/common/enum/role.enum';
-import { UserRole } from '@prisma/client';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { CreateStaffDto } from './dto/create.staff.dto';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
@@ -78,6 +77,20 @@ export class StaffController {
       const ownerId = user.userId;
       if(!ownerId) throw new UnauthorizedException();
       return this.maintenanceStaffService.editMaintenanceStaffProfile(dto,ownerId,dto.empProfileId)
+  }
+
+  @Get('user/:userId/expenses')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getStaffExpenses(@Param('userId', ParseIntPipe) userId: number) {
+    return this.maintenanceStaffService.getExpensesByStaffUserId(userId);
+  }
+
+  @Get('user/:userId/collections')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getStaffCollections(@Param('userId', ParseIntPipe) userId: number) {
+    return this.maintenanceStaffService.getPaymentsCollectedByStaff(userId);
   }
 
 }

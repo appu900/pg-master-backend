@@ -1,4 +1,5 @@
-import { Logger, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { ComplaintStatus, DueStatus, DueType } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { RedisService } from 'src/infra/redis/redis.service';
 
@@ -24,7 +25,6 @@ export interface DashBoardMetrics {
 
 @Injectable()
 export class MetricsService {
-  private readonly logger = new Logger(MetricsService.name);
   constructor(
     private readonly prisms: PrismaService,
     private readonly redis: RedisService,
@@ -156,14 +156,6 @@ export class MetricsService {
     const metrics = await this.prisms.propertyMetrics.findUnique({
       where: { propertyId_month_year: { propertyId, month: mon, year: y } },
     });
-    const rooms = await this.prisms.room.findMany({
-      where: { propertyId: propertyId },
-      select: {
-        totalBeds: true,
-        occupiedBeds: true,
-      },
-    });
-
     const result = await this.prisms.room.aggregate({
       where: { propertyId: propertyId },
       _sum: {
@@ -234,32 +226,244 @@ export class MetricsService {
     };
   }
 
+  // Returns expenses grouped by property + overall total for current and previous month/year
+  async getExpensesSummary(ownerId: number) {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
+    const properties = await this.prisms.property.findMany({
+      where: { ownerId },
+      select: { id: true, name: true },
+    });
+    const propertyIds = properties.map((p) => p.id);
+    const propertyMap = new Map(properties.map((p) => [p.id, p.name]));
+
+    const [currentRows, prevRows] = await Promise.all([
+      this.prisms.expenses.groupBy({
+        by: ['propertyId'],
+        where: {
+          propertyId: { in: propertyIds },
+          month: currentMonth,
+          year: currentYear,
+        },
+        _sum: { amount: true },
+      }),
+      this.prisms.expenses.groupBy({
+        by: ['propertyId'],
+        where: {
+          propertyId: { in: propertyIds },
+          month: prevMonth,
+          year: prevYear,
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const mapRows = (rows: typeof currentRows) =>
+      rows.map((r) => ({
+        propertyId: r.propertyId,
+        propertyName: propertyMap.get(r.propertyId) ?? 'Unknown',
+        total: Number(r._sum.amount ?? 0),
+      }));
+
+    const sumTotal = (rows: typeof currentRows) =>
+      rows.reduce((acc, r) => acc + Number(r._sum.amount ?? 0), 0);
+
+    return {
+      currentMonth: {
+        month: currentMonth,
+        year: currentYear,
+        byProperty: mapRows(currentRows),
+        total: sumTotal(currentRows),
+      },
+      previousMonth: {
+        month: prevMonth,
+        year: prevYear,
+        byProperty: mapRows(prevRows),
+        total: sumTotal(prevRows),
+      },
+    };
+  }
+
+  // Returns total dues and total collection for current and previous month across all owner properties
+  async getDuesSummary(ownerId: number) {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
+    const properties = await this.prisms.property.findMany({
+      where: { ownerId },
+      select: { id: true },
+    });
+    const propertyIds = properties.map((p) => p.id);
+
+    const [currentAgg, prevAgg] = await Promise.all([
+      this.prisms.tenantDue.aggregate({
+        where: {
+          propertyId: { in: propertyIds },
+          month: currentMonth,
+          year: currentYear,
+        },
+        _sum: { totalAmount: true, paidAmount: true },
+      }),
+      this.prisms.tenantDue.aggregate({
+        where: {
+          propertyId: { in: propertyIds },
+          month: prevMonth,
+          year: prevYear,
+        },
+        _sum: { totalAmount: true, paidAmount: true },
+      }),
+    ]);
+
+    return {
+      currentMonth: {
+        month: currentMonth,
+        year: currentYear,
+        totalDues: Number(currentAgg._sum.totalAmount ?? 0),
+        totalCollection: Number(currentAgg._sum.paidAmount ?? 0),
+      },
+      previousMonth: {
+        month: prevMonth,
+        year: prevYear,
+        totalDues: Number(prevAgg._sum.totalAmount ?? 0),
+        totalCollection: Number(prevAgg._sum.paidAmount ?? 0),
+      },
+    };
+  }
+
+  // Returns how many tenants paid / did not pay rent for the current month
+  async getRentPaymentStatus(ownerId: number) {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    const properties = await this.prisms.property.findMany({
+      where: { ownerId },
+      select: { id: true },
+    });
+    const propertyIds = properties.map((p) => p.id);
+
+    const rentDues = await this.prisms.tenantDue.findMany({
+      where: {
+        propertyId: { in: propertyIds },
+        month: currentMonth,
+        year: currentYear,
+        dueType: DueType.RENT,
+      },
+      select: { status: true },
+    });
+
+    const paid = rentDues.filter((d) => d.status === DueStatus.PAID).length;
+    const notPaid = rentDues.length - paid;
+
+    return {
+      month: currentMonth,
+      year: currentYear,
+      totalTenants: rentDues.length,
+      paid,
+      notPaid,
+      paymentRate:
+        rentDues.length > 0
+          ? Number(((paid / rentDues.length) * 100).toFixed(2))
+          : 0,
+    };
+  }
+
+  // Returns total, resolved, and unresolved complaint counts for all owner properties
+  async getComplaintsSummary(ownerId: number) {
+    const properties = await this.prisms.property.findMany({
+      where: { ownerId },
+      select: { id: true },
+    });
+    const propertyIds = properties.map((p) => p.id);
+
+    const [total, resolved, open, inProgress] = await Promise.all([
+      this.prisms.complaint.count({
+        where: { propertyId: { in: propertyIds } },
+      }),
+      this.prisms.complaint.count({
+        where: {
+          propertyId: { in: propertyIds },
+          status: ComplaintStatus.COMPLETED,
+        },
+      }),
+      this.prisms.complaint.count({
+        where: {
+          propertyId: { in: propertyIds },
+          status: ComplaintStatus.OPEN,
+        },
+      }),
+      this.prisms.complaint.count({
+        where: {
+          propertyId: { in: propertyIds },
+          status: ComplaintStatus.IN_PROGRESS,
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      resolved,
+      unresolved: total - resolved,
+      open,
+      inProgress,
+      resolutionRate:
+        total > 0 ? Number(((resolved / total) * 100).toFixed(2)) : 0,
+    };
+  }
+
+  // Returns pending security deposits for a specific property
+  async getSecurityDepositsPending(propertyId: number) {
+    const pending = await this.prisms.tenantDue.findMany({
+      where: {
+        propertyId,
+        dueType: DueType.SECURITY_DEPOSIT,
+        status: { notIn: [DueStatus.PAID, DueStatus.WAIVED] },
+      },
+      select: {
+        id: true,
+        totalAmount: true,
+        paidAmount: true,
+        balanceAmount: true,
+        status: true,
+        tenancy: {
+          select: {
+            tenent: {
+              select: { fullName: true, phoneNumber: true },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      propertyId,
+      pendingCount: pending.length,
+      totalPendingAmount: pending.reduce(
+        (sum, d) => sum + Number(d.balanceAmount),
+        0,
+      ),
+      deposits: pending.map((d) => ({
+        dueId: d.id,
+        tenantName: d.tenancy.tenent.fullName,
+        tenantPhone: d.tenancy.tenent.phoneNumber,
+        totalAmount: Number(d.totalAmount),
+        paidAmount: Number(d.paidAmount),
+        balanceAmount: Number(d.balanceAmount),
+        status: d.status,
+      })),
+    };
+  }
+
   private calChange(current: number, previous: number): number {
     if (previous === 0) return current > 0 ? 100 : 0;
     return ((current - previous) / previous) * 100;
-  }
-
-  private async writeToRedis(
-    redisKey: string,
-    data: Omit<DashBoardMetrics, 'source'>,
-  ) {
-    await this.redis.getClient().hmset(redisKey, {
-      rent_collected: String(data.rentCollected),
-      elec_collected: String(data.elecCollected),
-      other_collected: String(data.otherCollected),
-      total_collected: String(data.totalCollected),
-      total_expenses: String(data.totalExpenses),
-      net_profit: String(data.netProfit),
-      dues_generated: String(data.duesGenerated),
-      dues_paid: String(data.duesPaid),
-      dues_unpaid: String(data.duesUnpaid),
-      overdue_count: String(data.overdueCount),
-      total_beds: String(data.totalBeds),
-      occupied_beds: String(data.occupiedBeds),
-      active_tenants: String(data.activeTenants),
-      occupancy_rate: String(data.occupancyRate),
-      collection_rate: String(data.collectionRate),
-    });
   }
 
   private emptyMetrics(

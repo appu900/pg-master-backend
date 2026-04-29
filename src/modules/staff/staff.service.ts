@@ -351,6 +351,72 @@ export class StaffService {
     };
   }
 
+  async getExpensesByStaffUserId(userId: number) {
+    const staff = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!staff) throw new NotFoundException('Staff user not found');
+
+    const expenses = await this.prisma.expenses.findMany({
+      where: { payerUserId: userId },
+      select: {
+        id: true,
+        month: true,
+        year: true,
+        amount: true,
+        description: true,
+        expenseCategory: true,
+        modeOfPayment: true,
+        RecipientName: true,
+        transactionId: true,
+        paymentDate: true,
+        image: true,
+        property: { select: { id: true, name: true } },
+      },
+      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+    });
+
+    return expenses;
+  }
+
+  async getPaymentsCollectedByStaff(userId: number) {
+    const staff = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!staff) throw new NotFoundException('Staff user not found');
+
+    const payments = await this.prisma.duePayment.findMany({
+      where: { recordedById: userId },
+      select: {
+        id: true,
+        amount: true,
+        paymentMode: true,
+        upiApp: true,
+        transactionId: true,
+        notes: true,
+        proofImageUrl: true,
+        paidAt: true,
+        month: true,
+        year: true,
+        due: {
+          select: {
+            dueType: true,
+            title: true,
+            totalAmount: true,
+            balanceAmount: true,
+            status: true,
+            property: { select: { id: true, name: true } },
+            tenancy: {
+              select: {
+                room: { select: { roomNumber: true } },
+                tenent: { select: { id: true, fullName: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { paidAt: 'desc' },
+    });
+
+    return payments;
+  }
+
   //   private functions to handle things
   private async validateOwnerToPropertyMapping(
     propertyId: number,

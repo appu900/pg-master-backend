@@ -3,6 +3,7 @@ export const QUEUES = {
     PAYMENT:'payment',
     DB_UPADATE:'db.update',
     ELECTRICITY_BILLINNG:'electricity_billing',
+    COMMAND_NAME:"command",
     CACHE_INVALIDATION:'cache.invalidation',
     METRICS:'cache.metrics'
 }
