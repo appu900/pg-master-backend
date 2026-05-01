@@ -51,6 +51,9 @@ export class DueListner {
   }
 
 
+
+
+  @OnEvent(ELECTRICITY_EVENT_CREATED)
   async onElectricityReadingCreated(event:ElectricityReadingCreatedEvent){
     await this.queue.enqueue(QUEUES.COMMAND,ELECTRICITY_EVENT_CREATED,{
        propertyId:event.propertyId,
