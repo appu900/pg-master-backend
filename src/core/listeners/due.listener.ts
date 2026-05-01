@@ -1,5 +1,8 @@
 import { Logger, Injectable, Inject } from '@nestjs/common';
-import { TenantAddedEvent, DuePaymentCollectedEvent } from '../events/domain-events';
+import {
+  TenantAddedEvent,
+  DuePaymentCollectedEvent,
+} from '../events/domain-events';
 import { OnEvent } from '@nestjs/event-emitter';
 import { IQueueProducer, QUEUE_PRODUCER } from '../ports/queue-producer.port';
 import { QUEUES } from '../queue/queue.constants';
@@ -50,16 +53,17 @@ export class DueListner {
     );
   }
 
-
-
-
   @OnEvent(ELECTRICITY_EVENT_CREATED)
-  async onElectricityReadingCreated(event:ElectricityReadingCreatedEvent){
-    await this.queue.enqueue(QUEUES.COMMAND,ELECTRICITY_EVENT_CREATED,{
-       propertyId:event.propertyId,
-       month:event.mobth,
-       year:event.year
-    })
-    this.logger.debug(`SEND COMMAND TO WORKER SERVER TO GENERATE THE ELECTRICITY WITH PROPERTYiD${event.propertyId}`)
+  async onElectricityReadingCreated(event: ElectricityReadingCreatedEvent) {
+    await this.queue.enqueue(QUEUES.COMMAND, ELECTRICITY_EVENT_CREATED, {
+      data: {
+        propertyId: event.propertyId,
+        month: event.mobth,
+        year: event.year,
+      },
+    });
+    this.logger.debug(
+      `SEND COMMAND TO WORKER SERVER TO GENERATE THE ELECTRICITY WITH PROPERTYiD${event.propertyId}`,
+    );
   }
 }
