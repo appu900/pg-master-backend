@@ -3,6 +3,9 @@ import { TenantAddedEvent, DuePaymentCollectedEvent } from '../events/domain-eve
 import { OnEvent } from '@nestjs/event-emitter';
 import { IQueueProducer, QUEUE_PRODUCER } from '../ports/queue-producer.port';
 import { QUEUES } from '../queue/queue.constants';
+import { ElectricityReadingCreatedEvent } from '../events/electricity.events';
+import { ELECTRICITY_EVENT_CREATED } from 'src/modules/electricity/electricity.events';
+import { every } from 'rxjs';
 
 @Injectable()
 export class DueListner {
@@ -45,5 +48,15 @@ export class DueListner {
       },
       { jobId: `payment-collected-${event.dueId}-${Date.now()}` },
     );
+  }
+
+
+  async onElectricityReadingCreated(event:ElectricityReadingCreatedEvent){
+    await this.queue.enqueue(QUEUES.COMMAND,ELECTRICITY_EVENT_CREATED,{
+       propertyId:event.propertyId,
+       month:event.mobth,
+       year:event.year
+    })
+    this.logger.debug(`SEND COMMAND TO WORKER SERVER TO GENERATE THE ELECTRICITY WITH PROPERTYiD${event.propertyId}`)
   }
 }

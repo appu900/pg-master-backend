@@ -3,6 +3,9 @@ import { Body, Injectable, Post, Controller } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { QUEUES } from 'src/core/queue/queue.constants';
 
+
+
+
 @Controller('test')
 export class TestController {
   private queue: Queue;
@@ -13,7 +16,7 @@ export class TestController {
         host: process.env.REDIS_HOST! || 'localhost',
         port: parseInt(process.env.REDIS_PORT || '6379'),
         password: process.env.REDIS_PASSWORD || undefined,
-        tls:{}
+        tls: {},
       },
     });
   }

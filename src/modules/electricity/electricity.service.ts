@@ -8,22 +8,21 @@ import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { SubmitMainMeterDto } from './dto/submit.mainmeter.dto';
 import { SubmitAllReadingsDto } from './dto/submit-all-readings.dto';
 import { Decimal } from '@prisma/client/runtime/library';
-
+import { ElectricityEvents } from './electricity.events';
 
 @Injectable()
 export class ElectricityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService,private readonly eventBus:ElectricityEvents ) {}
 
-
-
-
-
-  async getMeterReadingPageData(propertyId:number,month:number,year:number){
+  async getMeterReadingPageData(
+    propertyId: number,
+    month: number,
+    year: number,
+  ) {
     const property = await this.prisma.property.findUnique({
-      where:{id:propertyId},
-      select:{id:true,name:true,ownerId:true}
-    })
-      
+      where: { id: propertyId },
+      select: { id: true, name: true, ownerId: true },
+    });
   }
 
   async getRoomsWithMeter(propertyId: number, ownerUserId: number) {
@@ -168,38 +167,61 @@ export class ElectricityService {
     return reading;
   }
 
-  async getMeterReadingsForMonth(propertyId: number, month: number, year: number) {
+  async getMeterReadingsForMonth(
+    propertyId: number,
+    month: number,
+    year: number,
+  ) {
     const prevMonth = month === 1 ? 12 : month - 1;
     const prevYear = month === 1 ? year - 1 : year;
 
-    const [property, rooms, currentMainMeter, prevMainMeter, currentRoomReadings, prevRoomReadings] =
-      await Promise.all([
-        this.prisma.property.findUnique({
-          where: { id: propertyId },
-          select: { id: true, name: true },
-        }),
-        this.prisma.room.findMany({
-          where: { propertyId, hasMeter: true },
-          select: { id: true, roomNumber: true, floorNumber: true, intialMeterReading: true },
-          orderBy: { roomNumber: 'asc' },
-        }),
-        this.prisma.propertyMeterReading.findUnique({
-          where: { propertyId_month_year: { propertyId, month, year } },
-        }),
-        this.prisma.propertyMeterReading.findUnique({
-          where: { propertyId_month_year: { propertyId, month: prevMonth, year: prevYear } },
-        }),
-        this.prisma.roomMeterReading.findMany({
-          where: { propertyId, month, year },
-        }),
-        this.prisma.roomMeterReading.findMany({
-          where: { propertyId, month: prevMonth, year: prevYear },
-        }),
-      ]);
+    const [
+      property,
+      rooms,
+      currentMainMeter,
+      prevMainMeter,
+      currentRoomReadings,
+      prevRoomReadings,
+    ] = await Promise.all([
+      this.prisma.property.findUnique({
+        where: { id: propertyId },
+        select: { id: true, name: true },
+      }),
+      this.prisma.room.findMany({
+        where: { propertyId, hasMeter: true },
+        select: {
+          id: true,
+          roomNumber: true,
+          floorNumber: true,
+          intialMeterReading: true,
+        },
+        orderBy: { roomNumber: 'asc' },
+      }),
+      this.prisma.propertyMeterReading.findUnique({
+        where: { propertyId_month_year: { propertyId, month, year } },
+      }),
+      this.prisma.propertyMeterReading.findUnique({
+        where: {
+          propertyId_month_year: {
+            propertyId,
+            month: prevMonth,
+            year: prevYear,
+          },
+        },
+      }),
+      this.prisma.roomMeterReading.findMany({
+        where: { propertyId, month, year },
+      }),
+      this.prisma.roomMeterReading.findMany({
+        where: { propertyId, month: prevMonth, year: prevYear },
+      }),
+    ]);
 
     if (!property) throw new NotFoundException('Property not found');
 
-    const currentRoomMap = new Map(currentRoomReadings.map((r) => [r.roomId, r]));
+    const currentRoomMap = new Map(
+      currentRoomReadings.map((r) => [r.roomId, r]),
+    );
     const prevRoomMap = new Map(prevRoomReadings.map((r) => [r.roomId, r]));
 
     const mainMeter = currentMainMeter
@@ -225,7 +247,11 @@ export class ElectricityService {
         roomId: room.id,
         roomNumber: room.roomNumber,
         floorNumber: room.floorNumber,
-        previousReading: current?.previousReading ?? prev?.currentReading ?? room.intialMeterReading ?? 0,
+        previousReading:
+          current?.previousReading ??
+          prev?.currentReading ??
+          room.intialMeterReading ??
+          0,
         currentReading: current?.currentReading ?? null,
         unitConsumed: current?.unitConsumed ?? null,
         status: current ? 'SUBMITTED' : 'PENDING',
@@ -242,6 +268,10 @@ export class ElectricityService {
     };
   }
 
+
+
+
+  // ** currently this is applied to client facing api 
   async submitAllReadings(propertyId: number, dto: SubmitAllReadingsDto) {
     const { month, year, mainMeter, rooms } = dto;
 
@@ -289,31 +319,37 @@ export class ElectricityService {
           submittedAt: new Date(),
         },
       }),
-      ...roomData.map(({ roomId, previousReading, currentReading, unitConsumed }) =>
-        this.prisma.roomMeterReading.upsert({
-          where: { roomId_month_year: { roomId, month, year } },
-          create: {
-            roomId,
-            propertyId,
-            month,
-            year,
-            previousReading,
-            currentReading,
-            unitConsumed,
-            isSkipped: false,
-            submittedAt: new Date(),
-          },
-          update: {
-            previousReading,
-            currentReading,
-            unitConsumed,
-            isSkipped: false,
-            submittedAt: new Date(),
-          },
-        }),
+      ...roomData.map(
+        ({ roomId, previousReading, currentReading, unitConsumed }) =>
+          this.prisma.roomMeterReading.upsert({
+            where: { roomId_month_year: { roomId, month, year } },
+            create: {
+              roomId,
+              propertyId,
+              month,
+              year,
+              previousReading,
+              currentReading,
+              unitConsumed,
+              isSkipped: false,
+              submittedAt: new Date(),
+            },
+            update: {
+              previousReading,
+              currentReading,
+              unitConsumed,
+              isSkipped: false,
+              submittedAt: new Date(),
+            },
+          }),
       ),
     ]);
-
+    // ** send events here 
+    this.eventBus.emitElectricityReadingCreated({
+      propertyId:propertyId,
+      month:month,
+      year:year
+    })
     return { mainMeter: mainMeterResult, rooms: roomResults };
   }
 
@@ -334,10 +370,10 @@ export class ElectricityService {
         },
       }),
       this.prisma.room.findMany({
-        where:{propertyId,hasMeter:true},
-        select:{id:true,roomNumber:true,floorNumber:true}
-      })
+        where: { propertyId, hasMeter: true },
+        select: { id: true, roomNumber: true, floorNumber: true },
+      }),
     ]);
-    return {mainMeter,roomReadings,billingRun}
+    return { mainMeter, roomReadings, billingRun };
   }
 }
