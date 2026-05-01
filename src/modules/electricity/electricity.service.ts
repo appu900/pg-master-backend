@@ -273,6 +273,7 @@ export class ElectricityService {
 
   // ** currently this is applied to client facing api 
   async submitAllReadings(propertyId: number, dto: SubmitAllReadingsDto) {
+    console.log("this api hit")
     const { month, year, mainMeter, rooms } = dto;
 
     const mainUnitConsumed = new Decimal(mainMeter.currentReading).sub(
@@ -350,6 +351,7 @@ export class ElectricityService {
       month:month,
       year:year
     })
+    console.log("event sent to command bus")
     return { mainMeter: mainMeterResult, rooms: roomResults };
   }
 
