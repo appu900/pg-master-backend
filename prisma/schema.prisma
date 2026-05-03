@@ -223,13 +223,15 @@ model Property {
   rooms                          Room[]
   tenents                        Tenancy[]
 
-  expenses               Expenses[]
-  dues                   TenantDue[]
-  dailyReminderQueues    DailyReminderQueue[]
-  propertyMetrics        PropertyMetrics[]
-  propertyMeterReadings  PropertyMeterReading[]
-  roomMeterReadings      RoomMeterReading[]
-  electricityBillingRuns ElectricityBillingRun[]
+  expenses                 Expenses[]
+  dues                     TenantDue[]
+  dailyReminderQueues      DailyReminderQueue[]
+  propertyMetrics          PropertyMetrics[]
+  propertyMeterReadings    PropertyMeterReading[]
+  roomMeterReadings        RoomMeterReading[]
+  electricityBillingRuns   ElectricityBillingRun[]
+  paymentGatewayConfig     PropertyPaymentGatewayConfig?
+  gatewayTransactions      PaymentGatewayTransaction[]
 
   @@index([ownerId])
   @@index([pinCode])
@@ -339,10 +341,11 @@ model TenantDue {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenancy            Tenancy             @relation(fields: [tenancyId], references: [id])
-  property           Property            @relation(fields: [propertyId], references: [id])
-  payments           DuePayment[]
-  dailyReminderQueue DailyReminderQueue?
+  tenancy             Tenancy                    @relation(fields: [tenancyId], references: [id])
+  property            Property                   @relation(fields: [propertyId], references: [id])
+  payments            DuePayment[]
+  dailyReminderQueue  DailyReminderQueue?
+  gatewayTransactions PaymentGatewayTransaction[]
 
   @@index([tenancyId])
   @@index([propertyId])
@@ -608,6 +611,57 @@ model PropertyMetrics {
   @@unique([propertyId, month, year])
   @@index([ownerId, month, year])
   @@index([propertyId])
+}
+
+model PropertyPaymentGatewayConfig {
+  id           Int                @id @default(autoincrement())
+  propertyId   Int                @unique
+  merchantKey  String
+  merchantSalt String
+  environment  GatewayEnvironment @default(TEST)
+  isActive     Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@index([propertyId])
+}
+
+model PaymentGatewayTransaction {
+  id            Int                      @id @default(autoincrement())
+  dueId         Int
+  tenancyId     Int
+  propertyId    Int
+  txnId         String                   @unique
+  amount        Decimal                  @db.Decimal(10, 2)
+  status        GatewayTransactionStatus @default(INITIATED)
+  accessKey     String?
+  easepayId     String?
+  paymentSource String?
+  rawResponse   Json?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  due      TenantDue @relation(fields: [dueId], references: [id])
+  property Property  @relation(fields: [propertyId], references: [id])
+
+  @@index([dueId])
+  @@index([tenancyId])
+  @@index([propertyId])
+  @@index([status])
+}
+
+enum GatewayEnvironment {
+  TEST
+  PRODUCTION
+}
+
+enum GatewayTransactionStatus {
+  INITIATED
+  SUCCESS
+  FAILED
+  CANCELLED
 }
 
 enum DueType {

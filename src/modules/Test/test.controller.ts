@@ -1,10 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Body, Injectable, Post, Controller } from '@nestjs/common';
+import { Body, Injectable, Post, Controller, Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { QUEUES } from 'src/core/queue/queue.constants';
-
-
-
 
 @Controller('test')
 export class TestController {

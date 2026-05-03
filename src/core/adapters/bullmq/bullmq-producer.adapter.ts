@@ -9,6 +9,8 @@ import { Queue } from 'bullmq';
 import { ModuleRef } from '@nestjs/core';
 import { QUEUES } from 'src/core/queue/queue.constants';
 
+
+
 @Injectable()
 export class BullMqProducerAdapter implements IQueueProducer, OnModuleInit {
   private readonly logger = new Logger(BullMqProducerAdapter.name);

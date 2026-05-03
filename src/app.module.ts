@@ -33,6 +33,8 @@ import { EventModule } from './core/events/event-bus.module';
 import { CoreModule } from './core/core.module';
 import { TestModule } from './modules/Test/test.module';
 import { ElectricityModule } from './modules/electricity/electricity.module';
+import { PaymentConfigModule } from './modules/payment-config/payment-config.module';
+import { PaymentModule } from './modules/payment/payment.module';
 
 
 
@@ -80,6 +82,8 @@ import { ElectricityModule } from './modules/electricity/electricity.module';
     TestModule,
     DueModule,
     ElectricityModule,
+    PaymentConfigModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [AppService],

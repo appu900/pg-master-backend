@@ -19,7 +19,7 @@ import { CreatePropertyOwnerDto } from './dto/create.Property-owner.dto';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma:PrismaService,
+    private readonly prisma: PrismaService,
     private readonly userService: UserService,
     private readonly otpService: OtpService,
     private readonly jwtService: JwtService,
@@ -30,7 +30,9 @@ export class AuthService {
       const payload = { sub: user.id, role: user.role };
       return { access_token: this.jwtService.sign(payload) };
     } catch (error) {
-      throw new InternalServerErrorException('Failed to generate authentication token');
+      throw new InternalServerErrorException(
+        'Failed to generate authentication token',
+      );
     }
   }
   async createPropertyOwner(dto: CreatePropertyOwnerDto) {
@@ -46,32 +48,35 @@ export class AuthService {
     }
   }
 
-  async createAdmin(dto:CreateAdminDto){
-     const exists = await this.userService.findUserExists(dto.phoneNumber,dto.email)
-     if(exists) throw new ConflictException("User already exits")
-     const res = await this.userService.createAdmin(dto);
-     await this.otpService.sendOtp(res.phoneNumber)
-     return{
-      message:"admin created plaese verify the otp",
-      phoneNumber:res.phoneNumber
-     }
+  async createAdmin(dto: CreateAdminDto) {
+    const exists = await this.userService.findUserExists(
+      dto.phoneNumber,
+      dto.email,
+    );
+    if (exists) throw new ConflictException('User already exits');
+    const res = await this.userService.createAdmin(dto);
+    await this.otpService.sendOtp(res.phoneNumber);
+    return {
+      message: 'admin created plaese verify the otp',
+      phoneNumber: res.phoneNumber,
+    };
   }
 
   async sendOtp(phoneNumber: string) {
     const user = await this.userService.findUserByPhoneNumber(phoneNumber);
-    
+
     if (!user) {
       throw new BadRequestException('User not found with this phone number');
     }
-    
+
     if (user.isBlockedByAdmin) {
       throw new BadRequestException('Your account has been blocked by admin');
     }
-    
+
     if (!user.isActive) {
       throw new BadRequestException('Your account is inactive');
     }
-    
+
     await this.otpService.sendOtp(phoneNumber);
     return {
       status: 'success',
@@ -80,46 +85,43 @@ export class AuthService {
     };
   }
 
-
-
   async login(dto: OtpLoginDto) {
     try {
-      const DEMO_PHONE = '+918888888888'
-      const DEMO_PHONE2 = '8260826082'
-      const DEMO_OTP = '123456'
-      if(dto.phoneNumber === DEMO_PHONE || dto.phoneNumber === DEMO_PHONE2){
-        if(dto.otp !== DEMO_OTP){
-          throw new BadRequestException('Invalid otp')
+      const DEMO_PHONE = '+918888888888';
+      const DEMO_PHONE2 = '8260826082';
+      const DEMO_OTP = '123456';
+      if (dto.phoneNumber === DEMO_PHONE || dto.phoneNumber === DEMO_PHONE2) {
+        if (dto.otp !== DEMO_OTP) {
+          throw new BadRequestException('Invalid otp');
         }
-      }else{
+      } else {
         await this.otpService.verifyOtp(dto.phoneNumber, dto.otp);
-
       }
       // Verify OTP first
-      
+
       // Get user details
       const user = await this.userService.findUserByPhoneNumber(
         dto.phoneNumber,
       );
-      
+
       if (!user) {
         throw new BadRequestException('User not found');
       }
-     
+
       if (user.isBlockedByAdmin) {
         throw new BadRequestException('Your account has been blocked by admin');
       }
-      
+
       if (!user.isActive) {
         throw new BadRequestException('Your account is inactive');
       }
-      
+
       // Generate token
       const token = await this.generateToken(user);
-     
 
       return {
         message: 'Login successful',
+        id:user.id,
         name: user.fullName,
         token,
         email: user.email,
@@ -150,10 +152,15 @@ export class AuthService {
 
     const adminProfile = user.adminProfile;
     if (!adminProfile?.password) {
-      throw new UnauthorizedException('Admin password not set. Please contact super admin');
+      throw new UnauthorizedException(
+        'Admin password not set. Please contact super admin',
+      );
     }
 
-    const passwordMatch = await bcrypt.compare(dto.password, adminProfile.password);
+    const passwordMatch = await bcrypt.compare(
+      dto.password,
+      adminProfile.password,
+    );
     if (!passwordMatch) {
       throw new UnauthorizedException('Invalid email or password');
     }
