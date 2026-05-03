@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Logger,
   Param,
   Post,
   UseGuards,
@@ -15,6 +16,7 @@ import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { PaymentService } from './payment.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { EasebuzzWebhookPayload } from 'src/infra/payment/easebuzz/easebuzz.types';
+import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 
 @Controller('payment')
 export class PaymentController {
@@ -36,7 +38,7 @@ export class PaymentController {
    * No auth guard — EaseBuzz calls this directly.
    * Always responds 200 so EaseBuzz doesn't retry.
    */
-  @Post('webhook')
+  @Get('webhook')
   @HttpCode(200)
   async webhook(@Body() payload: EasebuzzWebhookPayload) {
     return this.paymentService.handleWebhook(payload);
