@@ -22,28 +22,44 @@ export class RoomService {
         id: roomId,
         property: { ownerId: ownerUserId },
       },
-      include: {
+      select: {
+        id: true,
+        occupiedBeds: true,
+        roomNumber: true,
         tenants: {
-          where: {
-            tenancyStatus: TenancyStatus.ACTIVE,
-            deletedAt: null,
-          },
+          select: { id: true, tenancyStatus: true },
         },
       },
     });
 
-    if (!room) {
-      throw new NotFoundException('Room not found');
-    }
+    if (!room) throw new NotFoundException('Room not found');
 
-    if (room.tenants.length > 0) {
+    const activeTenants = room.tenants.filter(
+      (t) =>
+        t.tenancyStatus === TenancyStatus.ACTIVE ||
+        t.tenancyStatus === TenancyStatus.NOTICE_PERIOD,
+    );
+
+    if (activeTenants.length > 0 || room.occupiedBeds > 0) {
       throw new BadRequestException(
-        'Cannot delete room with active tenants',
+        `Room ${room.roomNumber} is not empty — ${activeTenants.length} tenant(s) currently assigned. Move out all tenants before deleting.`,
       );
     }
 
-    await this.prisma.room.delete({ where: { id: roomId } });
-    return { message: 'Room deleted successfully' };
+    // Historical tenancy records exist: FK constraint would block delete
+    if (room.tenants.length > 0) {
+      throw new BadRequestException(
+        `Room ${room.roomNumber} has ${room.tenants.length} historical tenancy record(s) and cannot be permanently deleted.`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.roomImages.deleteMany({ where: { roomId } });
+      await tx.roomMeterReading.deleteMany({ where: { roomId } });
+      await tx.room.delete({ where: { id: roomId } });
+    });
+
+    return { message: `Room ${room.roomNumber} deleted successfully` };
   }
 
   async fetchAllTenantsOfRoom(roomId: number) {

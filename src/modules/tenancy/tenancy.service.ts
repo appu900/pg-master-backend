@@ -11,6 +11,7 @@ import {
 import { Prisma, UserRole } from '@prisma/client';
 import { EditTenancyDto } from './dto/update-tenancy.dto';
 import { AddTenantDto } from './dto/add.tenant.dto';
+import { ShiftRoomDto } from './dto/shift-room.dto';
 import {
   calculateProratedRent,
   formatDate,
@@ -607,6 +608,220 @@ export class TenancyService {
         'LockInPeriodMonths cannot exceed agreementPeriod In months',
       );
     }
+  }
+
+  async shiftTenantRoom(dto: ShiftRoomDto, requestingOwnerId: number) {
+    const tenancy = await this.prisma.tenancy.findFirst({
+      where: { tenentId: dto.tenantId, tenancyStatus: 'ACTIVE', deletedAt: null },
+      select: {
+        id: true,
+        roomId: true,
+        propertyId: true,
+        property: { select: { ownerId: true, name: true } },
+        room: { select: { roomNumber: true } },
+      },
+    });
+
+    if (!tenancy) throw new NotFoundException('No active tenancy found for this tenant');
+
+    if (tenancy.property.ownerId !== requestingOwnerId) {
+      throw new ForbiddenException("You do not own this tenant's current property");
+    }
+
+    const newPropertyId = dto.newPropertyId ?? tenancy.propertyId;
+    const isCrossProperty = newPropertyId !== tenancy.propertyId;
+
+    if (dto.newRoomId === tenancy.roomId && !isCrossProperty) {
+      throw new BadRequestException('Tenant is already assigned to this room');
+    }
+
+    // Validate destination room belongs to owner
+    const destRoom = await this.prisma.room.findFirst({
+      where: {
+        id: dto.newRoomId,
+        propertyId: newPropertyId,
+        property: { ownerId: requestingOwnerId },
+      },
+      select: { id: true, roomNumber: true, totalBeds: true, occupiedBeds: true },
+    });
+
+    if (!destRoom) {
+      const room = await this.prisma.room.findUnique({
+        where: { id: dto.newRoomId },
+        select: { id: true, propertyId: true },
+      });
+      if (!room) throw new NotFoundException(`Room ${dto.newRoomId} not found`);
+      if (room.propertyId !== newPropertyId)
+        throw new BadRequestException(`Room ${dto.newRoomId} does not belong to property ${newPropertyId}`);
+      throw new ForbiddenException('You do not own the destination property');
+    }
+
+    if (destRoom.occupiedBeds >= destRoom.totalBeds) {
+      throw new ConflictException(
+        `Room ${destRoom.roomNumber} is full (${destRoom.occupiedBeds}/${destRoom.totalBeds} beds occupied)`,
+      );
+    }
+
+    // Fetch new property ownerId once before the transaction (needed for metrics upsert)
+    let newOwnerId = requestingOwnerId;
+    if (isCrossProperty) {
+      const newProp = await this.prisma.property.findUnique({
+        where: { id: newPropertyId },
+        select: { ownerId: true },
+      });
+      if (!newProp) throw new NotFoundException(`Property ${newPropertyId} not found`);
+      newOwnerId = newProp.ownerId;
+    }
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        // Lock both rooms to prevent concurrent bed-count races
+        const [oldRoomRows, newRoomRows] = await Promise.all([
+          tx.$queryRaw<{ id: number; occupiedBeds: number; totalBeds: number; roomNumber: string }[]>`
+            SELECT id, "occupiedBeds", "totalBeds", "roomNumber" FROM "Room" WHERE id = ${tenancy.roomId} FOR UPDATE
+          `,
+          tx.$queryRaw<{ id: number; occupiedBeds: number; totalBeds: number; roomNumber: string }[]>`
+            SELECT id, "occupiedBeds", "totalBeds", "roomNumber" FROM "Room" WHERE id = ${dto.newRoomId} FOR UPDATE
+          `,
+        ]);
+
+        const oldRoom = oldRoomRows[0];
+        const newRoom = newRoomRows[0];
+        if (!oldRoom || !newRoom) throw new NotFoundException('Room not found');
+
+        if (newRoom.occupiedBeds >= newRoom.totalBeds) {
+          throw new ConflictException(
+            `Room ${newRoom.roomNumber} is full (${newRoom.occupiedBeds}/${newRoom.totalBeds} beds)`,
+          );
+        }
+
+        // Fetch all open dues for this tenancy
+        const pendingDues = await tx.tenantDue.findMany({
+          where: {
+            tenancyId: tenancy.id,
+            status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] },
+          },
+          select: {
+            id: true,
+            month: true,
+            year: true,
+            totalAmount: true,
+            paidAmount: true,
+            balanceAmount: true,
+          },
+        });
+
+        // Update tenancy: new room (and property if cross-property shift)
+        await tx.tenancy.update({
+          where: { id: tenancy.id },
+          data: {
+            roomId: dto.newRoomId,
+            ...(isCrossProperty && { propertyId: newPropertyId }),
+          },
+        });
+
+        // Adjust room bed counts
+        await Promise.all([
+          tx.room.update({ where: { id: tenancy.roomId }, data: { occupiedBeds: { decrement: 1 } } }),
+          tx.room.update({ where: { id: dto.newRoomId }, data: { occupiedBeds: { increment: 1 } } }),
+        ]);
+
+        if (isCrossProperty) {
+          // Re-assign all open dues to the new property
+          if (pendingDues.length > 0) {
+            await tx.tenantDue.updateMany({
+              where: { tenancyId: tenancy.id, status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } },
+              data: { propertyId: newPropertyId },
+            });
+          }
+
+          // Group open dues by (month, year) for metrics adjustment
+          const buckets = new Map<string, { totalAmount: number; paidAmount: number; balanceAmount: number }>();
+          for (const due of pendingDues) {
+            const key = `${due.month}:${due.year}`;
+            const b = buckets.get(key) ?? { totalAmount: 0, paidAmount: 0, balanceAmount: 0 };
+            b.totalAmount += Number(due.totalAmount);
+            b.paidAmount += Number(due.paidAmount);
+            b.balanceAmount += Number(due.balanceAmount);
+            buckets.set(key, b);
+          }
+
+          for (const [key, amounts] of buckets) {
+            const [m, y] = key.split(':').map(Number);
+
+            // Subtract from old property metrics
+            await tx.propertyMetrics.updateMany({
+              where: { propertyId: tenancy.propertyId, month: m, year: y },
+              data: {
+                totalDuesGenerated: { decrement: amounts.totalAmount },
+                totalDuesPaid: { decrement: amounts.paidAmount },
+                totalDuesUnpaid: { decrement: amounts.balanceAmount },
+              },
+            });
+
+            // Add to new property metrics (upsert so it's created if missing)
+            await tx.propertyMetrics.upsert({
+              where: { propertyId_month_year: { propertyId: newPropertyId, month: m, year: y } },
+              create: {
+                propertyId: newPropertyId,
+                ownerId: newOwnerId,
+                month: m,
+                year: y,
+                totalDuesGenerated: amounts.totalAmount,
+                totalDuesPaid: amounts.paidAmount,
+                totalDuesUnpaid: amounts.balanceAmount,
+              },
+              update: {
+                totalDuesGenerated: { increment: amounts.totalAmount },
+                totalDuesPaid: { increment: amounts.paidAmount },
+                totalDuesUnpaid: { increment: amounts.balanceAmount },
+              },
+            });
+          }
+
+          // Adjust activeTenants + occupiedBeds on current-month metrics
+          const now = new Date();
+          const curMonth = now.getMonth() + 1;
+          const curYear = now.getFullYear();
+
+          await tx.propertyMetrics.updateMany({
+            where: { propertyId: tenancy.propertyId, month: curMonth, year: curYear },
+            data: { activeTenants: { decrement: 1 }, occupiedBeds: { decrement: 1 } },
+          });
+
+          await tx.propertyMetrics.upsert({
+            where: { propertyId_month_year: { propertyId: newPropertyId, month: curMonth, year: curYear } },
+            create: {
+              propertyId: newPropertyId,
+              ownerId: newOwnerId,
+              month: curMonth,
+              year: curYear,
+              activeTenants: 1,
+              occupiedBeds: 1,
+            },
+            update: {
+              activeTenants: { increment: 1 },
+              occupiedBeds: { increment: 1 },
+            },
+          });
+        }
+
+        const totalPendingBalance = pendingDues.reduce((s, d) => s + Number(d.balanceAmount), 0);
+
+        return {
+          message: 'Tenant shifted successfully',
+          tenancyId: tenancy.id,
+          fromRoom: oldRoom.roomNumber,
+          toRoom: newRoom.roomNumber,
+          fromPropertyId: tenancy.propertyId,
+          toPropertyId: newPropertyId,
+          isCrossProperty,
+          pendingDuesTransferred: isCrossProperty ? pendingDues.length : 0,
+          totalPendingBalanceTransferred: isCrossProperty ? totalPendingBalance : 0,
+        };
+      },
+      { isolationLevel: 'ReadCommitted', timeout: 15_000 },
+    );
   }
 
   async PublishTenantOnboardingEvents(

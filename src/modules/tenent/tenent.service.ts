@@ -185,6 +185,102 @@ export class TenentService {
     return this.getTenantById(tenantId);
   }
 
+  async deleteTenant(tenantId: number, ownerUserId: number) {
+    const tenant = await this.prisma.user.findFirst({
+      where: { id: tenantId, role: UserRole.TENANT, deletedAt: null },
+      select: {
+        id: true,
+        fullName: true,
+        tenancy: {
+          select: {
+            id: true,
+            roomId: true,
+            propertyId: true,
+            tenancyStatus: true,
+            property: { select: { ownerId: true, name: true } },
+            dues: {
+              where: { status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } },
+              select: {
+                id: true,
+                dueType: true,
+                title: true,
+                balanceAmount: true,
+                status: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    const tenancy = tenant.tenancy;
+    if (!tenancy) throw new NotFoundException('No tenancy record found for this tenant');
+
+    if (tenancy.property.ownerId !== ownerUserId) {
+      throw new ForbiddenException("You do not own this tenant's property");
+    }
+
+    if (
+      tenancy.tenancyStatus !== 'ACTIVE' &&
+      tenancy.tenancyStatus !== 'NOTICE_PERIOD'
+    ) {
+      throw new BadRequestException('Tenant is not currently active');
+    }
+
+    const pendingDues = tenancy.dues;
+    if (pendingDues.length > 0) {
+      const totalPending = pendingDues.reduce(
+        (sum, d) => sum + Number(d.balanceAmount),
+        0,
+      );
+      throw new BadRequestException({
+        message: `Cannot remove ${tenant.fullName} — ${pendingDues.length} pending due(s) totalling ₹${totalPending.toFixed(2)}. Clear all dues before removing the tenant.`,
+        pendingDues: pendingDues.map((d) => ({
+          dueId: d.id,
+          type: d.dueType,
+          title: d.title,
+          balanceAmount: Number(d.balanceAmount),
+          status: d.status,
+        })),
+        totalPendingAmount: totalPending,
+      });
+    }
+
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: tenantId },
+        data: { deletedAt: now, isActive: false },
+      });
+
+      await tx.tenancy.update({
+        where: { id: tenancy.id },
+        data: { tenancyStatus: 'EXITED', deletedAt: now, leftAt: now },
+      });
+
+      await tx.room.update({
+        where: { id: tenancy.roomId },
+        data: { occupiedBeds: { decrement: 1 } },
+      });
+
+      const curMonth = now.getMonth() + 1;
+      const curYear = now.getFullYear();
+      await tx.propertyMetrics.updateMany({
+        where: { propertyId: tenancy.propertyId, month: curMonth, year: curYear },
+        data: { activeTenants: { decrement: 1 }, occupiedBeds: { decrement: 1 } },
+      });
+    });
+
+    return {
+      message: `Tenant ${tenant.fullName} removed successfully`,
+      tenantId,
+      tenancyId: tenancy.id,
+      propertyName: tenancy.property.name,
+    };
+  }
+
   async moveTenantOut(tenancyId: number, dto: MoveOutTenantDto) {
     return {
       success: true,

@@ -81,8 +81,9 @@ export class PaymentService {
 
     const baseUrl =
       this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:3000/api';
+    console.log('this is base url', baseUrl);
     const surl = `${baseUrl}/payment/webhook`;
-    const furl = `${baseUrl}/payment/webhook`;
+    const furl = `${baseUrl}/payment/status`;
 
     // 4. Save INITIATED transaction before calling EaseBuzz
     const transaction = await this.prisma.paymentGatewayTransaction.create({
@@ -304,6 +305,91 @@ export class PaymentService {
     this.logger.log(
       `Payment SUCCESS recorded: dueId=${due.id} amount=${paidAmount} easepayid=${easepayid}`,
     );
+  }
+
+  async getTenantPaymentHistory(tenantUserId: number) {
+    const tenancies = await this.prisma.tenancy.findMany({
+      where: { tenentId: tenantUserId },
+      select: { id: true },
+    });
+
+    if (tenancies.length === 0) {
+      return { total: 0, payments: [] };
+    }
+
+    const tenancyIds = tenancies.map((t) => t.id);
+
+    const payments = await this.prisma.duePayment.findMany({
+      where: { tenancyId: { in: tenancyIds } },
+      take: 20,
+      orderBy: { paidAt: 'desc' },
+      select: {
+        id: true,
+        amount: true,
+        paymentMode: true,
+        upiApp: true,
+        transactionId: true,
+        notes: true,
+        paidAt: true,
+        month: true,
+        year: true,
+        due: {
+          select: {
+            id: true,
+            dueType: true,
+            title: true,
+            totalAmount: true,
+            paidAmount: true,
+            balanceAmount: true,
+            status: true,
+            property: { select: { id: true, name: true } },
+            tenancy: {
+              select: {
+                room: { select: { roomNumber: true } },
+              },
+            },
+            gatewayTransactions: {
+              where: { status: 'SUCCESS' },
+              select: {
+                txnId: true,
+                status: true,
+                easepayId: true,
+                paymentSource: true,
+                createdAt: true,
+              },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      total: payments.length,
+      payments: payments.map((p) => ({
+        paymentId: p.id,
+        amount: Number(p.amount),
+        paymentMode: p.paymentMode,
+        upiApp: p.upiApp ?? null,
+        transactionId: p.transactionId ?? null,
+        notes: p.notes ?? null,
+        paidAt: p.paidAt,
+        month: p.month,
+        year: p.year,
+        due: {
+          id: p.due.id,
+          type: p.due.dueType,
+          title: p.due.title,
+          totalAmount: Number(p.due.totalAmount),
+          paidAmount: Number(p.due.paidAmount),
+          balanceAmount: Number(p.due.balanceAmount),
+          status: p.due.status,
+        },
+        property: p.due.property,
+        roomNumber: p.due.tenancy.room.roomNumber,
+        gateway: p.due.gatewayTransactions[0] ?? null,
+      })),
+    };
   }
 
   async getTransactionStatus(txnId: string, tenantUserId: number) {

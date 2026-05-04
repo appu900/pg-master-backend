@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -73,6 +74,16 @@ export class TenentController {
     @Body() dto: UpdateTenantDto,
   ) {
     return this.tenentService.updateTenant(tenantId, dto);
+  }
+
+  @Delete('/:tenantId')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async deleteTenant(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenentService.deleteTenant(tenantId, user.userId);
   }
 
   @Post('/tenancy/:tenancyId/moveout')

@@ -16,6 +16,7 @@ import { Role } from 'src/common/enum/role.enum';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { EditTenancyDto } from './dto/update-tenancy.dto';
 import { AddTenantDto } from './dto/add.tenant.dto';
+import { ShiftRoomDto } from './dto/shift-room.dto';
 
 @Controller('tenancy')
 export class TenancyController {
@@ -31,6 +32,13 @@ export class TenancyController {
       message: 'Tenant created successfully',
       res,
     };
+  }
+
+  @Post('shift-room')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async shiftTenantRoom(@Body() dto: ShiftRoomDto, @GetUser() user: any) {
+    return this.tenancyService.shiftTenantRoom(dto, user.userId);
   }
 
   @Put('/tenant/:tenantId/property/:propertyId')
