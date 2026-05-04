@@ -7,6 +7,7 @@ export class AppController {
 
   @Get()
   getHello(): string {
+    console.log("hitted the controller layer")
     return this.appService.getHello();
   }
 }
