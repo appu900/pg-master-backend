@@ -12,13 +12,18 @@ export class PaymentConfigService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(propertyId: number, dto: CreatePaymentConfigDto) {
-    const property = await this.prisma.property.findUnique({ where: { id: propertyId } });
+    const property = await this.prisma.property.findUnique({
+      where: { id: propertyId },
+    });
     if (!property) throw new NotFoundException('Property not found');
 
     const existing = await this.prisma.propertyPaymentGatewayConfig.findUnique({
       where: { propertyId },
     });
-    if (existing) throw new ConflictException('Payment config already exists for this property. Use update instead.');
+    if (existing)
+      throw new ConflictException(
+        'Payment config already exists for this property. Use update instead.',
+      );
 
     return this.prisma.propertyPaymentGatewayConfig.create({
       data: {
@@ -51,7 +56,8 @@ export class PaymentConfigService {
         property: { select: { name: true } },
       },
     });
-    if (!config) throw new NotFoundException('No payment config found for this property');
+    if (!config)
+      throw new NotFoundException('No payment config found for this property');
     return config;
   }
 
@@ -59,7 +65,8 @@ export class PaymentConfigService {
     const config = await this.prisma.propertyPaymentGatewayConfig.findUnique({
       where: { propertyId },
     });
-    if (!config) throw new NotFoundException('No payment config found for this property');
+    if (!config)
+      throw new NotFoundException('No payment config found for this property');
 
     return this.prisma.propertyPaymentGatewayConfig.update({
       where: { propertyId },
@@ -98,8 +105,14 @@ export class PaymentConfigService {
     const config = await this.prisma.propertyPaymentGatewayConfig.findUnique({
       where: { propertyId },
     });
-    if (!config) throw new NotFoundException('Payment gateway not configured for this property');
-    if (!config.isActive) throw new NotFoundException('Payment gateway is disabled for this property');
+    if (!config)
+      throw new NotFoundException(
+        'Payment gateway not configured for this property',
+      );
+    if (!config.isActive)
+      throw new NotFoundException(
+        'Payment gateway is disabled for this property',
+      );
     return config;
   }
 }

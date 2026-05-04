@@ -19,6 +19,7 @@ import { S3Service } from 'src/infra/s3/s3.service';
 import { error } from 'console';
 import { Prisma } from '@prisma/client';
 import { AddLogsDto } from './dto/addLogs.dto';
+import { EditComplaintByTenantDto } from './dto/edit-complaint-by-tenant.dto';
 
 @Injectable()
 export class ComplaintService {
@@ -320,6 +321,67 @@ export class ComplaintService {
       },
     });
     return result;
+  }
+
+  async editComplaintByTenant(
+    tenantId: number,
+    complaintId: number,
+    dto: EditComplaintByTenantDto,
+  ) {
+    const complaint = await this.prisma.complaint.findUnique({
+      where: { id: complaintId },
+      select: { id: true, raisedById: true, status: true, title: true },
+    });
+
+    if (!complaint) throw new NotFoundException('Complaint not found');
+
+    if (complaint.raisedById !== tenantId) {
+      throw new ForbiddenException('You can only edit your own complaints');
+    }
+
+    const nonEditableStatuses: ComplaintStatus[] = [
+      ComplaintStatus.ASSIGNED,
+      ComplaintStatus.IN_PROGRESS,
+      ComplaintStatus.COMPLETED,
+      ComplaintStatus.CANCELLED,
+    ];
+    if (nonEditableStatuses.includes(complaint.status)) {
+      throw new BadRequestException(
+        `Complaint cannot be edited once it is ${complaint.status.toLowerCase().replace('_', ' ')}`,
+      );
+    }
+
+    const updateData: Prisma.ComplaintUpdateInput = {};
+    if (dto.title !== undefined) updateData.title = dto.title;
+    if (dto.description !== undefined) updateData.description = dto.description;
+    if (dto.priority !== undefined) updateData.priority = dto.priority;
+    if (dto.requestedVisitDate !== undefined) {
+      updateData.requestedVisitDate = dto.requestedVisitDate
+        ? new Date(`${dto.requestedVisitDate}T00:00:00`)
+        : null;
+    }
+    if (dto.requestedVisitTime !== undefined) {
+      updateData.requestedVisitTime = dto.requestedVisitTime
+        ? new Date(`1970-01-01T${dto.requestedVisitTime}`)
+        : null;
+    }
+
+    const updated = await this.prisma.complaint.update({
+      where: { id: complaintId },
+      data: updateData,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        priority: true,
+        status: true,
+        requestedVisitDate: true,
+        requestedVisitTime: true,
+        updatedAt: true,
+      },
+    });
+
+    return { message: 'Complaint updated successfully', complaint: updated };
   }
 
   async addLogs(complaintId: number, log: AddLogsDto) {

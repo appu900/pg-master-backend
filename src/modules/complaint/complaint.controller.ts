@@ -2,6 +2,7 @@ import {
   Controller,
   Body,
   Get,
+  Patch,
   Post,
   Put,
   UseGuards,
@@ -25,6 +26,7 @@ import { ComplaintCreateByOwnerDto } from './dto/create.complaint-by-owner.dto';
 import { ChnageComplaintStatus } from './dto/change.status.dto';
 import { assignMaintenanceStaffDto } from './dto/assign-staff.dto';
 import { AddLogsDto } from './dto/addLogs.dto';
+import { EditComplaintByTenantDto } from './dto/edit-complaint-by-tenant.dto';
 
 @Controller('complaint')
 export class ComplaintController {
@@ -115,6 +117,17 @@ export class ComplaintController {
   }
 
 
+
+  @Patch('/:complaintId/edit')
+  @Roles(Role.TENANT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async editComplaint(
+    @Param('complaintId', ParseIntPipe) complaintId: number,
+    @Body() dto: EditComplaintByTenantDto,
+    @GetUser() user: any,
+  ) {
+    return this.complaintService.editComplaintByTenant(user.userId, complaintId, dto);
+  }
 
   @Post('/log/:complaintId')
   @Roles(Role.PROPERTY_OWNER,Role.TENANT)
