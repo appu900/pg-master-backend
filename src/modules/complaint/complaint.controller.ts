@@ -71,7 +71,10 @@ export class ComplaintController {
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @GetUser() user: any,
   ) {
-    return this.complaintService.getComplaintSummaryByProperty(propertyId, user.userId);
+    return this.complaintService.getComplaintSummaryByProperty(
+      propertyId,
+      user.userId,
+    );
   }
 
   @Get(':complaintId')
@@ -86,7 +89,9 @@ export class ComplaintController {
   @Get('/property/:propertyId')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getAllComplaints(@Param('propertyId',ParseIntPipe) propertyId:number) {
+  async getAllComplaints(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+  ) {
     return this.complaintService.getAllComplaints(propertyId);
   }
 
@@ -116,9 +121,7 @@ export class ComplaintController {
     return this.complaintService.fetchAllComplaintsCreatedByTenant(tenantId);
   }
 
-
-
-  @Patch('/:complaintId/edit')
+  @Put('/:complaintId/edit')
   @Roles(Role.TENANT)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async editComplaint(
@@ -126,31 +129,37 @@ export class ComplaintController {
     @Body() dto: EditComplaintByTenantDto,
     @GetUser() user: any,
   ) {
-    return this.complaintService.editComplaintByTenant(user.userId, complaintId, dto);
+    return this.complaintService.editComplaintByTenant(
+      user.userId,
+      complaintId,
+      dto,
+    );
   }
 
   @Post('/log/:complaintId')
-  @Roles(Role.PROPERTY_OWNER,Role.TENANT)
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  async addLogs(@Body() dto:AddLogsDto,@Param('complaintId', ParseIntPipe) compaintId:number){
-      return this.complaintService.addLogs(compaintId,dto)
+  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async addLogs(
+    @Body() dto: AddLogsDto,
+    @Param('complaintId', ParseIntPipe) compaintId: number,
+  ) {
+    return this.complaintService.addLogs(compaintId, dto);
   }
-
-
 
   @Get('owner/property/all')
-  @UseGuards(JwtAuthGuard,RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROPERTY_OWNER)
-  async fetchAllComplaintsbyPropertyOwner(@GetUser() user:any){
-      const propertyOwnerUserId = user.userId;
-      console.log("this is propertyownerId",propertyOwnerUserId)
-      const res = await this.complaintService.fetchAllComplaintsForAllPropertiesByOwnerId(propertyOwnerUserId)
-      return {
-        success:true,
-        message:"fetched all complaints",
-        res
-      }
-
+  async fetchAllComplaintsbyPropertyOwner(@GetUser() user: any) {
+    const propertyOwnerUserId = user.userId;
+    console.log('this is propertyownerId', propertyOwnerUserId);
+    const res =
+      await this.complaintService.fetchAllComplaintsForAllPropertiesByOwnerId(
+        propertyOwnerUserId,
+      );
+    return {
+      success: true,
+      message: 'fetched all complaints',
+      res,
+    };
   }
-
 }
