@@ -504,7 +504,7 @@ export class TenancyService {
       ownerId: requestingOwnerId,
       roomId: dto.roomId,
       rentAmount: dto.rentAmount,
-      securityDepositeAmount: dto.securityDeposit + proratedAmount,
+      securityDepositeAmount: Number(dto.securityDeposit + proratedAmount),
       tenantPhone: dto.phoneNumber,
       tenantName: dto.fullName,
       propertyName: property.name,
@@ -612,7 +612,11 @@ export class TenancyService {
 
   async shiftTenantRoom(dto: ShiftRoomDto, requestingOwnerId: number) {
     const tenancy = await this.prisma.tenancy.findFirst({
-      where: { tenentId: dto.tenantId, tenancyStatus: 'ACTIVE', deletedAt: null },
+      where: {
+        tenentId: dto.tenantId,
+        tenancyStatus: 'ACTIVE',
+        deletedAt: null,
+      },
       select: {
         id: true,
         roomId: true,
@@ -622,10 +626,13 @@ export class TenancyService {
       },
     });
 
-    if (!tenancy) throw new NotFoundException('No active tenancy found for this tenant');
+    if (!tenancy)
+      throw new NotFoundException('No active tenancy found for this tenant');
 
     if (tenancy.property.ownerId !== requestingOwnerId) {
-      throw new ForbiddenException("You do not own this tenant's current property");
+      throw new ForbiddenException(
+        "You do not own this tenant's current property",
+      );
     }
 
     const newPropertyId = dto.newPropertyId ?? tenancy.propertyId;
@@ -642,7 +649,12 @@ export class TenancyService {
         propertyId: newPropertyId,
         property: { ownerId: requestingOwnerId },
       },
-      select: { id: true, roomNumber: true, totalBeds: true, occupiedBeds: true },
+      select: {
+        id: true,
+        roomNumber: true,
+        totalBeds: true,
+        occupiedBeds: true,
+      },
     });
 
     if (!destRoom) {
@@ -652,7 +664,9 @@ export class TenancyService {
       });
       if (!room) throw new NotFoundException(`Room ${dto.newRoomId} not found`);
       if (room.propertyId !== newPropertyId)
-        throw new BadRequestException(`Room ${dto.newRoomId} does not belong to property ${newPropertyId}`);
+        throw new BadRequestException(
+          `Room ${dto.newRoomId} does not belong to property ${newPropertyId}`,
+        );
       throw new ForbiddenException('You do not own the destination property');
     }
 
@@ -669,7 +683,8 @@ export class TenancyService {
         where: { id: newPropertyId },
         select: { ownerId: true },
       });
-      if (!newProp) throw new NotFoundException(`Property ${newPropertyId} not found`);
+      if (!newProp)
+        throw new NotFoundException(`Property ${newPropertyId} not found`);
       newOwnerId = newProp.ownerId;
     }
 
@@ -677,10 +692,24 @@ export class TenancyService {
       async (tx) => {
         // Lock both rooms to prevent concurrent bed-count races
         const [oldRoomRows, newRoomRows] = await Promise.all([
-          tx.$queryRaw<{ id: number; occupiedBeds: number; totalBeds: number; roomNumber: string }[]>`
+          tx.$queryRaw<
+            {
+              id: number;
+              occupiedBeds: number;
+              totalBeds: number;
+              roomNumber: string;
+            }[]
+          >`
             SELECT id, "occupiedBeds", "totalBeds", "roomNumber" FROM "Room" WHERE id = ${tenancy.roomId} FOR UPDATE
           `,
-          tx.$queryRaw<{ id: number; occupiedBeds: number; totalBeds: number; roomNumber: string }[]>`
+          tx.$queryRaw<
+            {
+              id: number;
+              occupiedBeds: number;
+              totalBeds: number;
+              roomNumber: string;
+            }[]
+          >`
             SELECT id, "occupiedBeds", "totalBeds", "roomNumber" FROM "Room" WHERE id = ${dto.newRoomId} FOR UPDATE
           `,
         ]);
@@ -722,24 +751,40 @@ export class TenancyService {
 
         // Adjust room bed counts
         await Promise.all([
-          tx.room.update({ where: { id: tenancy.roomId }, data: { occupiedBeds: { decrement: 1 } } }),
-          tx.room.update({ where: { id: dto.newRoomId }, data: { occupiedBeds: { increment: 1 } } }),
+          tx.room.update({
+            where: { id: tenancy.roomId },
+            data: { occupiedBeds: { decrement: 1 } },
+          }),
+          tx.room.update({
+            where: { id: dto.newRoomId },
+            data: { occupiedBeds: { increment: 1 } },
+          }),
         ]);
 
         if (isCrossProperty) {
           // Re-assign all open dues to the new property
           if (pendingDues.length > 0) {
             await tx.tenantDue.updateMany({
-              where: { tenancyId: tenancy.id, status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } },
+              where: {
+                tenancyId: tenancy.id,
+                status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] },
+              },
               data: { propertyId: newPropertyId },
             });
           }
 
           // Group open dues by (month, year) for metrics adjustment
-          const buckets = new Map<string, { totalAmount: number; paidAmount: number; balanceAmount: number }>();
+          const buckets = new Map<
+            string,
+            { totalAmount: number; paidAmount: number; balanceAmount: number }
+          >();
           for (const due of pendingDues) {
             const key = `${due.month}:${due.year}`;
-            const b = buckets.get(key) ?? { totalAmount: 0, paidAmount: 0, balanceAmount: 0 };
+            const b = buckets.get(key) ?? {
+              totalAmount: 0,
+              paidAmount: 0,
+              balanceAmount: 0,
+            };
             b.totalAmount += Number(due.totalAmount);
             b.paidAmount += Number(due.paidAmount);
             b.balanceAmount += Number(due.balanceAmount);
@@ -761,7 +806,13 @@ export class TenancyService {
 
             // Add to new property metrics (upsert so it's created if missing)
             await tx.propertyMetrics.upsert({
-              where: { propertyId_month_year: { propertyId: newPropertyId, month: m, year: y } },
+              where: {
+                propertyId_month_year: {
+                  propertyId: newPropertyId,
+                  month: m,
+                  year: y,
+                },
+              },
               create: {
                 propertyId: newPropertyId,
                 ownerId: newOwnerId,
@@ -785,12 +836,25 @@ export class TenancyService {
           const curYear = now.getFullYear();
 
           await tx.propertyMetrics.updateMany({
-            where: { propertyId: tenancy.propertyId, month: curMonth, year: curYear },
-            data: { activeTenants: { decrement: 1 }, occupiedBeds: { decrement: 1 } },
+            where: {
+              propertyId: tenancy.propertyId,
+              month: curMonth,
+              year: curYear,
+            },
+            data: {
+              activeTenants: { decrement: 1 },
+              occupiedBeds: { decrement: 1 },
+            },
           });
 
           await tx.propertyMetrics.upsert({
-            where: { propertyId_month_year: { propertyId: newPropertyId, month: curMonth, year: curYear } },
+            where: {
+              propertyId_month_year: {
+                propertyId: newPropertyId,
+                month: curMonth,
+                year: curYear,
+              },
+            },
             create: {
               propertyId: newPropertyId,
               ownerId: newOwnerId,
@@ -806,7 +870,10 @@ export class TenancyService {
           });
         }
 
-        const totalPendingBalance = pendingDues.reduce((s, d) => s + Number(d.balanceAmount), 0);
+        const totalPendingBalance = pendingDues.reduce(
+          (s, d) => s + Number(d.balanceAmount),
+          0,
+        );
 
         return {
           message: 'Tenant shifted successfully',
@@ -817,7 +884,9 @@ export class TenancyService {
           toPropertyId: newPropertyId,
           isCrossProperty,
           pendingDuesTransferred: isCrossProperty ? pendingDues.length : 0,
-          totalPendingBalanceTransferred: isCrossProperty ? totalPendingBalance : 0,
+          totalPendingBalanceTransferred: isCrossProperty
+            ? totalPendingBalance
+            : 0,
         };
       },
       { isolationLevel: 'ReadCommitted', timeout: 15_000 },

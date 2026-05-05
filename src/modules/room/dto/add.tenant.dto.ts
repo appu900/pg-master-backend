@@ -40,15 +40,16 @@ export class AddTenantDto {
   email: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   address: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   pinCode: string;
 
 
   @IsString()
+  @IsOptional()
   state: string;
 
   @IsString()

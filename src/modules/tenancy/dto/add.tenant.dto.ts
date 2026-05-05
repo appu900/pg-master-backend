@@ -16,7 +16,6 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
-
 export enum RentalType {
   PG = 'PG',
   HOSTEL = 'HOSTEL',
@@ -27,8 +26,6 @@ export enum RentalType {
 }
 
 export class AddTenantDto {
- 
-
   @IsString()
   @IsNotEmpty()
   @MinLength(2)
@@ -51,11 +48,9 @@ export class AddTenantDto {
   @IsNotEmpty()
   gender?: string;
 
-
-
   @IsOptional()
   @IsString()
-  pinCode?:string
+  pinCode?: string;
 
   @IsOptional()
   @IsString()
@@ -75,8 +70,6 @@ export class AddTenantDto {
   @Transform(({ value }) => value?.trim())
   state!: string;
 
-
-
   @IsInt()
   @IsPositive()
   @Type(() => Number)
@@ -87,16 +80,18 @@ export class AddTenantDto {
   @Type(() => Number)
   roomId!: number;
 
-
-
-  @IsDateString({}, { message: 'joiningDate must be a valid ISO date (YYYY-MM-DD)' })
-  joiningDate!: string; 
+  @IsDateString(
+    {},
+    { message: 'joiningDate must be a valid ISO date (YYYY-MM-DD)' },
+  )
+  joiningDate!: string;
 
   @IsOptional()
-  @IsDateString({}, { message: 'moveOutDate must be a valid ISO date (YYYY-MM-DD)' })
+  @IsDateString(
+    {},
+    { message: 'moveOutDate must be a valid ISO date (YYYY-MM-DD)' },
+  )
   moveOutDate?: string;
-
-  
 
   @IsOptional()
   @IsInt()
@@ -125,8 +120,6 @@ export class AddTenantDto {
   })
   rentalType?: RentalType;
 
-
-
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive({ message: 'rentAmount must be greater than 0' })
   @Type(() => Number)
@@ -143,11 +136,9 @@ export class AddTenantDto {
   @Type(() => Number)
   electricityReading?: number;
 
-
-
   @IsInt({ message: 'rentCycleDay must be an integer' })
   @Min(1, { message: 'rentCycleDay must be between 1 and 28' })
   @Max(28, { message: 'rentCycleDay must be between 1 and 28' })
   @Type(() => Number)
-  rentCycleDay!: number; 
+  rentCycleDay!: number;
 }
