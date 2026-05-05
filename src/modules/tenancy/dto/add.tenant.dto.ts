@@ -59,16 +59,16 @@ export class AddTenantDto {
   profession?: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(500)
   @Transform(({ value }) => value?.trim())
-  address!: string;
+  address?: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(100)
   @Transform(({ value }) => value?.trim())
-  state!: string;
+  state?: string;
 
   @IsInt()
   @IsPositive()
