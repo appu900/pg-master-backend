@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseIntPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -40,10 +41,10 @@ export class PaymentController {
     return this.paymentService.getTransactionStatus(txnId, user.userId);
   }
 
-  @Get('history')
-  @Roles(Role.TENANT)
+  @Get('history/:tenantId')
+  @Roles(Role.TENANT, Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getPaymentHistory(@GetUser() user: any) {
-    return this.paymentService.getTenantPaymentHistory(user.userId);
+  async getPaymentHistory(@Param('tenantId', ParseIntPipe) tenantId: number) {
+    return this.paymentService.getTenantPaymentHistory(tenantId);
   }
 }
