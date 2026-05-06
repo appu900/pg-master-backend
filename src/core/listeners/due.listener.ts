@@ -23,7 +23,7 @@ export class DueListner {
       channels: ['whatsapp'],
       data: {
         tenantName: event.tenantName,
-        due_type: 'Security Deposit',
+        due_type: 'Security Deposit & Rent',
         due_amount: event.securityDepositeAmount,
         due_date: event.dueDate,
         payment_link: 'https://app.rentpe.com',

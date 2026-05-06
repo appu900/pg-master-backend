@@ -29,6 +29,7 @@ model User {
   tenentProfile           TenentProfile?
   expenses                Expenses[]
   recordedPayments        DuePayment[]             @relation("PaymentRecordedBy")
+  noticePeriodTenants     NoticePeriodTenants[]
 
   @@index([phoneNumber])
   @@index([role])
@@ -223,15 +224,16 @@ model Property {
   rooms                          Room[]
   tenents                        Tenancy[]
 
-  expenses                 Expenses[]
-  dues                     TenantDue[]
-  dailyReminderQueues      DailyReminderQueue[]
-  propertyMetrics          PropertyMetrics[]
-  propertyMeterReadings    PropertyMeterReading[]
-  roomMeterReadings        RoomMeterReading[]
-  electricityBillingRuns   ElectricityBillingRun[]
-  paymentGatewayConfig     PropertyPaymentGatewayConfig?
-  gatewayTransactions      PaymentGatewayTransaction[]
+  expenses               Expenses[]
+  dues                   TenantDue[]
+  dailyReminderQueues    DailyReminderQueue[]
+  propertyMetrics        PropertyMetrics[]
+  propertyMeterReadings  PropertyMeterReading[]
+  roomMeterReadings      RoomMeterReading[]
+  electricityBillingRuns ElectricityBillingRun[]
+  paymentGatewayConfig   PropertyPaymentGatewayConfig?
+  gatewayTransactions    PaymentGatewayTransaction[]
+  noticePeriodTenants    NoticePeriodTenants[]
 
   @@index([ownerId])
   @@index([pinCode])
@@ -301,10 +303,11 @@ model Tenancy {
   invoices Invoice[]
   dues     TenantDue[]
 
-  property            Property             @relation(fields: [propertyId], references: [id])
-  room                Room                 @relation(fields: [roomId], references: [id])
-  tenent              User                 @relation(fields: [tenentId], references: [id])
+  property            Property              @relation(fields: [propertyId], references: [id])
+  room                Room                  @relation(fields: [roomId], references: [id])
+  tenent              User                  @relation(fields: [tenentId], references: [id])
   dailyReminderQueues DailyReminderQueue[]
+  noticePeriodTenants NoticePeriodTenants[]
 
   @@unique([roomId, tenentId])
   @@index([roomId, tenentId])
@@ -341,8 +344,8 @@ model TenantDue {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenancy             Tenancy                    @relation(fields: [tenancyId], references: [id])
-  property            Property                   @relation(fields: [propertyId], references: [id])
+  tenancy             Tenancy                     @relation(fields: [tenancyId], references: [id])
+  property            Property                    @relation(fields: [propertyId], references: [id])
   payments            DuePayment[]
   dailyReminderQueue  DailyReminderQueue?
   gatewayTransactions PaymentGatewayTransaction[]
@@ -623,6 +626,21 @@ model PropertyPaymentGatewayConfig {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@index([propertyId])
+}
+
+model NoticePeriodTenants {
+  id                   Int @id @default(autoincrement())
+  tenantId             Int
+  propertyId           Int
+  tenancyId            Int
+  MoveoutDate          Int
+  noticePeriodLastDate Int
+
+  tenant   User     @relation(fields: [tenantId], references: [id])
+  tenancy  Tenancy  @relation(fields: [tenancyId], references: [id])
   property Property @relation(fields: [propertyId], references: [id])
 
   @@index([propertyId])
