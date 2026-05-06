@@ -1,6 +1,10 @@
 import { Logger, Injectable, Inject } from '@nestjs/common';
 import { IQueueProducer, QUEUE_PRODUCER } from '../ports/queue-producer.port';
-import { DueCreatedEvent, TenantAddedEvent } from '../events/domain-events';
+import {
+  DueCreatedEvent,
+  DuePaymentCollectedEvent,
+  TenantAddedEvent,
+} from '../events/domain-events';
 import { OnEvent } from '@nestjs/event-emitter';
 import { QUEUES } from '../queue/queue.constants';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
@@ -76,12 +80,30 @@ export class NotificationListner {
         tenantName: tenantName,
         due_type: event.dueType,
         due_amount: event.totalAmount,
-        due_date: "With in this month end",
+        due_date: 'With in this month end',
         payment_link: 'https://rentpay.com/pay?12345',
       },
     });
     this.logger.debug(
       `ENQUEUED THE NOTFICATON FOR DUE WITH TENANT NAME ${tenantName}`,
     );
+  }
+
+  @OnEvent('due.payment.collected')
+  async onPaymentCollected(event: DuePaymentCollectedEvent) {
+    const date = new Date();
+    const fullDate =
+      date.getDate() + '-' + (date.getMonth() + 1) + '-' + date.getFullYear();
+    await this.queue.enqueue(QUEUES.NOTIFICATION, 'due.payment.collected', {
+      type: 'PAYMENT_CONFIRMATION',
+      phone: '+91' + event.tenantPhone,
+      channels: ['whatsapp'],
+      data: {
+        tenantName: event.tenantName,
+        amount: event.amountPaid,
+        paidAt: `${fullDate}`,
+        balanceAmount: event.balanceAmount,
+      },
+    });
   }
 }

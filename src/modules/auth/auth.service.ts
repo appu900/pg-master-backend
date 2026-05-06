@@ -113,7 +113,7 @@ export class AuthService {
       }
 
       if (!user.isActive) {
-        throw new BadRequestException('Your account is inactive');
+        throw new BadRequestException('Your account not found');
       }
 
       // Generate token
@@ -121,7 +121,7 @@ export class AuthService {
 
       return {
         message: 'Login successful',
-        id:user.id,
+        id: user.id,
         name: user.fullName,
         token,
         email: user.email,
