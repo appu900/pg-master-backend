@@ -76,7 +76,7 @@ export class NotificationListner {
         tenantName: tenantName,
         due_type: event.dueType,
         due_amount: event.totalAmount,
-        due_date: event.month,
+        due_date: "With in this month end",
         payment_link: 'https://rentpay.com/pay?12345',
       },
     });
