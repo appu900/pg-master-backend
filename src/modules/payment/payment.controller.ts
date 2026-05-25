@@ -14,7 +14,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { PaymentService } from './payment.service';
-import { InitiatePaymentDto } from './dto/initiate-payment.dto';
+import { InitiatePaymentDto, MakePaymentDto } from './dto/initiate-payment.dto';
 import { EasebuzzWebhookPayload } from 'src/infra/payment/easebuzz/easebuzz.types';
 
 @Controller('payment')
@@ -26,6 +26,14 @@ export class PaymentController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async initiatePayment(@Body() dto: InitiatePaymentDto, @GetUser() user: any) {
     return this.paymentService.initiatePayment(dto.dueId, user.userId);
+  }
+
+
+  @Post('make')
+  @Roles(Role.TENANT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async makePayment(@Body() dto:MakePaymentDto, @GetUser() user: any) {
+    return this.paymentService.makePayment(dto, user.userId);
   }
 
   @Post('webhook')

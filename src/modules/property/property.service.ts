@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { RoomSharingType, TenancyStatus } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
@@ -12,6 +13,9 @@ import { editRoomDto } from './dto/edit.room.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PropertyEvents } from './property.event';
 import { PropertyCreateEvent } from 'src/core/events/property-events';
+import { PropertyEventPublisher } from './events/services/property.events';
+import { PropertyCreatedEventPayload, RoomCreatedEventPayload } from 'src/core/events/app.event.payloads';
+import { PropertyCacheManager } from './cache/services/property.cache';
 
 const sharingMap:Record<RoomSharingType,number> = {
   SINGLE_SHARING: 1,
@@ -30,11 +34,14 @@ const sharingMap:Record<RoomSharingType,number> = {
 
 @Injectable()
 export class PropertyService {
+  private readonly logger = new Logger(PropertyService.name)
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
     private eventEmitter: EventEmitter2,
     private readonly events: PropertyEvents,
+    private readonly propertyEventPublisher:PropertyEventPublisher,
+    private readonly cacheManager:PropertyCacheManager
   ) {}
 
 
@@ -53,12 +60,13 @@ export class PropertyService {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
-    this.events.emitCreatePropertyEvent({
+    const propertyCreateEventPayload: PropertyCreatedEventPayload = {
       propertyId: property.id,
       ownerId: propertyOwnerId,
-      year: currentYear,
       month: currentMonth,
-    });
+      year:currentYear
+    }
+    this.propertyEventPublisher.publishPropertyCreated(propertyCreateEventPayload)
     return {
       message: 'property created sucessfully',
       property,
@@ -66,6 +74,12 @@ export class PropertyService {
   }
 
   async getPropertiesByPropertyOwner(ownerId: number) {
+    // fetch the data from redis if not present fallback to the db call and then again set the data
+    const cachedData = await this.cacheManager.getPropertiesByOwner(ownerId);
+    if(cachedData){
+      return cachedData;
+    }
+    this.logger.debug(`cached misssed for getallproperties`)
     const response = await this.prisma.property.findMany({
       where: {
         ownerId: ownerId,
@@ -75,7 +89,8 @@ export class PropertyService {
         id: true,
       },
     });
-
+    // adding the new data to redis.
+    await this.cacheManager.cachePropertiesByOwner(ownerId,response);
     return response;
   }
 
@@ -135,6 +150,17 @@ export class PropertyService {
       }
     }
     const totalBedCount = this.getSharingTypeValue(sharingType)
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const roomCreatedEvent: RoomCreatedEventPayload = {
+      roomId: room.id,
+      ownerId: ownerId,
+      propertyId: property.id,
+      bedCount: totalBedCount,
+      month: currentMonth,
+      year:currentYear
+    }
     this.events.emitCreateRoomEvent({
       roomId: room.id,
       propertyId: propertyId,

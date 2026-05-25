@@ -153,4 +153,9 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
     pipeline.expire(propertyKey, METRICS_REDIS_TTL);
     await pipeline.exec();
   }
+
+
+
+  
+
 }

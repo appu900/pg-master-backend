@@ -8,6 +8,9 @@ import {
 import { OnEvent } from '@nestjs/event-emitter';
 import { QUEUES } from '../queue/queue.constants';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
+import { AppService } from 'src/app.service';
+import { Appevents } from '../events/app.events';
+import { PaymentAuthIntiateEventPayload } from '../events/app.event.payloads';
 
 @Injectable()
 export class NotificationListner {
@@ -105,5 +108,21 @@ export class NotificationListner {
         balanceAmount: event.balanceAmount,
       },
     });
+  }
+
+
+  @OnEvent(Appevents.PAYMENT_AUTH_INTIATE_EVENT)
+  async onPaymentAuthVerify(eventPayload:PaymentAuthIntiateEventPayload){
+    const phoneNumber = eventPayload.phoneNumber;
+    const verificationOtp = eventPayload.otp
+    console.log("verification otp in listner",verificationOtp)
+    await this.queue.enqueue(QUEUES.NOTIFICATION,'payment.auth.initiate',{
+      type:'OTP',
+      phone:'+91'+phoneNumber,
+      channels:['whatsapp'],
+      data:{
+        otp:verificationOtp,
+      }
+    })
   }
 }

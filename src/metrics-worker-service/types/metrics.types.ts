@@ -1,0 +1,4 @@
+export enum MetricsEventType {
+  TENANT_METRICS = 'TENANT_METRICS',
+  PAYMENT_METRICS = 'PAYMENT_METRICS',
+}

@@ -10,6 +10,8 @@ import {
   DuePaymentCollectedEvent,
   TenantAddedEvent,
 } from '../events/domain-events';
+import { Appevents } from '../events/app.events';
+
 
 @Injectable()
 export class MetricsListner {
@@ -19,7 +21,7 @@ export class MetricsListner {
     private readonly prisma: PrismaService,
   ) {}
 
-  @OnEvent('room.created')
+  @OnEvent(Appevents.ROOM_CREATED_EVENT)
   async onRoomCreated(event: RoomCreatedEvent) {
     await this.queue.enqueue(
       QUEUES.METRICS,
@@ -37,22 +39,15 @@ export class MetricsListner {
     console.log(`enqued to room update matrics with roomid ${event.roomId}`)
   }
 
-  @OnEvent('property.create')
-  async onPropertyCreate(event: PropertyCreateEvent) {
-    await this.prisma.propertyMetrics.create({
-      data: {
-        propertyId: event.propertyId,
-        ownerId: event.ownerId,
-        month: event.month,
-        year: event.year,
-      },
-    });
+  @OnEvent(Appevents.PROPERTY_CREATED_EVENT)
+  async onPropertyCreate(eventPayload: PropertyCreateEvent) {
+    await this.queue.enqueue(QUEUES.METRICS, Appevents.PROPERTY_CREATED_EVENT,eventPayload)
     this.logger.log(
-      `property matrics created for the property ${event.propertyId}`,
+      `property matrics created for the property ${eventPayload.propertyId}`,
     );
   }
 
-  @OnEvent('tenant.added')
+  @OnEvent(Appevents.TENANT_ADD_EVENTS)
   async onTenantAdded(event:TenantAddedEvent){
     console.log(event.securityDepositeAmount)
     await this.queue.enqueue(
@@ -72,7 +67,7 @@ export class MetricsListner {
     console.log(`enqued to tenant update matrics with tenantid ${event.tenantId}`)
   }
 
-  @OnEvent('due.created')
+  @OnEvent(Appevents.DUE_CREATED_EVENT)
   async onDueCreated(event: DueCreatedEvent) {
     await this.queue.enqueue(
       QUEUES.METRICS,
@@ -90,7 +85,7 @@ export class MetricsListner {
     );
   }
 
-  @OnEvent('due.payment.collected')
+  @OnEvent(Appevents.DUE_CREATED_EVENT)
   async onDuePaymentCollected(event: DuePaymentCollectedEvent) {
     await this.queue.enqueue(
       QUEUES.METRICS,

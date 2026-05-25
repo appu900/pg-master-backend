@@ -35,10 +35,7 @@ import { TestModule } from './modules/Test/test.module';
 import { ElectricityModule } from './modules/electricity/electricity.module';
 import { PaymentConfigModule } from './modules/payment-config/payment-config.module';
 import { PaymentModule } from './modules/payment/payment.module';
-
-
-
-
+import { MetricsWorkerModule } from './metrics-worker-service/metrics.worker.module';
 
 
 @Module({
@@ -78,7 +75,8 @@ import { PaymentModule } from './modules/payment/payment.module';
     DueModule,
     BillingModule,
     MetricsModule,
-    WorkerModule,
+    // WorkerModule,
+    MetricsWorkerModule,
     TestModule,
     DueModule,
     ElectricityModule,

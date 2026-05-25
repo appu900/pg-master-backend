@@ -4,7 +4,13 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 @Injectable()
 export class PropertyMatricsService {
   private readonly logger = new Logger(PropertyMatricsService.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
+
+
+
+  async fetchPropertyCountByOwnerId(ownerId: number) {
+    
+  }
 
   async fetchPropertyMatrics(propertyId: number) {
     // const now = new Date();

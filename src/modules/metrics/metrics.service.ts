@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ComplaintStatus, DueStatus, DueType } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
+import { GetPropertyKeyForOtherMetrics } from 'src/infra/redis/keys/property';
 import { RedisService } from 'src/infra/redis/redis.service';
 
 export interface DashBoardMetrics {
@@ -28,7 +29,39 @@ export class MetricsService {
   constructor(
     private readonly prisms: PrismaService,
     private readonly redis: RedisService,
-  ) {}
+  ) { }
+
+  async getPropertyOtherMetrics(propertyId: number) {
+    const dbdata = await this.prisms.propertyOtherMetrics.findUnique({
+      where: {
+        propertyId:propertyId
+      }
+    })
+    console.log('db data for other metrics', dbdata);
+    const key = GetPropertyKeyForOtherMetrics(propertyId)
+    console.log('redis key for other metrics', key);
+    const cachedResult = await this.redis.getClient().hgetall(key)
+    console.log('cached result for other metrics', cachedResult);
+    return {
+      message: "other metrics data fetched sucessfully",
+      dbdata,
+      cachedResult
+    }
+  }
+
+  async getPropertyCountByOwnerId(ownerId: number) {
+    const totalProperties = await this.prisms.property.count({
+      where: {
+        ownerId
+      }
+    })
+    const key = `owner:${ownerId}:propertyCount`;
+    const res = await this.redis.getClient().hgetall(key);
+    return {
+      'cachedData': res,
+      'databaseData':totalProperties
+    }
+  }
 
   async getOwnerDashBoard(ownerId: number, month?: number, year?: number) {
     const m = month || new Date().getMonth() + 1;

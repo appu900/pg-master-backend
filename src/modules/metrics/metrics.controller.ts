@@ -75,4 +75,11 @@ export class MetricsController {
       await this.metricsService.getSecurityDepositsPending(propertyId);
     return { message: 'Security deposits fetched successfully', data };
   }
+
+
+
+  @Get('/count/:ownerId')
+  async getPropertyCount(@Param('ownerId',ParseIntPipe) ownerId:number) {
+    return this.metricsService.getPropertyOtherMetrics(ownerId);
+  }
 }

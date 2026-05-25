@@ -7,6 +7,10 @@ import { JwtModule, JwtService } from '@nestjs/jwt';
 import { OtpModule } from 'src/infra/notification/OTP/otp.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { PaymentAuthService } from './payment-auth/payment.auth.servive';
+import { PaymentAuthController } from './payment-auth/payment.auth.controller';
+import { PaymentAuthEventPusblisher } from './payment-auth/events/payment.auth.event.manager';
+import { PaymentAuthCacheManager } from './payment-auth/cache/payment.chaheManager';
 
 @Module({
   imports: [
@@ -23,7 +27,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     UserModule,
     OtpModule,
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  controllers: [AuthController,PaymentAuthController],
+  providers: [AuthService, JwtStrategy,PaymentAuthService,PaymentAuthEventPusblisher,PaymentAuthCacheManager],
 })
 export class AuthModule {}

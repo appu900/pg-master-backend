@@ -344,11 +344,12 @@ model TenantDue {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenancy             Tenancy                     @relation(fields: [tenancyId], references: [id])
-  property            Property                    @relation(fields: [propertyId], references: [id])
-  payments            DuePayment[]
-  dailyReminderQueue  DailyReminderQueue?
-  gatewayTransactions PaymentGatewayTransaction[]
+  tenancy                Tenancy                        @relation(fields: [tenancyId], references: [id])
+  property               Property                       @relation(fields: [propertyId], references: [id])
+  payments               DuePayment[]
+  dailyReminderQueue     DailyReminderQueue?
+  gatewayTransactions    PaymentGatewayTransaction[]
+  gatewayTransactionDues PaymentGatewayTransactionDue[]
 
   @@index([tenancyId])
   @@index([propertyId])
@@ -581,6 +582,43 @@ model Expenses {
   @@index([propertyId, modeOfPayment])
 }
 
+model PropertyFinanceMetrics {
+  id         Int @id @default(autoincrement())
+  propertyId Int
+  ownerId    Int
+  month      Int
+  year       Int
+
+  totalDueGenerated            BigInt @default(0)
+  totalElectricityDueGenerated BigInt @default(0)
+  totalDueCollected            BigInt @default(0)
+  totalPendingDue              BigInt @default(0)
+  totalSecurityDepositePending Int    @default(0)
+  totalTenantsPaid             Int    @default(0)
+  totalTenantsNotPaid          Int    @default(0)
+
+  @@index([propertyId, month, year])
+  @@index([propertyId])
+  @@index([ownerId])
+}
+
+model PropertyOtherMetrics {
+  id                         Int @id @default(autoincrement())
+  propertyId                 Int @unique
+  ownerId                    Int
+  totalRooms                 Int @default(0)
+  totalBeds                  Int @default(0)
+  totalVacantBeds            Int @default(0)
+  totalComplaints            Int @default(0)
+  totalTenantsReadyToMoveIn  Int @default(0)
+  totalTenantsReadyToMoveout Int @default(0)
+  totalTenantsInNoticePeriod Int @default(0)
+  totalActiveTenants         Int @default(0)
+
+  @@index([propertyId])
+  @@index([ownerId])
+}
+
 model PropertyMetrics {
   id         Int @id @default(autoincrement())
   propertyId Int
@@ -648,7 +686,7 @@ model NoticePeriodTenants {
 
 model PaymentGatewayTransaction {
   id            Int                      @id @default(autoincrement())
-  dueId         Int
+  dueId         Int?
   tenancyId     Int
   propertyId    Int
   txnId         String                   @unique
@@ -661,13 +699,27 @@ model PaymentGatewayTransaction {
   createdAt     DateTime                 @default(now())
   updatedAt     DateTime                 @updatedAt
 
-  due      TenantDue @relation(fields: [dueId], references: [id])
-  property Property  @relation(fields: [propertyId], references: [id])
+  due             TenantDue?                     @relation(fields: [dueId], references: [id])
+  property        Property                       @relation(fields: [propertyId], references: [id])
+  transactionDues PaymentGatewayTransactionDue[]
 
   @@index([dueId])
   @@index([tenancyId])
   @@index([propertyId])
   @@index([status])
+}
+
+model PaymentGatewayTransactionDue {
+  id            Int     @id @default(autoincrement())
+  transactionId Int
+  dueId         Int
+  amount        Decimal @db.Decimal(10, 2)
+
+  transaction PaymentGatewayTransaction @relation(fields: [transactionId], references: [id])
+  due         TenantDue                 @relation(fields: [dueId], references: [id])
+
+  @@index([transactionId])
+  @@index([dueId])
 }
 
 enum GatewayEnvironment {
