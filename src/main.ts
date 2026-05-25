@@ -53,11 +53,9 @@ async function bootstrap() {
     }),
   );
 
-  
-
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
-  console.log("это устарелоэто устарелоэто устарелоэто устарелоэто устарело")
+  console.log(process.env.APP_BASE_URL)
 
   logger.log(`Application is running on: http://localhost:${port}/api`);
 }

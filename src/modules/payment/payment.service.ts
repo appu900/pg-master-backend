@@ -57,7 +57,7 @@ export class PaymentService {
     const email = tenantUser.email ?? 'noemail@pgmaster.in';
     const firstname = tenantUser.fullName.split(' ')[0];
     const baseUrl =
-      this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:3000/api';
+      this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:3001/api';
     const surl = `${baseUrl}/payment/webhook`;
     const furl = `${baseUrl}/payment/status`;
 
@@ -160,7 +160,7 @@ export class PaymentService {
     const environment = gatewayConfig.environment; // ← use config value
 
     const baseUrl =
-      this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:3000/api';
+      this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:3001/api';
     console.log('this is base url', baseUrl);
     const surl = `${baseUrl}/payment/webhook`;
     const furl = `${baseUrl}/payment/status`;
