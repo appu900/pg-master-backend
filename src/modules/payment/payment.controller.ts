@@ -39,7 +39,11 @@ export class PaymentController {
   @Post('webhook')
   @HttpCode(200)
   async webhook(@Body() payload: EasebuzzWebhookPayload) {
-    return this.paymentService.handleWebhook(payload);
+    const res = await this.paymentService.handleWebhook(payload);
+    if (res.received === true && res.status === "success") {
+      return 
+    }
+    
   }
 
   @Get('status/:txnId')

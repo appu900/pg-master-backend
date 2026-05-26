@@ -79,7 +79,7 @@ export class PaymentService {
       })),
     });
 
-    const { accessKey, paymentUrl } = await this.easebuzz.initiatePayment({
+    const { accessKey, paymentUrl  } = await this.easebuzz.initiatePayment({
       key: gatewayConfig.merchantKey,
       salt: gatewayConfig.merchantSalt,
       txnid: txnId,
@@ -276,7 +276,7 @@ export class PaymentService {
       this.logger.log(`Payment ${status} for txnId=${txnid}`);
     }
 
-    return { received: true };
+    return { received: true,status };
   }
 
   private async processSuccessfulPayment(

@@ -36,6 +36,7 @@ import { ElectricityModule } from './modules/electricity/electricity.module';
 import { PaymentConfigModule } from './modules/payment-config/payment-config.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { MetricsWorkerModule } from './metrics-worker-service/metrics.worker.module';
+import { SettelmentModule } from './modules/settelment/settelment.module';
 
 
 @Module({
@@ -82,6 +83,7 @@ import { MetricsWorkerModule } from './metrics-worker-service/metrics.worker.mod
     ElectricityModule,
     PaymentConfigModule,
     PaymentModule,
+    SettelmentModule,
   ],
   controllers: [AppController],
   providers: [AppService],
