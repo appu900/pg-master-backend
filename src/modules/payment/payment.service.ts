@@ -59,7 +59,7 @@ export class PaymentService {
     const baseUrl =
       this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:3001/api';
     const surl = `${baseUrl}/payment/webhook`;
-    const furl = `${baseUrl}/payment/status`;
+    const furl = `${baseUrl}/payment/webhook`;
 
     const transaction = await this.prisma.paymentGatewayTransaction.create({
       data: {

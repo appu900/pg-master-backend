@@ -18,6 +18,8 @@ import {
   DueCreatedEvent,
   DuePaymentCollectedEvent,
 } from 'src/core/events/domain-events';
+import { StreamName } from 'bullmq';
+
 
 @Injectable()
 export class DueService {
