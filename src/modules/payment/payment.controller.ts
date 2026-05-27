@@ -27,7 +27,7 @@ export class PaymentController {
   @Roles(Role.TENANT)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async initiatePayment(@Body() dto: InitiatePaymentDto, @GetUser() user: any) {
-    return this.paymentService.initiatePayment(dto.dueId, user.userId);
+    return this.paymentService.initiatePayment(dto, user.userId);
   }
 
   @Post('make')

@@ -1,7 +1,28 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsNotEmpty, IsPositive, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsPositive,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 
-export class InitiatePaymentDto {
+class PaymentRedirectUrlsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  successRedirectUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  failureRedirectUrl?: string;
+}
+
+export class InitiatePaymentDto extends PaymentRedirectUrlsDto {
   @IsInt()
   @IsPositive()
   dueId!: number;
@@ -19,7 +40,7 @@ export class DuePaymentDto {
   amount!: number;
 }
 
-export class MakePaymentDto {
+export class MakePaymentDto extends PaymentRedirectUrlsDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => DuePaymentDto)

@@ -18,10 +18,15 @@ import { EasebuzzService } from 'src/infra/payment/easebuzz/easebuzz.service';
 import { PaymentConfigService } from '../payment-config/payment-config.service';
 import { DuePaymentCollectedEvent } from 'src/core/events/domain-events';
 import { EasebuzzWebhookPayload } from 'src/infra/payment/easebuzz/easebuzz.types';
-import { MakePaymentDto } from './dto/initiate-payment.dto';
+import { InitiatePaymentDto, MakePaymentDto } from './dto/initiate-payment.dto';
 import { PaymentHelperService } from './helper/payment.helper.service';
 import { Appevents } from 'src/core/events/app.events';
 import { DuePaymentCollectedPayload } from 'src/core/events/app.event.payloads';
+
+type PaymentRedirectTargets = {
+  successRedirectUrl?: string;
+  failureRedirectUrl?: string;
+};
 
 type PaymentCallbackResult = {
   received: true;
@@ -29,6 +34,7 @@ type PaymentCallbackResult = {
   status?: string;
   transactionStatus: GatewayTransactionStatus | 'UNKNOWN';
   verified: boolean;
+  redirectTargets?: PaymentRedirectTargets;
 };
 
 @Injectable()
@@ -72,11 +78,106 @@ export class PaymentService {
     return configuredUrl ?? 'http://localhost:3000';
   }
 
+  private normalizeRedirectUrl(url?: string): string | undefined {
+    const trimmedUrl = url?.trim();
+
+    if (!trimmedUrl) {
+      return undefined;
+    }
+
+    try {
+      return new URL(trimmedUrl).toString();
+    } catch {
+      this.logger.warn(`Ignoring invalid payment redirect URL: ${trimmedUrl}`);
+      return undefined;
+    }
+  }
+
+  private getRedirectTargets(input: {
+    successRedirectUrl?: string;
+    failureRedirectUrl?: string;
+  }): PaymentRedirectTargets | undefined {
+    const successRedirectUrl = this.normalizeRedirectUrl(
+      input.successRedirectUrl,
+    );
+    const failureRedirectUrl = this.normalizeRedirectUrl(
+      input.failureRedirectUrl,
+    );
+
+    if (!successRedirectUrl && !failureRedirectUrl) {
+      return undefined;
+    }
+
+    return {
+      successRedirectUrl,
+      failureRedirectUrl,
+    };
+  }
+
+  private mergeTransactionRawResponse(
+    existingRawResponse: unknown,
+    updates: Record<string, unknown>,
+  ) {
+    const existingObject =
+      existingRawResponse &&
+      typeof existingRawResponse === 'object' &&
+      !Array.isArray(existingRawResponse)
+        ? (existingRawResponse as Record<string, unknown>)
+        : {};
+
+    return {
+      ...existingObject,
+      ...updates,
+    };
+  }
+
+  private getStoredRedirectTargets(
+    rawResponse: unknown,
+  ): PaymentRedirectTargets | undefined {
+    if (!rawResponse || typeof rawResponse !== 'object' || Array.isArray(rawResponse)) {
+      return undefined;
+    }
+
+    const redirectTargets = (rawResponse as Record<string, unknown>).redirectTargets;
+
+    if (
+      !redirectTargets ||
+      typeof redirectTargets !== 'object' ||
+      Array.isArray(redirectTargets)
+    ) {
+      return undefined;
+    }
+
+    const successRedirectUrl = this.normalizeRedirectUrl(
+      (redirectTargets as Record<string, unknown>).successRedirectUrl as
+        | string
+        | undefined,
+    );
+    const failureRedirectUrl = this.normalizeRedirectUrl(
+      (redirectTargets as Record<string, unknown>).failureRedirectUrl as
+        | string
+        | undefined,
+    );
+
+    if (!successRedirectUrl && !failureRedirectUrl) {
+      return undefined;
+    }
+
+    return {
+      successRedirectUrl,
+      failureRedirectUrl,
+    };
+  }
+
   buildPaymentRedirectUrl(callback: PaymentCallbackResult): string {
     const isSuccess = callback.transactionStatus === 'SUCCESS';
-    const configuredUrl = isSuccess
-      ? this.config.get<string>('PAYMENT_SUCCESS_REDIRECT_URL')
-      : this.config.get<string>('PAYMENT_FAILURE_REDIRECT_URL');
+    const configuredUrl =
+      (isSuccess
+        ? callback.redirectTargets?.successRedirectUrl
+        : callback.redirectTargets?.failureRedirectUrl) ??
+      (isSuccess
+        ? this.config.get<string>('PAYMENT_SUCCESS_REDIRECT_URL')
+        : this.config.get<string>('PAYMENT_FAILURE_REDIRECT_URL'));
     const defaultPath = isSuccess ? '/payment-success' : '/payment-failed';
     const url = this.createFrontendRedirectUrl(defaultPath, configuredUrl);
 
@@ -111,6 +212,7 @@ export class PaymentService {
   }
 
   async makePayment(data: MakePaymentDto, tenantUserId: number) {
+    const redirectTargets = this.getRedirectTargets(data);
     const { tenancy } = await this.paymentHelperService.validateTenant(tenantUserId);
     await this.paymentHelperService.validateDueAndAmount(
       data.totalAmount,
@@ -141,6 +243,7 @@ export class PaymentService {
         txnId,
         amount: data.totalAmount,
         status: 'INITIATED',
+        rawResponse: redirectTargets ? { redirectTargets } : undefined,
       },
     });
 
@@ -180,7 +283,9 @@ export class PaymentService {
       dues: data.dues.map((d) => ({ dueId: d.dueId, amount: d.amount })),
     };
   }
-  async initiatePayment(dueId: number, tenantUserId: number) {
+  async initiatePayment(data: InitiatePaymentDto, tenantUserId: number) {
+    const { dueId } = data;
+    const redirectTargets = this.getRedirectTargets(data);
     // 1. Fetch due and verify it belongs to this tenant
     const due = await this.prisma.tenantDue.findUnique({
       where: { id: dueId },
@@ -243,6 +348,7 @@ export class PaymentService {
         txnId,
         amount: balanceAmount,
         status: 'INITIATED',
+        rawResponse: redirectTargets ? { redirectTargets } : undefined,
       },
     });
 
@@ -320,6 +426,7 @@ export class PaymentService {
         status,
         transactionStatus: transaction.status,
         verified: true,
+        redirectTargets: this.getStoredRedirectTargets(transaction.rawResponse),
       };
     }
 
@@ -339,6 +446,7 @@ export class PaymentService {
         status,
         transactionStatus: 'FAILED',
         verified: false,
+        redirectTargets: this.getStoredRedirectTargets(transaction.rawResponse),
       };
     }
 
@@ -355,7 +463,12 @@ export class PaymentService {
       );
       await this.prisma.paymentGatewayTransaction.update({
         where: { txnId: txnid },
-        data: { status: 'FAILED', rawResponse: webhook as any },
+        data: {
+          status: 'FAILED',
+          rawResponse: this.mergeTransactionRawResponse(transaction.rawResponse, {
+            webhook,
+          }) as any,
+        },
       });
       return {
         received: true,
@@ -363,6 +476,7 @@ export class PaymentService {
         status,
         transactionStatus: 'FAILED',
         verified: false,
+        redirectTargets: this.getStoredRedirectTargets(transaction.rawResponse),
       };
     }
 
@@ -378,6 +492,7 @@ export class PaymentService {
         status,
         transactionStatus: 'SUCCESS',
         verified: true,
+        redirectTargets: this.getStoredRedirectTargets(transaction.rawResponse),
       };
     } else {
       const transactionStatus =
@@ -388,7 +503,9 @@ export class PaymentService {
         data: {
           status: transactionStatus,
           easepayId: easepayid,
-          rawResponse: webhook as any,
+          rawResponse: this.mergeTransactionRawResponse(transaction.rawResponse, {
+            webhook,
+          }) as any,
         },
       });
       this.logger.log(`Payment ${status} for txnId=${txnid}`);
@@ -399,6 +516,7 @@ export class PaymentService {
         status,
         transactionStatus,
         verified: true,
+        redirectTargets: this.getStoredRedirectTargets(transaction.rawResponse),
       };
     }
   }
@@ -410,6 +528,7 @@ export class PaymentService {
       tenancyId: number;
       propertyId: number;
       amount: any;
+      rawResponse?: unknown;
     },
     webhook: EasebuzzWebhookPayload,
     easepayid: string,
@@ -434,6 +553,7 @@ export class PaymentService {
       tenancyId: number;
       propertyId: number;
       amount: any;
+      rawResponse?: unknown;
     },
     webhook: EasebuzzWebhookPayload,
     easepayid: string,
@@ -458,7 +578,13 @@ export class PaymentService {
       this.logger.log(`Due ${due.id} already marked PAID, skipping`);
       await this.prisma.paymentGatewayTransaction.update({
         where: { id: transaction.id },
-        data: { status: 'SUCCESS', easepayId: easepayid, rawResponse: webhook as any },
+        data: {
+          status: 'SUCCESS',
+          easepayId: easepayid,
+          rawResponse: this.mergeTransactionRawResponse(transaction.rawResponse, {
+            webhook,
+          }) as any,
+        },
       });
       return;
     }
@@ -490,7 +616,14 @@ export class PaymentService {
       });
       await tx.paymentGatewayTransaction.update({
         where: { id: transaction.id },
-        data: { status: 'SUCCESS', easepayId: easepayid, paymentSource: webhook.payment_source, rawResponse: webhook as any },
+        data: {
+          status: 'SUCCESS',
+          easepayId: easepayid,
+          paymentSource: webhook.payment_source,
+          rawResponse: this.mergeTransactionRawResponse(transaction.rawResponse, {
+            webhook,
+          }) as any,
+        },
       });
     });
 
@@ -516,7 +649,12 @@ export class PaymentService {
   }
 
   private async processMultiDuePayment(
-    transaction: { id: number; tenancyId: number; propertyId: number },
+    transaction: {
+      id: number;
+      tenancyId: number;
+      propertyId: number;
+      rawResponse?: unknown;
+    },
     webhook: EasebuzzWebhookPayload,
     easepayid: string,
   ) {
@@ -584,7 +722,14 @@ export class PaymentService {
 
       await tx.paymentGatewayTransaction.update({
         where: { id: transaction.id },
-        data: { status: 'SUCCESS', easepayId: easepayid, paymentSource: webhook.payment_source, rawResponse: webhook as any },
+        data: {
+          status: 'SUCCESS',
+          easepayId: easepayid,
+          paymentSource: webhook.payment_source,
+          rawResponse: this.mergeTransactionRawResponse(transaction.rawResponse, {
+            webhook,
+          }) as any,
+        },
       });
     });
 
