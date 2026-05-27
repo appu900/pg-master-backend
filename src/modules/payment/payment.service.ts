@@ -6,7 +6,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DueStatus, PaymentMode } from '@prisma/client';
+import {
+  DueStatus,
+  GatewayTransactionStatus,
+  PaymentMode,
+} from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
@@ -19,6 +23,14 @@ import { PaymentHelperService } from './helper/payment.helper.service';
 import { Appevents } from 'src/core/events/app.events';
 import { DuePaymentCollectedPayload } from 'src/core/events/app.event.payloads';
 
+type PaymentCallbackResult = {
+  received: true;
+  txnId?: string;
+  status?: string;
+  transactionStatus: GatewayTransactionStatus | 'UNKNOWN';
+  verified: boolean;
+};
+
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
@@ -29,11 +41,75 @@ export class PaymentService {
     private readonly paymentConfigService: PaymentConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly config: ConfigService,
-    private readonly paymentHelperService:PaymentHelperService
+    private readonly paymentHelperService: PaymentHelperService,
   ) {}
 
+  private getBackendBaseUrl(): string {
+    return (
+      this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:3001/api'
+    ).replace(/\/+$/, '');
+  }
 
-   
+  private getEasebuzzCallbackUrls() {
+    const baseUrl = this.getBackendBaseUrl();
+
+    return {
+      surl: `${baseUrl}/payment/success`,
+      furl: `${baseUrl}/payment/failure`,
+    };
+  }
+
+  private getFrontendBaseUrl(): string {
+    const configuredUrl = [
+      this.config.get<string>('FRONTEND_BASE_URL'),
+      this.config.get<string>('FRONTEND_URL'),
+      this.config.get<string>('CLIENT_URL'),
+      this.config.get<string>('ALLOWED_ORIGINS')?.split(',')[0],
+    ]
+      .map((value) => value?.trim())
+      .find(Boolean);
+
+    return configuredUrl ?? 'http://localhost:3000';
+  }
+
+  buildPaymentRedirectUrl(callback: PaymentCallbackResult): string {
+    const isSuccess = callback.transactionStatus === 'SUCCESS';
+    const configuredUrl = isSuccess
+      ? this.config.get<string>('PAYMENT_SUCCESS_REDIRECT_URL')
+      : this.config.get<string>('PAYMENT_FAILURE_REDIRECT_URL');
+    const defaultPath = isSuccess ? '/payment-success' : '/payment-failed';
+    const url = this.createFrontendRedirectUrl(defaultPath, configuredUrl);
+
+    if (callback.txnId) {
+      url.searchParams.set('txnId', callback.txnId);
+    }
+    if (callback.status) {
+      url.searchParams.set('gatewayStatus', callback.status);
+    }
+    url.searchParams.set('paymentStatus', callback.transactionStatus);
+
+    if (!callback.verified) {
+      url.searchParams.set('verified', 'false');
+    }
+
+    return url.toString();
+  }
+
+  private createFrontendRedirectUrl(path: string, configuredUrl?: string): URL {
+    const redirectUrl = configuredUrl?.trim();
+
+    try {
+      return redirectUrl
+        ? new URL(redirectUrl)
+        : new URL(path, this.getFrontendBaseUrl());
+    } catch {
+      this.logger.error(
+        `Invalid frontend payment redirect URL: ${redirectUrl ?? this.getFrontendBaseUrl()}`,
+      );
+      return new URL(path, 'http://localhost:3000');
+    }
+  }
+
   async makePayment(data: MakePaymentDto, tenantUserId: number) {
     const { tenancy } = await this.paymentHelperService.validateTenant(tenantUserId);
     await this.paymentHelperService.validateDueAndAmount(
@@ -56,10 +132,7 @@ export class PaymentService {
     const amountStr = data.totalAmount.toFixed(2);
     const email = tenantUser.email ?? 'noemail@pgmaster.in';
     const firstname = tenantUser.fullName.split(' ')[0];
-    const baseUrl =
-      this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:3001/api';
-    const surl = `${baseUrl}/payment/webhook`;
-    const furl = `${baseUrl}/payment/webhook`;
+    const { surl, furl } = this.getEasebuzzCallbackUrls();
 
     const transaction = await this.prisma.paymentGatewayTransaction.create({
       data: {
@@ -79,7 +152,7 @@ export class PaymentService {
       })),
     });
 
-    const { accessKey, paymentUrl  } = await this.easebuzz.initiatePayment({
+    const { accessKey, paymentUrl } = await this.easebuzz.initiatePayment({
       key: gatewayConfig.merchantKey,
       salt: gatewayConfig.merchantSalt,
       txnid: txnId,
@@ -159,11 +232,7 @@ export class PaymentService {
     const productinfo = 'due for payment'; // ← removed trailing space
     const environment = gatewayConfig.environment; // ← use config value
 
-    const baseUrl =
-      this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:3001/api';
-    console.log('this is base url', baseUrl);
-    const surl = `${baseUrl}/payment/webhook`;
-    const furl = `${baseUrl}/payment/status`;
+    const { surl, furl } = this.getEasebuzzCallbackUrls();
 
     // 4. Save INITIATED transaction before calling EaseBuzz
     const transaction = await this.prisma.paymentGatewayTransaction.create({
@@ -189,7 +258,7 @@ export class PaymentService {
       phone: tenant.phoneNumber,
       surl,
       furl,
-      environment: 'PRODUCTION', // ← was hardcoded 'PRODUCTION'
+      environment,
       udf1: String(due.id), // dueId — used in webhook lookup
       udf2: String(due.propertyId), // propertyId — used to fetch config for hash verify
     });
@@ -209,10 +278,22 @@ export class PaymentService {
     };
   }
 
-  async handleWebhook(webhook: EasebuzzWebhookPayload) {
+  async handleWebhook(
+    webhook: EasebuzzWebhookPayload,
+  ): Promise<PaymentCallbackResult> {
     const { txnid, status, easepayid } = webhook;
 
     this.logger.log(`Webhook received: txnid=${txnid} status=${status}`);
+
+    if (!txnid) {
+      this.logger.warn('Webhook received without txnid');
+      return {
+        received: true,
+        status,
+        transactionStatus: 'UNKNOWN',
+        verified: false,
+      };
+    }
 
     // 1. Find the transaction
     const transaction = await this.prisma.paymentGatewayTransaction.findUnique({
@@ -221,13 +302,25 @@ export class PaymentService {
 
     if (!transaction) {
       this.logger.warn(`Webhook for unknown txnId: ${txnid}`);
-      return { received: true };
+      return {
+        received: true,
+        txnId: txnid,
+        status,
+        transactionStatus: 'UNKNOWN',
+        verified: false,
+      };
     }
 
     // Idempotency: already processed
-    if (transaction.status === 'SUCCESS' || transaction.status === 'FAILED') {
+    if (transaction.status !== 'INITIATED') {
       this.logger.log(`Webhook already processed for txnId: ${txnid}`);
-      return { received: true };
+      return {
+        received: true,
+        txnId: txnid,
+        status,
+        transactionStatus: transaction.status,
+        verified: true,
+      };
     }
 
     // 2. Fetch property config for hash verification
@@ -240,7 +333,13 @@ export class PaymentService {
       this.logger.error(
         `No gateway config for propertyId=${transaction.propertyId}`,
       );
-      return { received: true };
+      return {
+        received: true,
+        txnId: txnid,
+        status,
+        transactionStatus: 'FAILED',
+        verified: false,
+      };
     }
 
     // 3. Verify hash
@@ -258,25 +357,50 @@ export class PaymentService {
         where: { txnId: txnid },
         data: { status: 'FAILED', rawResponse: webhook as any },
       });
-      return { received: true };
+      return {
+        received: true,
+        txnId: txnid,
+        status,
+        transactionStatus: 'FAILED',
+        verified: false,
+      };
     }
 
     // 4. Handle success
-    if (status === 'success') {
+    const normalizedStatus = status?.toLowerCase();
+
+    if (normalizedStatus === 'success') {
       await this.processSuccessfulPayment(transaction, webhook, easepayid);
+
+      return {
+        received: true,
+        txnId: txnid,
+        status,
+        transactionStatus: 'SUCCESS',
+        verified: true,
+      };
     } else {
+      const transactionStatus =
+        normalizedStatus === 'usercancelled' ? 'CANCELLED' : 'FAILED';
+
       await this.prisma.paymentGatewayTransaction.update({
         where: { txnId: txnid },
         data: {
-          status: status === 'userCancelled' ? 'CANCELLED' : 'FAILED',
+          status: transactionStatus,
           easepayId: easepayid,
           rawResponse: webhook as any,
         },
       });
       this.logger.log(`Payment ${status} for txnId=${txnid}`);
-    }
 
-    return { received: true,status };
+      return {
+        received: true,
+        txnId: txnid,
+        status,
+        transactionStatus,
+        verified: true,
+      };
+    }
   }
 
   private async processSuccessfulPayment(

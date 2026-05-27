@@ -6,8 +6,10 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -28,22 +30,43 @@ export class PaymentController {
     return this.paymentService.initiatePayment(dto.dueId, user.userId);
   }
 
-
   @Post('make')
   @Roles(Role.TENANT)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async makePayment(@Body() dto:MakePaymentDto, @GetUser() user: any) {
+  async makePayment(@Body() dto: MakePaymentDto, @GetUser() user: any) {
     return this.paymentService.makePayment(dto, user.userId);
+  }
+
+  @Post('success')
+  async success(
+    @Body() payload: EasebuzzWebhookPayload,
+    @Res() response: Response,
+  ) {
+    return this.redirectAfterGatewayCallback(payload, response);
+  }
+
+  @Post('failure')
+  async failure(
+    @Body() payload: EasebuzzWebhookPayload,
+    @Res() response: Response,
+  ) {
+    return this.redirectAfterGatewayCallback(payload, response);
   }
 
   @Post('webhook')
   @HttpCode(200)
   async webhook(@Body() payload: EasebuzzWebhookPayload) {
-    const res = await this.paymentService.handleWebhook(payload);
-    if (res.received === true && res.status === "success") {
-      return 
-    }
-    
+    return this.paymentService.handleWebhook(payload);
+  }
+
+  private async redirectAfterGatewayCallback(
+    payload: EasebuzzWebhookPayload,
+    response: Response,
+  ) {
+    const result = await this.paymentService.handleWebhook(payload);
+    const redirectUrl = this.paymentService.buildPaymentRedirectUrl(result);
+
+    return response.redirect(303, redirectUrl);
   }
 
   @Get('status/:txnId')

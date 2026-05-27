@@ -18,13 +18,12 @@ export class OtpService {
   ): Promise<{ message: string; expiredIn: number }> {
     // Use cryptographically secure random number generation
     const otp = crypto.randomInt(100000, 999999).toString();
-
     await this.redisService.set(
       `otp:${phoneNumber}`,
       otp,
       this.OTP_EXPIRY_SECONDS,
     );
-
+    
     const payload = {
       to: '+91'+phoneNumber,
       templateKey: 'OTP',

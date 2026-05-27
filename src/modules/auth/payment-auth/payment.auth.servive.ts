@@ -44,6 +44,7 @@ export class PaymentAuthService {
     }
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     console.log("generated otp",otp)
+    
     await this.paymentAuthCacheService.setOtp(phoneNumber, otp);
     await this.paymentAuthEventPublisher.createPaymentAuthEvent(phoneNumber,otp);
     return {
