@@ -1,4 +1,5 @@
 import { Logger ,Injectable} from "@nestjs/common";
+import { PrismaService } from "src/infra/Database/prisma/prisma.service";
 
 
 
@@ -7,9 +8,14 @@ import { Logger ,Injectable} from "@nestjs/common";
 @Injectable()
 export class SettelmentService{
   private readonly logger = new Logger(SettelmentService.name);
+  constructor(private readonly prisma:PrismaService){}
 
 
-  async HandleSettelmentwebHook() {
-    
+  async HandleSettelmentwebHook(webhookData:any) {
+    const res = await this.prisma.webhookData.create({
+      data: {
+        data:webhookData
+      }
+    }) 
   }
 }

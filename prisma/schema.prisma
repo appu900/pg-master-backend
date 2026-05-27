@@ -722,6 +722,13 @@ model PaymentGatewayTransactionDue {
   @@index([dueId])
 }
 
+
+
+model WebhookData{
+  id Int @id @default(autoincrement())
+  data Json
+}
+
 enum GatewayEnvironment {
   TEST
   PRODUCTION
