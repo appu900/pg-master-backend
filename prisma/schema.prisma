@@ -33,6 +33,7 @@ model User {
 
   @@index([phoneNumber])
   @@index([role])
+  tenantKycs TenantKyc[]
 }
 
 model AdminProfile {
@@ -160,6 +161,31 @@ model TenentProfile {
   @@index([userId])
 }
 
+
+model TenantKyc{
+  id Int @id @default(autoincrement())
+  tenantId Int @unique 
+  verificationId String @unique
+  status KycStatus @unique 
+  aadharNumber String?
+  panNumber String?
+  aadharData Json?
+  aadharImageUrl String?
+  panImageUrl String?
+  pandata Json?
+  verifiedAt DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant User @relation(fields: [tenantId], references: [id])
+
+
+  @@index([tenantId])
+  @@index([tenantId,status])
+
+
+}
+
 model TenantKycDetails {
   id                                Int           @id @default(autoincrement())
   tenantProfileId                   Int           @unique
@@ -234,6 +260,7 @@ model Property {
   paymentGatewayConfig   PropertyPaymentGatewayConfig?
   gatewayTransactions    PaymentGatewayTransaction[]
   noticePeriodTenants    NoticePeriodTenants[]
+  settlements            PropertySettlement[]
 
   @@index([ownerId])
   @@index([pinCode])
@@ -729,6 +756,48 @@ model WebhookData{
   data Json
 }
 
+model PropertySettlement {
+  id                  Int      @id @default(autoincrement())
+  propertyId          Int
+  payoutId            String   @unique
+  payoutDate          DateTime
+  month               Int
+  year                Int
+  totalAmount         Decimal  @db.Decimal(10, 2)
+  payoutAmount        Decimal  @db.Decimal(10, 2)
+  refundAmount        Decimal  @db.Decimal(10, 2) @default(0)
+  serviceChargeAmount Decimal  @db.Decimal(10, 2) @default(0)
+  serviceTaxAmount    Decimal  @db.Decimal(10, 2) @default(0)
+  bankName            String?
+  ifscCode            String?
+  accountNumber       String?
+  bankTransactionId   String?
+  createdAt           DateTime @default(now())
+
+  property            Property             @relation(fields: [propertyId], references: [id])
+  settledTransactions SettledTransaction[]
+
+  @@index([propertyId])
+  @@index([propertyId, month, year])
+}
+
+model SettledTransaction {
+  id                Int     @id @default(autoincrement())
+  settlementId      Int
+  txnId             String
+  easepayId         String
+  transactionType   String?
+  transactionAmount Decimal @db.Decimal(10, 2)
+  settlementAmount  Decimal @db.Decimal(10, 2)
+  serviceCharge     Decimal @db.Decimal(10, 2) @default(0)
+  serviceTax        Decimal @db.Decimal(10, 2) @default(0)
+
+  settlement PropertySettlement @relation(fields: [settlementId], references: [id])
+
+  @@index([settlementId])
+  @@index([txnId])
+}
+
 enum GatewayEnvironment {
   TEST
   PRODUCTION
@@ -829,6 +898,12 @@ enum OutboxStatus {
   PENDING
   PROCESSING
   COMPLETED
+  FAILED
+}
+
+enum KycStatus {
+  PENDING
+  VERIFIED
   FAILED
 }
 

@@ -21,7 +21,6 @@ export type RoomCreatedEventPayload = {
   year: number;
 };
 
-
 export type RoomDeletedPayload = {
   roomId: number;
   propertyId: number;
@@ -60,22 +59,34 @@ export type DuePaymentCollectedPayload = {
 export type PaymentAuthIntiateEventPayload = {
   phoneNumber: string;
   otp: string;
-}
+};
+
+export type PaymentSucessEventPayload = {
+  tenentName: string;
+  tenantPhoneNumber: string;
+  propertyName: string;
+  amount: number;
+};
+
+export type PaymentFailedEventPayload = {
+  tenantName: string;
+  tenantPhoneNumber: string;
+  propertyName: string;
+  amount: number;
+};
 
 // The map ties event name → payload type
 export type EventPayloadMap = {
-  'property.created':        PropertyCreatedEventPayload;
-  'property.deleted':        PropertyDeletedPayload;
-  'room.created':            RoomCreatedEventPayload;
-  'tenant.added':            TenantAddedPayload;
-  'due.created':             DueCreatedPayload;
+  'property.created': PropertyCreatedEventPayload;
+  'property.deleted': PropertyDeletedPayload;
+  'room.created': RoomCreatedEventPayload;
+  'tenant.added': TenantAddedPayload;
+  'due.created': DueCreatedPayload;
   'due.payment.collected': DuePaymentCollectedPayload;
-  'payment.intiate.event':PaymentAuthIntiateEventPayload
-  
-  
+  'payment.intiate.event': PaymentAuthIntiateEventPayload;
+  'payment.sucess.event': PaymentSucessEventPayload;
+  'payment.failed.event': PaymentFailedEventPayload;
 };
-
-
 
 // Helper — use this everywhere instead of writing the type inline
 export type PayloadOf<T extends keyof EventPayloadMap> = EventPayloadMap[T];

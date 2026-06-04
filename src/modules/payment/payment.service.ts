@@ -22,6 +22,9 @@ import { InitiatePaymentDto, MakePaymentDto } from './dto/initiate-payment.dto';
 import { PaymentHelperService } from './helper/payment.helper.service';
 import { Appevents } from 'src/core/events/app.events';
 import { DuePaymentCollectedPayload } from 'src/core/events/app.event.payloads';
+import { PaymentEventPublisher } from './events/payments.eventpublisher';
+import { PaymentCacheService } from './cache/payment.cache.service';
+
 
 type PaymentRedirectTargets = {
   successRedirectUrl?: string;
@@ -48,6 +51,8 @@ export class PaymentService {
     private readonly eventEmitter: EventEmitter2,
     private readonly config: ConfigService,
     private readonly paymentHelperService: PaymentHelperService,
+    private readonly paymentEventPublisher:PaymentEventPublisher,
+    private readonly paymentCacheService:PaymentCacheService
   ) {}
 
   private getBackendBaseUrl(): string {
@@ -212,6 +217,11 @@ export class PaymentService {
   }
 
   async makePayment(data: MakePaymentDto, tenantUserId: number) {
+    const CheckpaymentIsProcessing = await this.paymentCacheService.IsPaymentLocked(data.dues.map(d => d.dueId));
+    if(CheckpaymentIsProcessing){
+      throw new BadRequestException('Payment is already being processed for one or more of the selected dues. Please wait and try again.');
+    }
+    
     const redirectTargets = this.getRedirectTargets(data);
     const { tenancy } = await this.paymentHelperService.validateTenant(tenantUserId);
     await this.paymentHelperService.validateDueAndAmount(
@@ -236,6 +246,8 @@ export class PaymentService {
     const firstname = tenantUser.fullName.split(' ')[0];
     const { surl, furl } = this.getEasebuzzCallbackUrls();
 
+
+    // this need to be fixed 
     const transaction = await this.prisma.paymentGatewayTransaction.create({
       data: {
         tenancyId: tenancy.id,
@@ -275,7 +287,8 @@ export class PaymentService {
       where: { id: transaction.id },
       data: { accessKey },
     });
-
+    await this.paymentCacheService.LockPayment(data.dues.map(d => d.dueId));
+    this.logger.log(`locked done for due ids ${data.dues.map(d => d.dueId)}`)
     return {
       txnId,
       paymentUrl,
@@ -456,7 +469,10 @@ export class PaymentService {
       salt: gatewayConfig.merchantSalt,
       ...this.easebuzz.buildWebhookHashParams(webhook),
     });
+   
 
+
+    // ** one event emitter to be added here if transaction is not valid or something
     if (!isValid) {
       this.logger.error(
         `Hash mismatch for txnId=${txnid} — possible tampered request`,
@@ -485,6 +501,15 @@ export class PaymentService {
 
     if (normalizedStatus === 'success') {
       await this.processSuccessfulPayment(transaction, webhook, easepayid);
+      
+
+      // ** one event emitter to be here if transaction id sucessfull
+      this.paymentEventPublisher.onPaymentSuccess({
+        transactionId: txnid,
+        propertyId: transaction.propertyId,
+        tenantId: transaction.tenancyId,
+        amount: Number(transaction.amount),
+      });
 
       return {
         received: true,
@@ -509,6 +534,16 @@ export class PaymentService {
         },
       });
       this.logger.log(`Payment ${status} for txnId=${txnid}`);
+
+
+      // one event emitter to be here if transaction is failed or cancelled
+      this.paymentEventPublisher.onPaymentFailed({
+        transactionId: txnid,
+        propertyId: transaction.propertyId,
+        tenantId: transaction.tenancyId,
+        amount: Number(transaction.amount),
+      });
+      
 
       return {
         received: true,
@@ -855,6 +890,7 @@ export class PaymentService {
     }
 
     const isMultiDue = transaction.transactionDues.length > 0;
+    console.log('transaction', transaction);
 
     return {
       txnId: transaction.txnId,

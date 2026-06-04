@@ -4,11 +4,9 @@ import { WhatsappNotificationPayload } from 'src/common/payload/Notification.pay
 import { DailyReminderEnqueuePayload } from 'src/common/payload/rent-due-payload';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 
-
 @Injectable()
 export class BillingEventHandler {
   constructor(
-
     private readonly prisma: PrismaService,
   ) {}
 
@@ -65,3 +63,7 @@ export class BillingEventHandler {
    
   }
 }
+
+
+
+

@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:docs.easebuzz.in)"
+      "WebFetch(domain:docs.easebuzz.in)",
+      "WebFetch(domain:www.cashfree.com)"
     ]
   }
 }

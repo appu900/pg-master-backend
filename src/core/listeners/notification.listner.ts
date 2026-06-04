@@ -10,7 +10,7 @@ import { QUEUES } from '../queue/queue.constants';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { AppService } from 'src/app.service';
 import { Appevents } from '../events/app.events';
-import { PaymentAuthIntiateEventPayload } from '../events/app.event.payloads';
+import { PaymentAuthIntiateEventPayload, PaymentSucessEventPayload } from '../events/app.event.payloads';
 
 @Injectable()
 export class NotificationListner {
@@ -110,6 +110,23 @@ export class NotificationListner {
     });
   }
 
+
+
+  @OnEvent(Appevents.PAYMENT_SUCESS_EVENT)
+  async onPaymentSuccess(eventPayload:PaymentSucessEventPayload){
+    await this.queue.enqueue(QUEUES.NOTIFICATION,Appevents.PAYMENT_SUCESS_EVENT,{
+      type:'PAYMENT_SUCCESS',
+      phone:'+91'+eventPayload.tenantPhoneNumber,
+      channels:['whatsapp'],
+      data:{
+        tenant_name:eventPayload.tenentName,
+        due_name:'due',
+        amount: eventPayload.amount,
+        propertyName: eventPayload.propertyName,
+      }
+    })
+    this.logger.debug(`enqueued payment success notification for tenant ${eventPayload.tenentName} for property ${eventPayload.propertyName} for amount ${eventPayload.amount}`)
+  }
 
   @OnEvent(Appevents.PAYMENT_AUTH_INTIATE_EVENT)
   async onPaymentAuthVerify(eventPayload:PaymentAuthIntiateEventPayload){

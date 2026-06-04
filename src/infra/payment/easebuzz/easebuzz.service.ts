@@ -11,15 +11,12 @@ import {
 @Injectable()
 export class EasebuzzService {
   private readonly logger = new Logger(EasebuzzService.name);
-
   constructor(private readonly httpService: HttpService) {}
-
   private getBaseUrl(env: 'TEST' | 'PRODUCTION'): string {
     return env === 'PRODUCTION'
       ? 'https://pay.easebuzz.in'
       : 'https://testpay.easebuzz.in';
   }
-
   generateInitiationHash(params: {
     key: string;
     txnid: string;
@@ -171,6 +168,8 @@ export class EasebuzzService {
           { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
         ),
       );
+
+      console.log('EaseBuzz initiation response:', response.data);
 
       if (response.data.status !== 1) {
         this.logger.error(`EaseBuzz initiation failed: ${JSON.stringify(response.data)}`);

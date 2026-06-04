@@ -10,7 +10,6 @@ const TTL = {
 @Injectable()
 export class PropertyCacheManager {
     private readonly logger = new Logger(PropertyCacheManager.name);
-
     constructor(private readonly cacheProvider: RedisService) {}
 
     private ownerPropertiesKey(ownerId: number): string {

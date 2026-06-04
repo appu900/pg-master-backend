@@ -5,6 +5,7 @@ import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { CreateAdminDto } from '../auth/dto/create-admin.dto';
 import { CreatePropertyOwnerDto } from '../auth/dto/create.Property-owner.dto';
 
+
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}

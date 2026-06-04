@@ -6,6 +6,11 @@ export const Appevents = {
   DUE_PAYMENT_COLLECTED_EVENT: 'due.payment.collected',
   DUE_CREATED_EVENT: 'due.created',
   PAYMENT_AUTH_INTIATE_EVENT: 'payment.intiate.event',
+
+  // payment events
+  PAYMENT_SUCESS_EVENT: 'payment.sucess.event',
+  PAYMENT_FAILED_EVENT:'payment.failed.event'
+  
 } as const;
 
 

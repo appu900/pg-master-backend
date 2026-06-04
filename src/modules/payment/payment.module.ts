@@ -5,10 +5,17 @@ import { PaymentService } from './payment.service';
 import { EasebuzzModule } from 'src/infra/payment/easebuzz/easebuzz.module';
 import { PaymentConfigModule } from '../payment-config/payment-config.module';
 import { PaymentHelperService } from './helper/payment.helper.service';
+import { PaymentCacheService } from './cache/payment.cache.service';
+import { PaymentEventPublisher } from './events/payments.eventpublisher';
+
+
+
+
+
 
 @Module({
   imports: [EventEmitterModule, EasebuzzModule, PaymentConfigModule],
   controllers: [PaymentController],
-  providers: [PaymentService,PaymentHelperService],
+  providers: [PaymentService,PaymentHelperService,PaymentEventPublisher,PaymentCacheService],
 })
 export class PaymentModule {}
