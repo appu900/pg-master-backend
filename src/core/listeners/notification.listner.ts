@@ -114,6 +114,7 @@ export class NotificationListner {
 
   @OnEvent(Appevents.PAYMENT_SUCESS_EVENT)
   async onPaymentSuccess(eventPayload:PaymentSucessEventPayload){
+    console.log('recived payment success event in notification listner',eventPayload)
     await this.queue.enqueue(QUEUES.NOTIFICATION,Appevents.PAYMENT_SUCESS_EVENT,{
       type:'PAYMENT_SUCCESS',
       phone:'+91'+eventPayload.tenantPhoneNumber,

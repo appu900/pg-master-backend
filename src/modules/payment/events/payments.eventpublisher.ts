@@ -49,6 +49,7 @@ export class PaymentEventPublisher {
         tenatPhoneNumber: tenantDetails.tenent.phoneNumber,
         propertyName: propertyDetails.name,
       };
+      console.log('aggregateResult', aggregateResult);
       return aggregateResult;
     } catch (error) {
       this.logger.error(
