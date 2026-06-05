@@ -55,6 +55,7 @@ export class DueListner {
 
   @OnEvent(ELECTRICITY_EVENT_CREATED)
   async onElectricityReadingCreated(event: ElectricityReadingCreatedEvent) {
+    console.log('Electricity reading created event received in due listener', event);
     await this.queue.enqueue(QUEUES.COMMAND, ELECTRICITY_EVENT_CREATED, {
       payload: {
         propertyId: event.propertyId,
