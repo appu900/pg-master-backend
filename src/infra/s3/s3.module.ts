@@ -17,7 +17,6 @@ import { S3Service } from './s3.service';
         if (!accessKeyId || !secretAccessKey || !region) {
           throw new Error('Missing AWS configuration values');
         }
-
         return new S3Client({
           region,
           credentials: {

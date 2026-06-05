@@ -45,6 +45,7 @@ export class DueService {
     const currentMonth = now.getMonth() + 1;
     const year = now.getFullYear();
     const dueDate = dto.DuesToDate;
+    const amount = Math.ceil(dto.amount);
     const due = await this.prisma.tenantDue.create({
       data: {
         tenancyId: tenancy.id,
@@ -54,8 +55,8 @@ export class DueService {
         description: `${dto.dueType} generated for tenant with id ${dto.tenantId} for the month ${currentMonth} and year ${year}`,
         month: currentMonth,
         year: year,
-        totalAmount: dto.amount,
-        balanceAmount: dto.amount,
+        totalAmount: amount,
+        balanceAmount: amount,
         dueDate: dueDate,
       },
     });
@@ -66,7 +67,7 @@ export class DueService {
         tenancy.id,
         tenancy.propertyId,
         due.dueType,
-        dto.amount,
+        amount,
         currentMonth,
         year,
       ),
@@ -109,7 +110,7 @@ export class DueService {
       throw new BadRequestException('No active tenancy found for the room');
     const totaltenents = tenencies.length;
 
-    const individualAmounts = dto.totalAmount / totaltenents;
+    const individualAmounts = Math.ceil(dto.totalAmount / totaltenents);
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const year = now.getFullYear();
@@ -335,14 +336,15 @@ export class DueService {
     }
 
     const balance = Number(due.balanceAmount);
-    if (dto.amount <= 0 || dto.amount > balance) {
+    const collectAmount = Math.ceil(dto.amount);
+    if (collectAmount <= 0 || collectAmount > balance) {
       throw new BadRequestException(
         `Amount must be between 1 and ${balance} (remaining balance)`,
       );
     }
 
-    const newPaid = Number(due.paidAmount) + dto.amount;
-    const newBalance = balance - dto.amount;
+    const newPaid = Number(due.paidAmount) + collectAmount;
+    const newBalance = balance - collectAmount;
     const newStatus: DueStatus =
       newBalance === 0 ? DueStatus.PAID : DueStatus.PARTIAL;
 
@@ -354,7 +356,7 @@ export class DueService {
           propertyId: due.propertyId,
           month: due.month,
           year: due.year,
-          amount: dto.amount,
+          amount: collectAmount,
           paymentMode: dto.paymentMode,
           upiApp: dto.upiApp ?? null,
           transactionId: dto.transactionId ?? null,
@@ -385,7 +387,7 @@ export class DueService {
         due.propertyId,
         due.tenancy.tenent.phoneNumber,
         due.tenancy.tenent.fullName,
-        dto.amount,
+        collectAmount,
         newBalance,
         due.dueType,
         dto.paymentMode,

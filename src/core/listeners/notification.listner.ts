@@ -94,20 +94,20 @@ export class NotificationListner {
 
   @OnEvent('due.payment.collected')
   async onPaymentCollected(event: DuePaymentCollectedEvent) {
-    const date = new Date();
-    const fullDate =
-      date.getDate() + '-' + (date.getMonth() + 1) + '-' + date.getFullYear();
-    await this.queue.enqueue(QUEUES.NOTIFICATION, 'due.payment.collected', {
-      type: 'PAYMENT_CONFIRMATION',
-      phone: '+91' + event.tenantPhone,
-      channels: ['whatsapp'],
-      data: {
-        tenantName: event.tenantName,
-        amount: event.amountPaid,
-        paidAt: `${fullDate}`,
-        balanceAmount: event.balanceAmount,
-      },
-    });
+    // const date = new Date();
+    // const fullDate =
+    //   date.getDate() + '-' + (date.getMonth() + 1) + '-' + date.getFullYear();
+    // await this.queue.enqueue(QUEUES.NOTIFICATION, 'due.payment.collected', {
+    //   type: 'PAYMENT_CONFIRMATION',
+    //   phone: '+91' + event.tenantPhone,
+    //   channels: ['whatsapp'],
+    //   data: {
+    //     tenantName: event.tenantName,
+    //     amount: event.amountPaid,
+    //     paidAt: `${fullDate}`,
+    //     balanceAmount: event.balanceAmount,
+    //   },
+    // });
   }
 
 

@@ -461,11 +461,14 @@ export class TenancyService {
         `property not found with id ${dto.propertyId}`,
       );
     }
-    const { periodStart, periodEnd, proratedAmount } = calculateProratedRent(
+    const { periodStart, periodEnd, proratedAmount: rawProrated } = calculateProratedRent(
       joinDate,
       dto.rentCycleDay,
       dto.rentAmount,
     );
+    const proratedAmount = Math.ceil(rawProrated);
+    dto.rentAmount = Math.ceil(Number(dto.rentAmount));
+    dto.securityDeposit = Math.ceil(Number(dto.securityDeposit));
     const nextBillingDate = periodEnd;
     this.logger.log(
       `Onboarding ${preflight.isNewUser ? 'NEW' : 'EXISTING'} tenant | ` +
