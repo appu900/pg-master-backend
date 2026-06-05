@@ -159,7 +159,6 @@ export class AdminService {
     });
 
     if (!property) throw new NotFoundException('Property not found');
-
     return property;
   }
 
