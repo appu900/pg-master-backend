@@ -13,6 +13,16 @@ export class SettelmentService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+
+
+
+  async saveToWebhookData(payload:any){
+    const res = await this.prisma.webhookData.create({
+      data:payload
+    })
+    console.log("webhook data saved",res)
+  }
+
   async HandleSettelmentwebHook(payload: SettelmentWebhookDto) {
     const { data } = payload;
 

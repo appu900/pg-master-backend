@@ -4,11 +4,6 @@ import { MetricsHandler } from '../handlers/interface/metrics.handler.interface'
 export const METRICS_HANDLERS = 'METRICS_HANDLERS';
 
 
-
-
-
-
-
 // need to check the logger here 
 @Injectable()
 export class MetricsHandlerRegistry implements OnModuleInit {

@@ -12,6 +12,8 @@ import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { S3Service } from 'src/infra/s3/s3.service';
+import { TenantEventPublsiher } from './events/tenant.events';
+import { TenantDeletedEvent } from './events-types/tenant.deleted.event.type';
 
 @Injectable()
 export class TenentService {
@@ -19,6 +21,7 @@ export class TenentService {
     private readonly prisma: PrismaService,
     private readonly roomService: RoomService,
     private readonly s3Serice: S3Service,
+    private readonly serviceEventPublisher:TenantEventPublsiher
   ) {}
 
   async getTenantsByRoom(roomId: number) {
@@ -272,6 +275,14 @@ export class TenentService {
         data: { activeTenants: { decrement: 1 }, occupiedBeds: { decrement: 1 } },
       });
     });
+
+    // publish the events here 
+    const tenantDeletedEventPayload:TenantDeletedEvent = {
+      propertyId: tenancy.propertyId,
+      tenantId: tenantId,
+      deletedAt:new Date()
+    }
+    this.serviceEventPublisher.publishTenantDeletedEvent(tenantDeletedEventPayload)
 
     return {
       message: `Tenant ${tenant.fullName} removed successfully`,

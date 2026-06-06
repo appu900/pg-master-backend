@@ -37,6 +37,7 @@ import { PaymentConfigModule } from './modules/payment-config/payment-config.mod
 import { PaymentModule } from './modules/payment/payment.module';
 import { MetricsWorkerModule } from './metrics-worker-service/metrics.worker.module';
 import { SettelmentModule } from './modules/settelment/settelment.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 
 @Module({
@@ -84,6 +85,7 @@ import { SettelmentModule } from './modules/settelment/settelment.module';
     PaymentConfigModule,
     PaymentModule,
     SettelmentModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
