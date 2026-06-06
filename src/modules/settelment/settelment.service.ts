@@ -18,7 +18,9 @@ export class SettelmentService {
 
   async saveToWebhookData(payload:any){
     const res = await this.prisma.webhookData.create({
-      data:payload
+      data:{
+        data:payload
+      }
     })
     console.log("webhook data saved",res)
   }
