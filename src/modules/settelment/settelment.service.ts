@@ -2,19 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { SettelmentWebhookDto } from './dto/settelment-webhook.dto';
 
-
-
-
-
-
 @Injectable()
 export class SettelmentService {
   private readonly logger = new Logger(SettelmentService.name);
-
+ 
   constructor(private readonly prisma: PrismaService) {}
-
-
-
 
   async saveToWebhookData(payload:any){
     const res = await this.prisma.webhookData.create({
@@ -23,6 +15,7 @@ export class SettelmentService {
       }
     })
     console.log("webhook data saved",res)
+    return true
   }
 
   async HandleSettelmentwebHook(payload: SettelmentWebhookDto) {

@@ -24,8 +24,8 @@ export class SettelmentController {
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   async settelmentwebhook(@Body() body:any) {
-    await this.settelmentService.saveToWebhookData(body);
-  
+    console.log("webhook payload recived",body)
+    return await this.settelmentService.saveToWebhookData(body);
   }
 
   @Get('property/:propertyId')
