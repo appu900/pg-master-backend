@@ -501,8 +501,37 @@ export class PaymentService {
 
     if (normalizedStatus === 'success') {
       await this.processSuccessfulPayment(transaction, webhook, easepayid);
-      
-
+      // ** add to the transaction settelment table 
+      const expetedDateOfSettelment = new Date()
+      expetedDateOfSettelment.setDate(expetedDateOfSettelment.getDate()+1)
+      const settelmentTransaction = await this.prisma.settlementTransactions.create({
+        data:{
+          propertyId:transaction.propertyId,
+          paymentTransactionId:transaction.id,
+          transactionId:transaction.txnId,
+          grossAmount:transaction.amount,
+          settledAmount:0,
+          expectedSettlementDate:new Date(),
+          status:'PENDING'
+        }
+      })
+      this.logger.debug(`transaction added to the table ${transaction.id} with amount ${transaction.amount}`)
+      //** add to the settelment global value */
+      await this.prisma.propertySettlementLedger.upsert({
+        where:{
+          propertyId:transaction.propertyId
+        },
+        update:{
+          pendingSettelmentAmount:{
+            increment:transaction.amount,
+          }
+        },
+        create:{
+          propertyId:transaction.propertyId,
+          pendingSettelmentAmount:transaction.amount,
+          totalSetteledAmount:0
+        }
+      })      
       // ** one event emitter to be here if transaction id sucessfull
       this.paymentEventPublisher.onPaymentSuccess({
         transactionId: txnid,

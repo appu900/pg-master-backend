@@ -3,14 +3,16 @@
 
 
 import { Module } from "@nestjs/common"
-import { SettelmentController } from "./settelment.controller";
-import { SettelmentService } from "./settelment.service";
+import { SettlementController } from "./settelment.controller";
+import { SettleMentService } from "./settelment.service";
+
+
 
 
 @Module({
   imports: [],
-  controllers: [SettelmentController],
-  providers: [SettelmentService],
+  controllers: [SettlementController],
+  providers: [SettleMentService],
   exports: [],
 })
 export class SettelmentModule{}

@@ -3,11 +3,9 @@ import { MetricsHandler } from '../handlers/interface/metrics.handler.interface'
 
 export const METRICS_HANDLERS = 'METRICS_HANDLERS';
 
-
-// need to check the logger here 
+// need to check the logger here
 @Injectable()
 export class MetricsHandlerRegistry implements OnModuleInit {
-
   private readonly logger = new Logger(MetricsHandlerRegistry.name);
   private readonly handlers = new Map<string, MetricsHandler>();
 
@@ -16,7 +14,7 @@ export class MetricsHandlerRegistry implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    console.log("hello from registry class")
+    this.logger.debug('Initializing MetricsHandlerRegistry');
     for (const handler of this.allHandlers) {
       for (const eventType of handler.supportedEvents) {
         this.handlers.set(eventType, handler);

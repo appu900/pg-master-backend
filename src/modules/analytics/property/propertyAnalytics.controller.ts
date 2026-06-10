@@ -7,7 +7,7 @@ export class PropertyAnalyticsController {
   constructor(
     private readonly propertyAnalyticsService: PropertyAnalyticsService,
   ) {}
-
+ 
   @Get('/:id')
   async getPropertyAnalytics(@Param('id') propertyId: number) {
     return this.propertyAnalyticsService.getPropertyAnalytics(propertyId);

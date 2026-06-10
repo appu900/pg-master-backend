@@ -7,8 +7,5 @@ export const GetPropertyKeyForOtherMetrics = (propertyId:number) => `property:${
 export const GetPropertyKeyForFinanceMetrics= (propertyId:number,year:number,month:number) => `property:${propertyId}:finance:metrics:${year}:${month}`;
 
 
-
-
-
 export const GetOwnerKeyForPropertyMetrics = (ownerId:number) => `owner:${ownerId}:property:metrics`;
 export const GetOwnerKeyForFinanceMetrics = (ownerId:number,year:number,month:number) => `owner:${ownerId}:finance:metrics:${year}:${month}`;

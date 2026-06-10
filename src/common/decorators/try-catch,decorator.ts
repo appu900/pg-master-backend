@@ -1,9 +1,6 @@
 import { InternalServerErrorException, Logger } from '@nestjs/common';
 import { tryCatch } from 'bullmq';
 
-
-
-
 export function WithErrorHandling(errorMessage: string) {
   return function (
     target: any,

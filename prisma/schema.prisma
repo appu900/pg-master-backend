@@ -30,10 +30,10 @@ model User {
   expenses                Expenses[]
   recordedPayments        DuePayment[]             @relation("PaymentRecordedBy")
   noticePeriodTenants     NoticePeriodTenants[]
+  tenantKycs              TenantKyc[]
 
   @@index([phoneNumber])
   @@index([role])
-  tenantKycs TenantKyc[]
 }
 
 model AdminProfile {
@@ -161,29 +161,25 @@ model TenentProfile {
   @@index([userId])
 }
 
-
-model TenantKyc{
-  id Int @id @default(autoincrement())
-  tenantId Int @unique 
-  verificationId String @unique
-  status KycStatus @unique 
-  aadharNumber String?
-  panNumber String?
-  aadharData Json?
+model TenantKyc {
+  id             Int       @id @default(autoincrement())
+  tenantId       Int       @unique
+  verificationId String    @unique
+  status         KycStatus @unique
+  aadharNumber   String?
+  panNumber      String?
+  aadharData     Json?
   aadharImageUrl String?
-  panImageUrl String?
-  pandata Json?
-  verifiedAt DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  panImageUrl    String?
+  pandata        Json?
+  verifiedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   tenant User @relation(fields: [tenantId], references: [id])
 
-
   @@index([tenantId])
-  @@index([tenantId,status])
-
-
+  @@index([tenantId, status])
 }
 
 model TenantKycDetails {
@@ -260,7 +256,7 @@ model Property {
   paymentGatewayConfig   PropertyPaymentGatewayConfig?
   gatewayTransactions    PaymentGatewayTransaction[]
   noticePeriodTenants    NoticePeriodTenants[]
-  settlements            PropertySettlement[]
+  
 
   @@index([ownerId])
   @@index([pinCode])
@@ -734,6 +730,7 @@ model PaymentGatewayTransaction {
   @@index([tenancyId])
   @@index([propertyId])
   @@index([status])
+  settlementTransactions SettlementTransactions[]
 }
 
 model PaymentGatewayTransactionDue {
@@ -749,53 +746,50 @@ model PaymentGatewayTransactionDue {
   @@index([dueId])
 }
 
-
-
-model WebhookData{
-  id Int @id @default(autoincrement())
+model WebhookData {
+  id   Int  @id @default(autoincrement())
   data Json
 }
 
-model PropertySettlement {
-  id                  Int      @id @default(autoincrement())
-  propertyId          Int
-  payoutId            String   @unique
-  payoutDate          DateTime
-  month               Int
-  year                Int
-  totalAmount         Decimal  @db.Decimal(10, 2)
-  payoutAmount        Decimal  @db.Decimal(10, 2)
-  refundAmount        Decimal  @db.Decimal(10, 2) @default(0)
-  serviceChargeAmount Decimal  @db.Decimal(10, 2) @default(0)
-  serviceTaxAmount    Decimal  @db.Decimal(10, 2) @default(0)
-  bankName            String?
-  ifscCode            String?
-  accountNumber       String?
-  bankTransactionId   String?
-  createdAt           DateTime @default(now())
+model PropertySettlementLedger {
+  id                      Int      @id @default(autoincrement())
+  propertyId              Int      @unique
+  pendingSettelmentAmount Decimal  @db.Decimal(10, 2)
+  totalSetteledAmount     Decimal  @db.Decimal(10, 2)
+  totalTax                Decimal? @db.Decimal(14, 2)
+  totalCharges            Decimal? @db.Decimal(14, 2)
 
-  property            Property             @relation(fields: [propertyId], references: [id])
-  settledTransactions SettledTransaction[]
+  lastUpdatedAt DateTime @updatedAt
 
   @@index([propertyId])
-  @@index([propertyId, month, year])
 }
 
-model SettledTransaction {
-  id                Int     @id @default(autoincrement())
-  settlementId      Int
-  txnId             String
-  easepayId         String
-  transactionType   String?
-  transactionAmount Decimal @db.Decimal(10, 2)
-  settlementAmount  Decimal @db.Decimal(10, 2)
-  serviceCharge     Decimal @db.Decimal(10, 2) @default(0)
-  serviceTax        Decimal @db.Decimal(10, 2) @default(0)
+model SettlementTransactions {
+  id                     Int              @id @default(autoincrement())
+  propertyId             Int
+  paymentTransactionId   Int              @unique
+  transactionId          String             @unique
+  grossAmount            Decimal          @db.Decimal(10, 2)
+  settledAmount          Decimal          @db.Decimal(10, 2) @default(0)
+  expectedSettlementDate DateTime?
+  settlementCompleteDate DateTime?
+  serviceCharge          Decimal?         @db.Decimal(10, 2)
+  serviceTax             Decimal?         @db.Decimal(10, 2)
+  status                 SettlementStatus @default(PENDING)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 
-  settlement PropertySettlement @relation(fields: [settlementId], references: [id])
+  paymentTransaction PaymentGatewayTransaction @relation(fields: [paymentTransactionId],references: [id])
 
-  @@index([settlementId])
-  @@index([txnId])
+
+  @@index([propertyId,status])
+  @@index([transactionId,status])
+  @@index([transactionId])
+}
+
+enum SettlementStatus {
+  PENDING
+  SETTLED
 }
 
 enum GatewayEnvironment {

@@ -80,6 +80,7 @@ export type EventPayloadMap = {
   'property.created': PropertyCreatedEventPayload;
   'property.deleted': PropertyDeletedPayload;
   'room.created': RoomCreatedEventPayload;
+  'room.deleted': RoomDeletedPayload;
   'tenant.added': TenantAddedPayload;
   'due.created': DueCreatedPayload;
   'due.payment.collected': DuePaymentCollectedPayload;
