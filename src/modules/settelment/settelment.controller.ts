@@ -18,6 +18,7 @@ export class SettlementController {
   constructor(private readonly settlementService: SettleMentService) {}
 
   @Post('webhook')
+  @HttpCode(HttpStatusCode.Ok)
   async reciveWebhookPayload(@Body() body: any) {
     console.log('webhook payload recived', body);
     return await this.settlementService.setWebhookPayload(body);

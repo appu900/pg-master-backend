@@ -7,6 +7,7 @@ import { IQueueProducer, QUEUE_PRODUCER } from 'src/core/ports/queue-producer.po
 import { QUEUES } from 'src/core/queue/queue.constants';
 import { Appevents } from 'src/core/events/app.events';
 
+
 @Injectable()
 export class SettleMentService {
   private readonly logger = new Logger(SettleMentService.name);
@@ -51,8 +52,8 @@ export class SettleMentService {
   }
 
   async getSettlementByPropertyID(propertyId: number) {
-    const cached = await this.cache.getCachedData(propertyId);
-    if (cached) return cached;
+    // const cached = await this.cache.getCachedData(propertyId);
+    // if (cached) return cached;
 
     const [settlementLedgerData, settelmentTransactions] = await Promise.all([
       this.prisma.propertySettlementLedger.findUnique({
@@ -65,7 +66,7 @@ export class SettleMentService {
     ]);
 
     const result = { settlementLedgerData, settelmentTransactions };
-    await this.cache.setCache(propertyId, result);
+    // await this.cache.setCache(propertyId, result);
     return result;
   }
 }
