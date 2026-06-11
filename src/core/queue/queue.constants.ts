@@ -5,7 +5,8 @@ export const QUEUES = {
     ELECTRICITY_BILLINNG:'electricity_billing',
     COMMAND:"command",
     CACHE_INVALIDATION:'cache.invalidation',
-    METRICS:'cache.metrics'
+    METRICS:'cache.metrics',
+    WEBHOOK_PROCESSING:'webhook.queue'
 }
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]

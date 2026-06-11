@@ -1,25 +1,16 @@
+import { BullExplorer } from '@nestjs/bullmq/dist/bull.explorer';
+import { Module, Global } from '@nestjs/common';
+import { BullMqModule } from '../adapters/bullmq/bullmq.module';
 
-
-
-
-import { BullExplorer } from "@nestjs/bullmq/dist/bull.explorer";
-import {Module,Global} from "@nestjs/common"
-import { BullMqModule } from "../adapters/bullmq/bullmq.module";
-
-
-
-
-
-const QueueDriver = (()=>{
-    const driver = process.env.QUEUE_DRIVER || 'bullmq';
-    switch(driver){
-        case 'bullmq':
-            return BullMqModule
-        default:
-            return BullMqModule
-    }
+const QueueDriver = (() => {
+  const driver = process.env.QUEUE_DRIVER || 'bullmq';
+  switch (driver) {
+    case 'bullmq':
+      return BullMqModule;
+    default:
+      return BullMqModule;
+  }
 })();
-
 
 @Global()
 @Module({
@@ -28,4 +19,4 @@ const QueueDriver = (()=>{
   providers: [],
   exports: [QueueDriver],
 })
-export class QueueModule{}
+export class QueueModule {}

@@ -27,8 +27,4 @@ export interface IQueueProducer {
   getActiveCount(queueName: string): Promise<number>;
 }
 
-
-
-
-
 export const QUEUE_PRODUCER = Symbol('QUEUE_PRODUCER')

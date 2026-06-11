@@ -9,7 +9,10 @@ export const Appevents = {
 
   // payment events
   PAYMENT_SUCESS_EVENT: 'payment.sucess.event',
-  PAYMENT_FAILED_EVENT:'payment.failed.event'
+  PAYMENT_FAILED_EVENT: 'payment.failed.event',
+
+
+  PROCESS_WEBHOOK:'process.webhook'
   
 } as const;
 

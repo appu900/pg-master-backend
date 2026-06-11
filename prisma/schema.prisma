@@ -256,7 +256,6 @@ model Property {
   paymentGatewayConfig   PropertyPaymentGatewayConfig?
   gatewayTransactions    PaymentGatewayTransaction[]
   noticePeriodTenants    NoticePeriodTenants[]
-  
 
   @@index([ownerId])
   @@index([pinCode])
@@ -722,15 +721,15 @@ model PaymentGatewayTransaction {
   createdAt     DateTime                 @default(now())
   updatedAt     DateTime                 @updatedAt
 
-  due             TenantDue?                     @relation(fields: [dueId], references: [id])
-  property        Property                       @relation(fields: [propertyId], references: [id])
-  transactionDues PaymentGatewayTransactionDue[]
+  due                    TenantDue?                     @relation(fields: [dueId], references: [id])
+  property               Property                       @relation(fields: [propertyId], references: [id])
+  transactionDues        PaymentGatewayTransactionDue[]
+  settlementTransactions SettlementTransactions[]
 
   @@index([dueId])
   @@index([tenancyId])
   @@index([propertyId])
   @@index([status])
-  settlementTransactions SettlementTransactions[]
 }
 
 model PaymentGatewayTransactionDue {
@@ -749,6 +748,18 @@ model PaymentGatewayTransactionDue {
 model WebhookData {
   id   Int  @id @default(autoincrement())
   data Json
+  provider String?
+  payoutId String?
+  signature String?
+  eventId String? @unique
+  status PaymentWebhookStatus @default(RECEIVED)
+  processedAt DateTime?
+  failureReason String?
+  retryCount Int?
+
+  createdAt DateTime? @default(now())
+  updatedAt DateTime? @updatedAt
+  
 }
 
 model PropertySettlementLedger {
@@ -768,9 +779,9 @@ model SettlementTransactions {
   id                     Int              @id @default(autoincrement())
   propertyId             Int
   paymentTransactionId   Int              @unique
-  transactionId          String             @unique
+  transactionId          String           @unique
   grossAmount            Decimal          @db.Decimal(10, 2)
-  settledAmount          Decimal          @db.Decimal(10, 2) @default(0)
+  settledAmount          Decimal          @default(0) @db.Decimal(10, 2)
   expectedSettlementDate DateTime?
   settlementCompleteDate DateTime?
   serviceCharge          Decimal?         @db.Decimal(10, 2)
@@ -779,12 +790,19 @@ model SettlementTransactions {
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
 
-  paymentTransaction PaymentGatewayTransaction @relation(fields: [paymentTransactionId],references: [id])
+  paymentTransaction PaymentGatewayTransaction @relation(fields: [paymentTransactionId], references: [id])
 
-
-  @@index([propertyId,status])
-  @@index([transactionId,status])
+  @@index([propertyId, status])
+  @@index([transactionId, status])
   @@index([transactionId])
+}
+
+enum PaymentWebhookStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
 }
 
 enum SettlementStatus {
