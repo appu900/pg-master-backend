@@ -37,6 +37,7 @@ export class SettleMentService {
         webhookId:webhook.id
       }
       await this.queue.enqueue(QUEUES.WEBHOOK_PROCESSING, Appevents.PROCESS_WEBHOOK, webHookProcessPayload)
+      this.logger.debug("pushed webhook signal to the queue")
       return true;
     } catch (error:any) {
       if (
