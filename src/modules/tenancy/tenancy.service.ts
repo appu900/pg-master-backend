@@ -33,6 +33,7 @@ export class TenancyService {
     private readonly events: TenancyEvents,
   ) {}
 
+
   private resolveUserfromPerFlight(
     dto: AddTenantDto,
     existingByPhone: {
@@ -45,7 +46,6 @@ export class TenancyService {
         id: number;
         tenancyStatus: string;
         joinedAt: Date;
-        property: { name: string };
         room: { roomNumber: string };
       }[];
     } | null,
@@ -74,12 +74,9 @@ export class TenancyService {
       BLOCKING_TENANCY_STATUSES.has(t.tenancyStatus),
     );
     if (blockingTenancy) {
-      throw new ConflictException({
-        message:
-          `${existingByPhone.fullName} already has a ` +
-          `${blockingTenancy.tenancyStatus} tenancy at ` +
-          `${blockingTenancy.property.name} (room ${blockingTenancy.room.roomNumber})`,
-      });
+      throw new ConflictException(
+        `${existingByPhone.fullName} already has a ${blockingTenancy.tenancyStatus} tenancy in this property (room ${blockingTenancy.room.roomNumber})`,
+      );
     }
 
     return { existingUserId: existingByPhone.id, isNewUser: false };
@@ -98,14 +95,16 @@ export class TenancyService {
           role: true,
           fullName: true,
           isBlockedByAdmin: true,
-          isActive:true,
+          isActive: true,
           tenancy: {
-            where: { tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD'] } },
+            where: {
+              propertyId: dto.propertyId,
+              tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD'] },
+            },
             select: {
               id: true,
               tenancyStatus: true,
               joinedAt: true,
-              property: { select: { name: true } },
               room: { select: { roomNumber: true } },
             },
           },
