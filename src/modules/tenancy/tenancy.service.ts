@@ -8,7 +8,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, TenancyStatus, UserRole } from '@prisma/client';
+import { RejectMoveOutDto } from './dto/reject-moveout.dto';
 import { EditTenancyDto } from './dto/update-tenancy.dto';
 import { AddTenantDto } from './dto/add.tenant.dto';
 import { ShiftRoomDto } from './dto/shift-room.dto';
@@ -18,8 +19,6 @@ import {
   parseDateUTC,
   toDateOnly,
 } from 'src/utils/Proration.utils';
-import { join } from 'path';
-import e from 'express';
 import { TenancyEvents, TenantAddedEventPayload } from './tenancy.event';
 import { TenantAddedEvent } from 'src/core/events/domain-events';
 
@@ -40,6 +39,7 @@ export class TenancyService {
       id: number;
       role: string;
       fullName: string;
+      isActive: boolean;
       isBlockedByAdmin: boolean;
       tenancy: {
         id: number;
@@ -47,44 +47,42 @@ export class TenancyService {
         joinedAt: Date;
         property: { name: string };
         room: { roomNumber: string };
-      } | null;
+      }[];
     } | null,
     emailConflict: { id: number } | null,
   ): { existingUserId: number | null; isNewUser: boolean } {
     if (!existingByPhone) {
       if (emailConflict) {
         throw new ConflictException(
-          `Email is ${dto.email} is already registered with other account`,
+          `Email ${dto.email} is already registered with another account`,
         );
       }
       return { existingUserId: null, isNewUser: true };
     }
-    // check if boocked by admin
+
     if (existingByPhone.isBlockedByAdmin) {
       throw new ForbiddenException(
         `User with phone ${dto.phoneNumber} has been blocked by admin`,
       );
     }
 
-    // check wrong user role
     if (existingByPhone.role !== UserRole.TENANT) {
-      throw new ForbiddenException('this is user can not added as tenant');
+      throw new ForbiddenException('This user cannot be added as a tenant');
     }
 
-    // blocking tenancy
-    const t = existingByPhone.tenancy;
-    if (t && BLOCKING_TENANCY_STATUSES.has(t.tenancyStatus)) {
+    const blockingTenancy = existingByPhone.tenancy.find((t) =>
+      BLOCKING_TENANCY_STATUSES.has(t.tenancyStatus),
+    );
+    if (blockingTenancy) {
       throw new ConflictException({
         message:
-          `${existingByPhone.fullName} has a ` +
-          `${t.tenancyStatus} tenancy, we can not add it`,
+          `${existingByPhone.fullName} already has a ` +
+          `${blockingTenancy.tenancyStatus} tenancy at ` +
+          `${blockingTenancy.property.name} (room ${blockingTenancy.room.roomNumber})`,
       });
     }
-    // safe to b reuse this
-    return {
-      existingUserId: existingByPhone.id,
-      isNewUser: false,
-    };
+
+    return { existingUserId: existingByPhone.id, isNewUser: false };
   }
 
   private async runPreFlightChecks(
@@ -100,7 +98,9 @@ export class TenancyService {
           role: true,
           fullName: true,
           isBlockedByAdmin: true,
+          isActive:true,
           tenancy: {
+            where: { tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD'] } },
             select: {
               id: true,
               tenancyStatus: true,
@@ -189,7 +189,7 @@ export class TenancyService {
 
     const room = await this.prisma.room.findUnique({
       where: {
-        id: propertyId,
+        id: roomId,
       },
       select: {
         id: true,
@@ -409,11 +409,6 @@ export class TenancyService {
               `Phone ${dto.phoneNumber} is already registered`,
             );
           }
-          if (fields.includes('tenentId')) {
-            throw new ConflictException(
-              `A tenancy already exists for this tenant`,
-            );
-          }
           throw new ConflictException(
             `Duplicate record detected (fields: ${fields.join(', ')})`,
           );
@@ -451,6 +446,7 @@ export class TenancyService {
 
   async createTenant(dto: AddTenantDto, requestingOwnerId: number) {
     const joinDate = toDateOnly(new Date(dto.joiningDate));
+    this.validateDates(dto, joinDate);
     const preflight = await this.runPreFlightChecks(dto, requestingOwnerId);
     const property = await this.prisma.property.findUnique({
       where: { id: dto.propertyId },
@@ -507,7 +503,7 @@ export class TenancyService {
       ownerId: requestingOwnerId,
       roomId: dto.roomId,
       rentAmount: dto.rentAmount,
-      securityDepositeAmount: Number(dto.securityDeposit + proratedAmount),
+      securityDepositeAmount: dto.securityDeposit,
       tenantPhone: dto.phoneNumber,
       tenantName: dto.fullName,
       propertyName: property.name,
@@ -531,17 +527,18 @@ export class TenancyService {
   }
 
   async updateTenancyDetails(
-    tenantId: number,
-    propertyId: number,
+    tenancyId: number,
+    ownerId: number,
     dto: EditTenancyDto,
   ) {
     const tenancy = await this.prisma.tenancy.findFirst({
       where: {
+        id: tenancyId,
         tenancyStatus: 'ACTIVE',
         deletedAt: null,
-        tenentId: tenantId,
-        propertyId,
+        property: { ownerId },
       },
+      select: { id: true, tenentId: true },
     });
 
     if (!tenancy) {
@@ -578,7 +575,7 @@ export class TenancyService {
 
       if (Object.keys(tenantProfileUpdate).length) {
         await tx.tenentProfile.update({
-          where: { userId: tenantId },
+          where: { userId: tenancy.tenentId },
           data: tenantProfileUpdate,
         });
       }
@@ -589,7 +586,17 @@ export class TenancyService {
 
   private validateDates(dto: AddTenantDto, joinDate: Date): void {
     if (isNaN(joinDate.getTime())) {
-      throw new BadRequestException('joiningdate is not a valid date');
+      throw new BadRequestException('joiningDate is not a valid date');
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxFuture = new Date(today);
+    maxFuture.setDate(maxFuture.getDate() + MAX_FUTURE_JOINING_DAYS);
+    if (joinDate > maxFuture) {
+      throw new BadRequestException(
+        `Joining date cannot be more than ${MAX_FUTURE_JOINING_DAYS} days in the future`,
+      );
     }
 
     if (dto.moveOutDate) {
@@ -616,7 +623,7 @@ export class TenancyService {
   async shiftTenantRoom(dto: ShiftRoomDto, requestingOwnerId: number) {
     const tenancy = await this.prisma.tenancy.findFirst({
       where: {
-        tenentId: dto.tenantId,
+        id: dto.tenancyId,
         tenancyStatus: 'ACTIVE',
         deletedAt: null,
       },
@@ -630,7 +637,7 @@ export class TenancyService {
     });
 
     if (!tenancy)
-      throw new NotFoundException('No active tenancy found for this tenant');
+      throw new NotFoundException('No active tenancy found for this tenancy ID');
 
     if (tenancy.property.ownerId !== requestingOwnerId) {
       throw new ForbiddenException(
@@ -896,23 +903,146 @@ export class TenancyService {
     );
   }
 
-  async PublishTenantOnboardingEvents(
-    dto: AddTenantDto,
-    propertyName: string,
-  ): Promise<void> {
-    const payload = {
-      to: dto.phoneNumber,
-      templateKey: 'TENANT_WELCOME',
-      templateData: {
-        tenantName: dto.fullName,
-        propertyName: propertyName,
-        appLink:
-          'https://play.google.com/store/apps/details?id=com.pocketpg.app',
-        pg_name: propertyName,
+  async putOnNoticePeriod(tenancyId: number, ownerUserId: number) {
+    const tenancy = await this.prisma.tenancy.findFirst({
+      where: {
+        id: tenancyId,
+        tenancyStatus: TenancyStatus.ACTIVE,
+        deletedAt: null,
+        property: { ownerId: ownerUserId },
       },
-      isReminder: false,
-      externalId: '',
-    };
-    console.log('Event published successfully');
+      select: { id: true },
+    });
+
+    if (!tenancy) throw new NotFoundException('Active tenancy not found or access denied');
+
+    await this.prisma.tenancy.update({
+      where: { id: tenancyId },
+      data: { tenancyStatus: TenancyStatus.NOTICE_PERIOD },
+    });
+
+    return { message: 'Tenant placed on notice period', tenancyId };
+  }
+
+  async getMoveOutRequests(propertyId: number, ownerUserId: number) {
+    const property = await this.prisma.property.findFirst({
+      where: { id: propertyId, ownerId: ownerUserId },
+      select: { id: true },
+    });
+    if (!property) throw new NotFoundException('Property not found or access denied');
+
+    return this.prisma.moveOutRequest.findMany({
+      where: { propertyId, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        requestedMoveOutDate: true,
+        createdAt: true,
+        tenant: {
+          select: { id: true, fullName: true, phoneNumber: true, email: true },
+        },
+        tenancy: {
+          select: {
+            id: true,
+            rentAmount: true,
+            joinedAt: true,
+            room: { select: { roomNumber: true, floorNumber: true } },
+          },
+        },
+      },
+    });
+  }
+
+  async getMoveOutRequestDetails(requestId: number, ownerUserId: number) {
+    const request = await this.prisma.moveOutRequest.findFirst({
+      where: {
+        id: requestId,
+        property: { ownerId: ownerUserId },
+      },
+      select: {
+        id: true,
+        status: true,
+        requestedMoveOutDate: true,
+        rejectionReason: true,
+        createdAt: true,
+        tenant: {
+          select: {
+            id: true,
+            fullName: true,
+            phoneNumber: true,
+            email: true,
+            tenentProfile: {
+              select: { profileImage: true, profession: true, JoiningDate: true },
+            },
+          },
+        },
+        tenancy: {
+          select: {
+            id: true,
+            rentAmount: true,
+            securityDeposit: true,
+            joinedAt: true,
+            tenancyStatus: true,
+            room: { select: { roomNumber: true, floorNumber: true, sharingType: true } },
+            dues: {
+              select: {
+                id: true,
+                dueType: true,
+                title: true,
+                totalAmount: true,
+                paidAmount: true,
+                balanceAmount: true,
+                status: true,
+                dueDate: true,
+              },
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+        },
+        property: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!request) throw new NotFoundException('Move-out request not found or access denied');
+    return request;
+  }
+
+  async approveMoveOutRequest(requestId: number, ownerUserId: number) {
+    const request = await this.prisma.moveOutRequest.findFirst({
+      where: { id: requestId, status: 'PENDING', property: { ownerId: ownerUserId } },
+      select: { id: true, tenancyId: true },
+    });
+
+    if (!request) throw new NotFoundException('Pending move-out request not found or access denied');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.moveOutRequest.update({
+        where: { id: requestId },
+        data: { status: 'APPROVED' },
+      });
+      await tx.tenancy.update({
+        where: { id: request.tenancyId },
+        data: { tenancyStatus: TenancyStatus.NOTICE_PERIOD },
+      });
+    });
+
+    return { message: 'Move-out request approved — tenant placed on notice period', requestId };
+  }
+
+  async rejectMoveOutRequest(requestId: number, ownerUserId: number, dto: RejectMoveOutDto) {
+    const request = await this.prisma.moveOutRequest.findFirst({
+      where: { id: requestId, status: 'PENDING', property: { ownerId: ownerUserId } },
+      select: { id: true },
+    });
+
+    if (!request) throw new NotFoundException('Pending move-out request not found or access denied');
+
+    await this.prisma.moveOutRequest.update({
+      where: { id: requestId },
+      data: { status: 'REJECTED', rejectionReason: dto.reason ?? null },
+    });
+
+    return { message: 'Move-out request rejected', requestId };
   }
 }

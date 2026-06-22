@@ -123,6 +123,44 @@ export class AuthService {
       // Generate token
       const token = await this.generateToken(user);
 
+      if (user.role === UserRole.TENANT) {
+        const tenancies = await this.prisma.tenancy.findMany({
+          where: {
+            tenentId: user.id,
+            tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD'] },
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            tenancyStatus: true,
+            rentAmount: true,
+            joinedAt: true,
+            property: { select: { id: true, name: true, pinCode: true } },
+            room: { select: { id: true, roomNumber: true, floorNumber: true } },
+          },
+        });
+
+        return {
+          message: 'Login successful',
+          id: user.id,
+          name: user.fullName,
+          token,
+          email: user.email,
+          role: user.role,
+          properties: tenancies.map((t) => ({
+            propertyId: t.property.id,
+            propertyName: t.property.name,
+            pinCode: t.property.pinCode,
+            tenancyId: t.id,
+            tenancyStatus: t.tenancyStatus,
+            roomNumber: t.room.roomNumber,
+            floorNumber: t.room.floorNumber,
+            rentAmount: t.rentAmount,
+            joinedAt: t.joinedAt,
+          })),
+        };
+      }
+
       return {
         message: 'Login successful',
         id: user.id,

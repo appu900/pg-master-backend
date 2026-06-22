@@ -21,11 +21,16 @@ export class PaymentHelperService {
         role: UserRole.TENANT,
       },
       select: {
-        tenancy: true,
+        tenancy: {
+          where: {
+            tenancyStatus: { in: [TenancyStatus.ACTIVE, TenancyStatus.NOTICE_PERIOD] },
+            deletedAt: null,
+          },
+        },
       },
     });
     if (!tenant) throw new BadRequestException('invalid user');
-    const tenancy = tenant.tenancy;
+    const tenancy = tenant.tenancy[0];
     if (!tenancy)
       throw new BadRequestException(
         'We could not found any active tenancy for this request',

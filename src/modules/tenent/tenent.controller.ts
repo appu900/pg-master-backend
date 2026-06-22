@@ -14,17 +14,15 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { AddTenantDto } from '../room/dto/add.tenant.dto';
 import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenentService } from './tenent.service';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
+import { RequestMoveOutDto } from './dto/request-moveout.dto';
 
 @Controller('tenant')
 export class TenentController {
   constructor(private readonly tenentService: TenentService) {}
-
-
 
   @Get('/room/:roomId')
   @Roles(Role.PROPERTY_OWNER)
@@ -59,6 +57,13 @@ export class TenentController {
     return this.tenentService.searchTenants(propertyId, searchQuery || '');
   }
 
+  @Get('/tenancy/details')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TENANT)
+  async fetchTenancyDetails(@GetUser() user: any) {
+    return this.tenentService.fetchTenancyDetails(user.userId);
+  }
+
   @Get('/:tenantId')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -76,14 +81,27 @@ export class TenentController {
     return this.tenentService.updateTenant(tenantId, dto);
   }
 
-  @Delete('/:tenantId')
+  // propertyId is now required so the owner specifies which tenancy to exit
+  @Delete('/:tenantId/property/:propertyId')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async deleteTenant(
     @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Param('propertyId', ParseIntPipe) propertyId: number,
     @GetUser() user: any,
   ) {
-    return this.tenentService.deleteTenant(tenantId, user.userId);
+    return this.tenentService.deleteTenant(tenantId, propertyId, user.userId);
+  }
+
+  // owner revokes an exited tenancy back to active
+  @Patch('/tenancy/:tenancyId/revoke')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async revokeTenancyExit(
+    @Param('tenancyId', ParseIntPipe) tenancyId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenentService.revokeTenancyExit(tenancyId, user.userId);
   }
 
   @Post('/tenancy/:tenancyId/moveout')
@@ -96,11 +114,19 @@ export class TenentController {
     return this.tenentService.moveTenantOut(tenancyId, dto);
   }
 
-  @Get('/tenancy/details')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  // tenant requests their own moveout
+  @Post('/moveout-request')
   @Roles(Role.TENANT)
-  async fetchTenancyDetails(@GetUser() user: any) {
-    const userId = user.userId;
-    return this.tenentService.fetchTenancyDetails(userId);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async requestMoveOut(@GetUser() user: any, @Body() dto: RequestMoveOutDto) {
+    return this.tenentService.requestMoveOut(user.userId, dto);
+  }
+
+  // tenant views their own moveout request
+  @Get('/moveout-request/me')
+  @Roles(Role.TENANT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getMyMoveOutRequest(@GetUser() user: any) {
+    return this.tenentService.getMyMoveOutRequest(user.userId);
   }
 }

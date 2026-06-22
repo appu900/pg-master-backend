@@ -910,11 +910,11 @@ export class PaymentService {
 
     if (!transaction) throw new NotFoundException('Transaction not found');
 
-    const tenancy = await this.prisma.tenancy.findUnique({
-      where: { tenentId: tenantUserId },
+    const tenancy = await this.prisma.tenancy.findFirst({
+      where: { id: transaction.tenancyId, tenentId: tenantUserId },
       select: { id: true },
     });
-    if (!tenancy || tenancy.id !== transaction.tenancyId) {
+    if (!tenancy) {
       throw new UnauthorizedException('Access denied');
     }
 

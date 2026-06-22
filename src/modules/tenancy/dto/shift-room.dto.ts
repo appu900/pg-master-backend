@@ -3,7 +3,7 @@ import { IsInt, IsOptional, Min } from 'class-validator';
 export class ShiftRoomDto {
   @IsInt()
   @Min(1)
-  tenantId: number;
+  tenancyId: number;
 
   @IsInt()
   @Min(1)

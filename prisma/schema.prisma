@@ -25,12 +25,13 @@ model User {
   maintenanceStaffProfile MaintenanceStaffProfile?
   property                Property[]
   propertyOwnerProfile    PropertyOwnerProfile?
-  tenancy                 Tenancy?
+  tenancy                 Tenancy[]
   tenentProfile           TenentProfile?
   expenses                Expenses[]
   recordedPayments        DuePayment[]             @relation("PaymentRecordedBy")
   noticePeriodTenants     NoticePeriodTenants[]
   tenantKycs              TenantKyc[]
+  moveOutRequests         MoveOutRequest[]
 
   @@index([phoneNumber])
   @@index([role])
@@ -165,7 +166,7 @@ model TenantKyc {
   id             Int       @id @default(autoincrement())
   tenantId       Int       @unique
   verificationId String    @unique
-  status         KycStatus @unique
+  status         KycStatus
   aadharNumber   String?
   panNumber      String?
   aadharData     Json?
@@ -257,6 +258,8 @@ model Property {
   gatewayTransactions    PaymentGatewayTransaction[]
   noticePeriodTenants    NoticePeriodTenants[]
 
+  moveOutRequests MoveOutRequest[]
+
   @@index([ownerId])
   @@index([pinCode])
 }
@@ -300,7 +303,7 @@ model RoomImages {
 model Tenancy {
   id            Int           @id @default(autoincrement())
   roomId        Int
-  tenentId      Int           @unique
+  tenentId      Int
   propertyId    Int
   tenancyStatus TenancyStatus @default(ACTIVE)
 
@@ -330,8 +333,8 @@ model Tenancy {
   tenent              User                  @relation(fields: [tenentId], references: [id])
   dailyReminderQueues DailyReminderQueue[]
   noticePeriodTenants NoticePeriodTenants[]
+  moveOutRequests     MoveOutRequest[]
 
-  @@unique([roomId, tenentId])
   @@index([roomId, tenentId])
   @@index([propertyId])
   @@index([tenancyStatus])
@@ -746,20 +749,19 @@ model PaymentGatewayTransactionDue {
 }
 
 model WebhookData {
-  id   Int  @id @default(autoincrement())
-  data Json
-  provider String?
-  payoutId String?
-  signature String?
-  eventId String? @unique
-  status PaymentWebhookStatus @default(RECEIVED)
-  processedAt DateTime?
+  id            Int                  @id @default(autoincrement())
+  data          Json
+  provider      String?
+  payoutId      String?
+  signature     String?
+  eventId       String?              @unique
+  status        PaymentWebhookStatus @default(RECEIVED)
+  processedAt   DateTime?
   failureReason String?
-  retryCount Int?
+  retryCount    Int?
 
   createdAt DateTime? @default(now())
   updatedAt DateTime? @updatedAt
-  
 }
 
 model PropertySettlementLedger {
@@ -795,6 +797,32 @@ model SettlementTransactions {
   @@index([propertyId, status])
   @@index([transactionId, status])
   @@index([transactionId])
+}
+
+model MoveOutRequest {
+  id                   Int                  @id @default(autoincrement())
+  tenantId             Int
+  tenancyId            Int
+  propertyId           Int
+  status               MoveOutRequestStatus @default(PENDING)
+  requestedMoveOutDate DateTime             @db.Date
+  rejectionReason      String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  tenant   User     @relation(fields: [tenantId], references: [id])
+  tenancy  Tenancy  @relation(fields: [tenancyId], references: [id])
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenancyId])
+  @@index([propertyId, status])
+}
+
+enum MoveOutRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum PaymentWebhookStatus {

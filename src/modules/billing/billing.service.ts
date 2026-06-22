@@ -30,7 +30,7 @@ export class BillingService {
     payload: AddDueDto,
     ownerUserId: number,
   ): Promise<{ success: boolean; message: string; tenancy: any | null }> {
-    const tenancy = await this.prisma.tenancy.findUnique({
+    const tenancy = await this.prisma.tenancy.findFirst({
       where: {
         tenentId: payload.tenantId,
         propertyId: payload.propertyId,

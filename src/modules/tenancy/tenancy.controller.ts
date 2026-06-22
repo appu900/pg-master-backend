@@ -1,7 +1,7 @@
 import {
-  BadRequestException,
   Body,
   Controller,
+  Get,
   Param,
   ParseIntPipe,
   Post,
@@ -17,6 +17,7 @@ import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { EditTenancyDto } from './dto/update-tenancy.dto';
 import { AddTenantDto } from './dto/add.tenant.dto';
 import { ShiftRoomDto } from './dto/shift-room.dto';
+import { RejectMoveOutDto } from './dto/reject-moveout.dto';
 
 @Controller('tenancy')
 export class TenancyController {
@@ -26,12 +27,8 @@ export class TenancyController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROPERTY_OWNER)
   async onBoardTenancy(@Body() dto: AddTenantDto, @GetUser() user: any) {
-    const requestOwnerId = user.userId;
-    const res = await this.tenancyService.createTenant(dto, requestOwnerId);
-    return {
-      message: 'Tenant created successfully',
-      res,
-    };
+    const res = await this.tenancyService.createTenant(dto, user.userId);
+    return { message: 'Tenant created successfully', res };
   }
 
   @Post('shift-room')
@@ -41,27 +38,71 @@ export class TenancyController {
     return this.tenancyService.shiftTenantRoom(dto, user.userId);
   }
 
-  @Put('/tenant/:tenantId/property/:propertyId')
+  @Put('/:tenancyId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROPERTY_OWNER)
   async updateTenancyDetails(
     @Body() dto: EditTenancyDto,
     @GetUser() user: any,
-    @Param('tenantId', ParseIntPipe) tenantId: number,
-    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @Param('tenancyId', ParseIntPipe) tenancyId: number,
   ) {
-    if (!propertyId || !tenantId) {
-      throw new BadRequestException('propertyId or tenantId required');
-    }
-    const owenrUserId = user.userId;
-    const res = await this.tenancyService.updateTenancyDetails(
-      tenantId,
-      propertyId,
-      dto,
-    );
-    return {
-      res,
-      message: 'update rental details sucessful',
-    };
+    const res = await this.tenancyService.updateTenancyDetails(tenancyId, user.userId, dto);
+    return { res, message: 'Update rental details successful' };
+  }
+
+  // put an active tenant on notice period
+  @Post('/:tenancyId/notice-period')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async putOnNoticePeriod(
+    @Param('tenancyId', ParseIntPipe) tenancyId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.putOnNoticePeriod(tenancyId, user.userId);
+  }
+
+  // list all pending moveout requests for a property
+  @Get('/moveout-requests/:propertyId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async getMoveOutRequests(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.getMoveOutRequests(propertyId, user.userId);
+  }
+
+  // get full details of a single moveout request (with tenant dues)
+  @Get('/moveout-request/:requestId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async getMoveOutRequestDetails(
+    @Param('requestId', ParseIntPipe) requestId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.getMoveOutRequestDetails(requestId, user.userId);
+  }
+
+  // approve a moveout request → tenancy goes to NOTICE_PERIOD
+  @Post('/moveout-request/:requestId/approve')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async approveMoveOutRequest(
+    @Param('requestId', ParseIntPipe) requestId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.approveMoveOutRequest(requestId, user.userId);
+  }
+
+  // reject a moveout request with optional reason
+  @Post('/moveout-request/:requestId/reject')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async rejectMoveOutRequest(
+    @Param('requestId', ParseIntPipe) requestId: number,
+    @GetUser() user: any,
+    @Body() dto: RejectMoveOutDto,
+  ) {
+    return this.tenancyService.rejectMoveOutRequest(requestId, user.userId, dto);
   }
 }

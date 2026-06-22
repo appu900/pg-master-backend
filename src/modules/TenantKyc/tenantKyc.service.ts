@@ -6,8 +6,6 @@ import {
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { S3Service } from 'src/infra/s3/s3.service';
 
-
-
 @Injectable()
 export class TenantKycService {
   constructor(

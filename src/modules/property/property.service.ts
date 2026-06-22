@@ -30,8 +30,6 @@ const sharingMap:Record<RoomSharingType,number> = {
   TEN_SHARING: 10,
 }
 
-
-
 @Injectable()
 export class PropertyService {
   private readonly logger = new Logger(PropertyService.name)

@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminService } from './admin.service';
 import { BusinessRejectionReasonDto } from './dto/business-rejection.dto';
+import { UNABLE_TO_FIND_POSTINSTALL_TRIGGER_JSON_SCHEMA_ERROR } from '@prisma/client/scripts/postinstall.js';
 
 @Controller('admin')
 export class AdminController {
@@ -80,3 +81,5 @@ export class AdminController {
   }
 
 }
+
+
