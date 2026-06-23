@@ -22,6 +22,11 @@ import {
 import { TenancyEvents, TenantAddedEventPayload } from './tenancy.event';
 import { TenantAddedEvent } from 'src/core/events/domain-events';
 
+
+
+
+
+
 const BLOCKING_TENANCY_STATUSES = new Set(['ACTIVE', 'NOTICE_PERIOD']);
 const MAX_FUTURE_JOINING_DAYS = 90;
 

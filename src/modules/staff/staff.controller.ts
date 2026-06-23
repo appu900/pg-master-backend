@@ -93,4 +93,14 @@ export class StaffController {
     return this.maintenanceStaffService.getPaymentsCollectedByStaff(userId);
   }
 
+  @Get('property/:propertyId/collections')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getPropertyStaffCollections(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
+  ) {
+    return this.maintenanceStaffService.getStaffCollectionSummaryByProperty(propertyId, user.userId);
+  }
+
 }

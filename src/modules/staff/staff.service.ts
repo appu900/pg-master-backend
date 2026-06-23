@@ -272,6 +272,92 @@ export class StaffService {
     return record;
   }
 
+  async getStaffCollectionSummaryByProperty(propertyId: number, ownerId: number) {
+    await this.validateOwnerToPropertyMapping(propertyId, ownerId);
+
+    const staffAccesses = await this.prisma.maintenanceStaffPropertyAccess.findMany({
+      where: { propertyId },
+      select: {
+        staffProfile: {
+          select: {
+            id: true,
+            staffType: true,
+            jobPosition: true,
+            monthlySalary: true,
+            phoneNumber: true,
+            whatsAppNumber: true,
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                phoneNumber: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const userIds = staffAccesses.map((a) => a.staffProfile.user.id);
+
+    // fetch all payments collected by these staff for this property in one query
+    const allPayments = await this.prisma.duePayment.findMany({
+      where: {
+        propertyId,
+        recordedById: { in: userIds },
+      },
+      select: {
+        recordedById: true,
+        amount: true,
+        paymentMode: true,
+        paidAt: true,
+      },
+    });
+
+    // group by recordedById
+    const paymentsByStaff = new Map<number, { total: number; count: number; byMode: Record<string, number> }>();
+    for (const p of allPayments) {
+      const entry = paymentsByStaff.get(p.recordedById) ?? { total: 0, count: 0, byMode: {} };
+      entry.total += Number(p.amount);
+      entry.count += 1;
+      entry.byMode[p.paymentMode] = (entry.byMode[p.paymentMode] ?? 0) + Number(p.amount);
+      paymentsByStaff.set(p.recordedById, entry);
+    }
+
+    const result = staffAccesses.map((a) => {
+      const { user, ...profile } = a.staffProfile;
+      const stats = paymentsByStaff.get(user.id) ?? { total: 0, count: 0, byMode: {} };
+      return {
+        userId: user.id,
+        name: user.fullName,
+        phone: user.phoneNumber,
+        email: user.email,
+        profile: {
+          profileId: profile.id,
+          staffType: profile.staffType,
+          jobPosition: profile.jobPosition,
+          monthlySalary: profile.monthlySalary,
+          phone: profile.phoneNumber,
+          whatsApp: profile.whatsAppNumber,
+        },
+        collections: {
+          totalCollected: stats.total,
+          totalTransactions: stats.count,
+          byPaymentMode: Object.entries(stats.byMode).map(([mode, amount]) => ({ mode, amount })),
+        },
+      };
+    });
+
+    const grandTotal = result.reduce((sum, s) => sum + s.collections.totalCollected, 0);
+
+    return {
+      propertyId,
+      grandTotalCollected: grandTotal,
+      staff: result,
+    };
+  }
+
   async editStaffAccess(ownerId: number, dto: EditStaffAccessDto) {
     const staff_profile_record = await this.findStaff(dto.staffProfileId);
     if (!staff_profile_record) throw new NotFoundException('staff not found');
@@ -378,7 +464,31 @@ export class StaffService {
   }
 
   async getPaymentsCollectedByStaff(userId: number) {
-    const staff = await this.prisma.user.findUnique({ where: { id: userId } });
+    const staff = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        fullName: true,
+        phoneNumber: true,
+        email: true,
+        role: true,
+        maintenanceStaffProfile: {
+          select: {
+            id: true,
+            staffType: true,
+            jobPosition: true,
+            monthlySalary: true,
+            phoneNumber: true,
+            whatsAppNumber: true,
+            maintenanceStaffPropertyAccesses: {
+              select: {
+                property: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
     if (!staff) throw new NotFoundException('Staff user not found');
 
     const payments = await this.prisma.duePayment.findMany({
@@ -405,7 +515,7 @@ export class StaffService {
             tenancy: {
               select: {
                 room: { select: { roomNumber: true } },
-                tenent: { select: { id: true, fullName: true } },
+                tenent: { select: { id: true, fullName: true, phoneNumber: true } },
               },
             },
           },
@@ -414,7 +524,57 @@ export class StaffService {
       orderBy: { paidAt: 'desc' },
     });
 
-    return payments;
+    // summary stats
+    const totalCollected = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+    const byPropertyMap = new Map<number, { propertyId: number; propertyName: string; amount: number; count: number }>();
+    const byModeMap = new Map<string, { mode: string; amount: number; count: number }>();
+
+    for (const p of payments) {
+      const prop = p.due.property;
+      if (prop) {
+        const existing = byPropertyMap.get(prop.id) ?? { propertyId: prop.id, propertyName: prop.name, amount: 0, count: 0 };
+        existing.amount += Number(p.amount);
+        existing.count += 1;
+        byPropertyMap.set(prop.id, existing);
+      }
+
+      const mode = p.paymentMode as string;
+      const existingMode = byModeMap.get(mode) ?? { mode, amount: 0, count: 0 };
+      existingMode.amount += Number(p.amount);
+      existingMode.count += 1;
+      byModeMap.set(mode, existingMode);
+    }
+
+    return {
+      staff: {
+        userId: staff.id,
+        name: staff.fullName,
+        phone: staff.phoneNumber,
+        email: staff.email,
+        role: staff.role,
+        profile: staff.maintenanceStaffProfile
+          ? {
+              profileId: staff.maintenanceStaffProfile.id,
+              staffType: staff.maintenanceStaffProfile.staffType,
+              jobPosition: staff.maintenanceStaffProfile.jobPosition,
+              monthlySalary: staff.maintenanceStaffProfile.monthlySalary,
+              phone: staff.maintenanceStaffProfile.phoneNumber,
+              whatsApp: staff.maintenanceStaffProfile.whatsAppNumber,
+              assignedProperties: staff.maintenanceStaffProfile.maintenanceStaffPropertyAccesses.map(
+                (a) => ({ id: a.property.id, name: a.property.name }),
+              ),
+            }
+          : null,
+      },
+      summary: {
+        totalCollected,
+        totalTransactions: payments.length,
+        byProperty: Array.from(byPropertyMap.values()),
+        byPaymentMode: Array.from(byModeMap.values()),
+      },
+      payments,
+    };
   }
 
   //   private functions to handle things
