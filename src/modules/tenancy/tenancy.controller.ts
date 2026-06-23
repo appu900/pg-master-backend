@@ -62,7 +62,7 @@ export class TenancyController {
   }
 
   // list all pending moveout requests for a property
-  @Get('/moveout-requests/:propertyId')
+  @Get('/moveout-requests/property/:propertyId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROPERTY_OWNER)
   async getMoveOutRequests(
