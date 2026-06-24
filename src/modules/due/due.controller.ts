@@ -77,6 +77,16 @@ export class DuesController {
     return this.dueService.getUnpaidDuesByTenantId(tenantId);
   }
 
+  @Get('/tenant/:tenantId/property/:propertyId')
+  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getDuesByTenantAndProperty(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+  ) {
+    return this.dueService.getDuesByTenantAndProperty(tenantId, propertyId);
+  }
+
   @Post('/collect')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)

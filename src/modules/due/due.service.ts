@@ -317,6 +317,44 @@ export class DueService {
     return dues;
   }
 
+  async getDuesByTenantAndProperty(tenantId: number, propertyId: number) {
+    const tenancy = await this.prisma.tenancy.findFirst({
+      where: {
+        tenentId: tenantId,
+        propertyId,
+        tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD'] },
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!tenancy) {
+      throw new BadRequestException('No active tenancy found for this tenant in the given property');
+    }
+
+    const dues = await this.prisma.tenantDue.findMany({
+      where: { tenancyId: tenancy.id },
+      select: {
+        id: true,
+        dueType: true,
+        title: true,
+        description: true,
+        month: true,
+        year: true,
+        totalAmount: true,
+        paidAmount: true,
+        balanceAmount: true,
+        status: true,
+        periodStart: true,
+        periodEnd: true,
+        dueDate: true,
+        property: { select: { id: true, name: true } },
+      },
+      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+    });
+
+    return dues;
+  }
+
   async collectDue(dto: CollectDueDto, recordedById: number) {
     const due = await this.prisma.tenantDue.findUnique({
       where: { id: dto.dueId },

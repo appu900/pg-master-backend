@@ -903,6 +903,11 @@ export class TenancyService {
     );
   }
 
+
+
+
+  
+
   async putOnNoticePeriod(tenancyId: number, ownerUserId: number) {
     const tenancy = await this.prisma.tenancy.findFirst({
       where: {
