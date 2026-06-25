@@ -19,6 +19,7 @@ import {
   FileInterceptor,
 } from '@nestjs/platform-express';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
+import { UPLOAD_FILE_SIZE_LIMITS } from 'src/common/constants/upload.constants';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
@@ -43,7 +44,7 @@ export class PropertyownerController {
         { name: 'companyDocument', maxCount: 1 },
       ],
       {
-        limits: { fileSize: 10 * 1024 * 1024 },
+        limits: UPLOAD_FILE_SIZE_LIMITS,
         fileFilter: (req, file, cb) => {
           const allowedMimeTypes = [
             'image/jpeg',
@@ -99,9 +100,7 @@ export class PropertyownerController {
   @Roles(Role.PROPERTY_OWNER)
   @UseInterceptors(
     FileInterceptor('profileImage', {
-      limits: {
-        fileSize: 40 * 1024 * 1024,
-      },
+      limits: UPLOAD_FILE_SIZE_LIMITS,
     }),
   )
   async updateProfile(
@@ -118,7 +117,7 @@ export class PropertyownerController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROPERTY_OWNER)
   @UseInterceptors(
-    FileInterceptor('profileImage', { limits: { fileSize: 40 * 1024 * 1024 } }),
+    FileInterceptor('profileImage', { limits: UPLOAD_FILE_SIZE_LIMITS }),
   )
   async updateTenantProfile(
     @Body() dto: UpdateTenantProfileByOwnerDto,

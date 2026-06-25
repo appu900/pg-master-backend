@@ -2,8 +2,11 @@ import { Module } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { MulterModule } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { UPLOAD_FILE_SIZE_LIMITS } from './common/constants/upload.constants';
 import { PrismaModule } from './infra/Database/prisma/prisma.module';
 import { OtpModule } from './infra/notification/OTP/otp.module';
 import { RedisModule } from './infra/redis/redis.module';
@@ -53,6 +56,10 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
         limit: 100,
       },
     ]),
+    MulterModule.register({
+      storage: memoryStorage(),
+      limits: UPLOAD_FILE_SIZE_LIMITS,
+    }),
     
     PrismaModule,
     RedisModule,

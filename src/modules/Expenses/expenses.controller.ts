@@ -1,4 +1,5 @@
 import { FileInterceptor } from '@nestjs/platform-express';
+import { UPLOAD_FILE_SIZE_LIMITS } from 'src/common/constants/upload.constants';
 import { CreateExpensesDto } from './dto/expenses.dto';
 import { ExpensesService } from './expenses.service';
 import {
@@ -26,7 +27,9 @@ export class ExpensesController {
   constructor(private readonly expensesServices: ExpensesService) {}
 
   @Post()
-  @UseInterceptors(FileInterceptor('image'))
+  @UseInterceptors(
+    FileInterceptor('image', { limits: UPLOAD_FILE_SIZE_LIMITS }),
+  )
   @UseGuards(JwtAuthGuard)
   async createExpense(
     @Body() dto: CreateExpensesDto,

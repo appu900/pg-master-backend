@@ -23,6 +23,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
+import { UPLOAD_FILE_SIZE_LIMITS } from 'src/common/constants/upload.constants';
 
 @Controller('tenantkyc')
 export class TenantKycController {
@@ -40,7 +41,7 @@ export class TenantKycController {
         { name: 'policeVerification', maxCount: 1 },
         { name: 'otherDocument', maxCount: 1 },
       ],
-      { limits: { fileSize: 10 * 1024 * 1024 } },
+      { limits: UPLOAD_FILE_SIZE_LIMITS },
     ),
   )
   async uploadKycDocumentsByOwner(

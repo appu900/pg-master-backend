@@ -14,6 +14,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { UPLOAD_FILE_SIZE_LIMITS } from 'src/common/constants/upload.constants';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
@@ -50,7 +51,9 @@ export class PropertyController {
   @Post('/:propertyId/room')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @UseInterceptors(FilesInterceptor('images', 10)) // Allow up to 10 images
+  @UseInterceptors(
+    FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
+  ) // Allow up to 10 images
   async createRoom(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Body() dto: AddRoomDto,
@@ -80,7 +83,9 @@ export class PropertyController {
   @Patch('/room/:roomId/')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @UseInterceptors(FilesInterceptor('images', 10))
+  @UseInterceptors(
+    FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
+  )
   editRoom(
     @Body() dto: editRoomDto,
     @Param('roomId', ParseIntPipe) id: number,
@@ -98,7 +103,9 @@ export class PropertyController {
   @Put('/room/:roomId/')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @UseInterceptors(FilesInterceptor('images', 10))
+  @UseInterceptors(
+    FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
+  )
   editRoomPut(
     @Body() dto: editRoomDto,
     @Param('roomId', ParseIntPipe) id: number,

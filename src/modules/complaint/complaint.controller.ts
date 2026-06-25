@@ -22,6 +22,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { UserRole } from '@prisma/client';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { UPLOAD_FILE_SIZE_LIMITS } from 'src/common/constants/upload.constants';
 import { ComplaintCreateByOwnerDto } from './dto/create.complaint-by-owner.dto';
 import { ChnageComplaintStatus } from './dto/change.status.dto';
 import { assignMaintenanceStaffDto } from './dto/assign-staff.dto';
@@ -35,7 +36,9 @@ export class ComplaintController {
   @Post('/by/tenant')
   @Roles(Role.TENANT)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @UseInterceptors(FilesInterceptor('images'))
+  @UseInterceptors(
+    FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
+  )
   async crateComplaintByTenant(
     @Body() dto: CreateComplaintDto,
     @UploadedFiles() images: Express.Multer.File[],
@@ -49,7 +52,9 @@ export class ComplaintController {
   @Post('/by/owner')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @UseInterceptors(FilesInterceptor('images'))
+  @UseInterceptors(
+    FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
+  )
   async createComplaint(
     @Body() dto: ComplaintCreateByOwnerDto,
     @UploadedFiles() images: Express.Multer.File[],

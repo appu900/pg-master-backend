@@ -8,8 +8,12 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { UPLOAD_FILE_SIZE_LIMITS } from 'src/common/constants/upload.constants';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
@@ -74,11 +78,15 @@ export class TenentController {
   @Patch('/:tenantId')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseInterceptors(
+    FileInterceptor('profileImage', { limits: UPLOAD_FILE_SIZE_LIMITS }),
+  )
   async updateTenant(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Body() dto: UpdateTenantDto,
+    @UploadedFile() profileImage?: Express.Multer.File,
   ) {
-    return this.tenentService.updateTenant(tenantId, dto);
+    return this.tenentService.updateTenant(tenantId, dto, profileImage);
   }
 
   // propertyId is now required so the owner specifies which tenancy to exit
