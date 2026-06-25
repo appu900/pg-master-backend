@@ -1,6 +1,6 @@
 import { DueType } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
+import { IsDate, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class EditDueDto {
   @Type(() => Date)
@@ -20,4 +20,8 @@ export class EditDueDto {
   @IsEnum(DueType)
   @IsOptional()
   dueType?: DueType;
+
+  @IsString()
+  @IsOptional()
+  customDueType?: string;
 }

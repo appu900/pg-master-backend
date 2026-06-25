@@ -258,10 +258,24 @@ model Property {
   gatewayTransactions    PaymentGatewayTransaction[]
   noticePeriodTenants    NoticePeriodTenants[]
 
-  moveOutRequests MoveOutRequest[]
+  moveOutRequests    MoveOutRequest[]
+  lateFineConfig     PropertyLateFineConfig?
 
   @@index([ownerId])
   @@index([pinCode])
+}
+
+model PropertyLateFineConfig {
+  id           Int         @id @default(autoincrement())
+  propertyId   Int         @unique
+  isEnabled    Boolean     @default(false)
+  fineType     LateFeeType @default(FIXED)
+  fineAmount   Decimal     @default(0) @db.Decimal(10, 2)
+  gracePeriod  Int         @default(0)
+  maxFineAmount Decimal?   @db.Decimal(10, 2)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  property     Property    @relation(fields: [propertyId], references: [id])
 }
 
 model Room {
@@ -343,12 +357,13 @@ model Tenancy {
 }
 
 model TenantDue {
-  id          Int     @id @default(autoincrement())
-  tenancyId   Int
-  propertyId  Int
-  dueType     DueType
-  title       String
-  description String?
+  id             Int     @id @default(autoincrement())
+  tenancyId      Int
+  propertyId     Int
+  dueType        DueType
+  customDueType  String?
+  title          String
+  description    String?
 
   month Int
   year  Int

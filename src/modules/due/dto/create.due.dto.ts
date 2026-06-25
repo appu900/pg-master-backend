@@ -1,10 +1,14 @@
 import { DueType } from '@prisma/client';
-import { IsDate, IsEnum, IsNotEmpty, IsNumber } from 'class-validator';
+import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateDueForRoomDto {
   @IsEnum(DueType)
   @IsNotEmpty()
   dueType!: DueType;
+
+  @IsString()
+  @IsOptional()
+  customDueType?: string;
 
   @IsNumber()
   @IsNotEmpty()
@@ -27,6 +31,10 @@ export class CreateDueForTenantDto {
   @IsEnum(DueType)
   @IsNotEmpty()
   dueType!: DueType;
+
+  @IsString()
+  @IsOptional()
+  customDueType?: string;
 
   @IsNumber()
   @IsNotEmpty()

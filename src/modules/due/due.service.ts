@@ -48,13 +48,15 @@ export class DueService {
     const year = now.getFullYear();
     const dueDate = dto.DuesToDate;
     const amount = Math.ceil(dto.amount);
+    const dueLabel = dto.dueType === 'OTHER' && dto.customDueType ? dto.customDueType : dto.dueType;
     const due = await this.prisma.tenantDue.create({
       data: {
         tenancyId: tenancy.id,
         propertyId: tenancy.propertyId,
         dueType: dto.dueType,
-        title: `${dto.dueType} for ${dto.tenantId} for the month ${currentMonth} and year ${year}`,
-        description: `${dto.dueType} generated for tenant with id ${dto.tenantId} for the month ${currentMonth} and year ${year}`,
+        customDueType: dto.dueType === 'OTHER' ? (dto.customDueType ?? null) : null,
+        title: `${dueLabel} for ${dto.tenantId} for the month ${currentMonth} and year ${year}`,
+        description: `${dueLabel} generated for tenant with id ${dto.tenantId} for the month ${currentMonth} and year ${year}`,
         month: currentMonth,
         year: year,
         totalAmount: amount,
@@ -117,6 +119,7 @@ export class DueService {
     const currentMonth = now.getMonth() + 1;
     const year = now.getFullYear();
     const dueDate = dto.DuesToDate;
+    const dueLabel = dto.dueType === 'OTHER' && dto.customDueType ? dto.customDueType : dto.dueType;
     const txResult = await this.prisma.$transaction(async (tx) => {
       const dues = await Promise.all(
         tenencies.map((tenancy) =>
@@ -125,8 +128,9 @@ export class DueService {
               tenancyId: tenancy.id,
               propertyId: tenancy.propertyId,
               dueType: dto.dueType,
-              title: `${dto.dueType} for ${tenancy.tenentId} for the month ${currentMonth} and year ${year}`,
-              description: `${dto.dueType} generated for tenant with id ${tenancy.tenentId} for the month ${currentMonth} and year ${year}`,
+              customDueType: dto.dueType === 'OTHER' ? (dto.customDueType ?? null) : null,
+              title: `${dueLabel} for ${tenancy.tenentId} for the month ${currentMonth} and year ${year}`,
+              description: `${dueLabel} generated for tenant with id ${tenancy.tenentId} for the month ${currentMonth} and year ${year}`,
               month: currentMonth,
               year: year,
               totalAmount: individualAmounts,
@@ -179,6 +183,7 @@ export class DueService {
       select: {
         id: true,
         dueType: true,
+        customDueType: true,
         title: true,
         description: true,
         month: true,
@@ -222,6 +227,7 @@ export class DueService {
       select: {
         id: true,
         dueType: true,
+        customDueType: true,
         title: true,
         description: true,
         month: true,
@@ -253,6 +259,7 @@ export class DueService {
       select: {
         id: true,
         dueType: true,
+        customDueType: true,
         title: true,
         description: true,
         month: true,
@@ -297,6 +304,7 @@ export class DueService {
       select: {
         id: true,
         dueType: true,
+        customDueType: true,
         title: true,
         description: true,
         month: true,
@@ -336,6 +344,7 @@ export class DueService {
       select: {
         id: true,
         dueType: true,
+        customDueType: true,
         title: true,
         description: true,
         month: true,
@@ -446,6 +455,7 @@ export class DueService {
       select: {
         id: true,
         dueType: true,
+        customDueType: true,
         title: true,
         description: true,
         month: true,
@@ -513,6 +523,7 @@ export class DueService {
         due: {
           select: {
             dueType: true,
+        customDueType: true,
             title: true,
             totalAmount: true,
             balanceAmount: true,

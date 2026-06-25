@@ -197,6 +197,11 @@ export class BillingService {
           balanceAmount: dto.dueAmount - Number(due.paidAmount),
         }),
         ...(dto.dueType && { dueType: dto.dueType }),
+        ...(dto.dueType === 'OTHER'
+          ? { customDueType: dto.customDueType ?? null }
+          : dto.dueType
+          ? { customDueType: null }
+          : {}),
       },
     });
     await this.prisma.propertyMetrics.update({

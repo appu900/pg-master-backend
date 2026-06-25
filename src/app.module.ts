@@ -41,6 +41,7 @@ import { PaymentModule } from './modules/payment/payment.module';
 import { MetricsWorkerModule } from './metrics-worker-service/metrics.worker.module';
 import { SettelmentModule } from './modules/settelment/settelment.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { PropertySettingsModule } from './modules/property-settings/property-settings.module';
 
 
 @Module({
@@ -93,6 +94,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     PaymentModule,
     SettelmentModule,
     AnalyticsModule,
+    PropertySettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
