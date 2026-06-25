@@ -17,13 +17,24 @@ import {
 import { Transform, Type } from 'class-transformer';
 
 export enum RentalType {
-  PG = 'PG',
-  HOSTEL = 'HOSTEL',
-  FLAT = 'FLAT',
-  BED = 'BED',
-  ROOM = 'ROOM',
-  OTHER = 'OTHER',
+  SHORT_TERM = 'SHORT_TERM',
+  LONG_TERM = 'LONG_TERM',
 }
+
+const RENTAL_TYPE_ALIASES: Record<string, RentalType> = {
+  'Short Term': RentalType.SHORT_TERM,
+  'Short term': RentalType.SHORT_TERM,
+  SHORT_TERM: RentalType.SHORT_TERM,
+  'Long Term': RentalType.LONG_TERM,
+  'Long term': RentalType.LONG_TERM,
+  LONG_TERM: RentalType.LONG_TERM,
+};
+
+export const normalizeRentalType = (value: unknown): RentalType | undefined => {
+  if (value == null || value === '') return undefined;
+  const trimmed = String(value).trim();
+  return RENTAL_TYPE_ALIASES[trimmed];
+};
 
 export class AddTenantDto {
   @IsString()
@@ -35,7 +46,6 @@ export class AddTenantDto {
 
   @IsString()
   @IsNotEmpty()
-  // @Matches(/^[6-9]\d{9}$/, { message: 'phoneNumber must be a valid 10-digit Indian mobile number' })
   phoneNumber!: string;
 
   @IsOptional()
@@ -45,6 +55,7 @@ export class AddTenantDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsNotEmpty()
   gender?: string;
 
@@ -114,11 +125,12 @@ export class AddTenantDto {
   @Type(() => Number)
   agreementPeriodInMonths?: number;
 
-  @IsOptional()
+  @Transform(({ value }) => normalizeRentalType(value))
   @IsEnum(RentalType, {
-    message: `rentalType must be one of: ${Object.values(RentalType).join(', ')}`,
+    message: 'rentalType must be Short Term or Long Term',
   })
-  rentalType?: RentalType;
+  @IsNotEmpty({ message: 'rentalType is required' })
+  rentalType!: RentalType;
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive({ message: 'rentAmount must be greater than 0' })

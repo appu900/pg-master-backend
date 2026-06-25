@@ -1,4 +1,6 @@
-import { IsInt, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { RentalType, normalizeRentalType } from './add.tenant.dto';
 
 export class EditTenancyDto {
   @IsOptional()
@@ -22,8 +24,11 @@ export class EditTenancyDto {
   agreementPeriod?: number;
 
   @IsOptional()
-  @IsString()
-  rentalType?: string;
+  @Transform(({ value }) => normalizeRentalType(value))
+  @IsEnum(RentalType, {
+    message: 'rentalType must be Short Term or Long Term',
+  })
+  rentalType?: RentalType;
 
   @IsOptional()
   @IsInt()
