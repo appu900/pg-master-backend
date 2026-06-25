@@ -23,7 +23,11 @@ import { TenancyEvents, TenantAddedEventPayload } from './tenancy.event';
 import { TenantAddedEvent } from 'src/core/events/domain-events';
 
 
-const BLOCKING_TENANCY_STATUSES = new Set(['ACTIVE', 'NOTICE_PERIOD']);
+const BLOCKING_TENANCY_STATUSES = new Set([
+  'ACTIVE',
+  'NOTICE_PERIOD',
+  'PENDING',
+]);
 const MAX_FUTURE_JOINING_DAYS = 90;
 
 @Injectable()
@@ -314,6 +318,9 @@ export class TenancyService {
           update: profilePayload,
         });
 
+        const todayUtc = toDateOnly(new Date());
+        const isFutureJoin = joinDate.getTime() > todayUtc.getTime();
+
         // ** create tenancy
         const tenancy = await tx.tenancy.create({
           data: {
@@ -324,7 +331,9 @@ export class TenancyService {
             securityDeposit: dto.securityDeposit,
             billingCycleDay: dto.rentCycleDay,
             joinedAt: joinDate,
-            tenancyStatus: 'ACTIVE',
+            tenancyStatus: isFutureJoin
+              ? TenancyStatus.PENDING
+              : TenancyStatus.ACTIVE,
             lockInPeriodsInMonths: dto.lockInPeriodInMonths,
             noticePeriodInDays: dto.noticePeriodInDays,
             initialElectricityReading: dto.electricityReading,

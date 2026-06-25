@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { TenancyStatus, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
+import { formatDate, toDateOnly } from 'src/utils/Proration.utils';
 import { RoomService } from '../room/room.service';
 import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -23,6 +24,42 @@ export class TenentService {
     private readonly s3Serice: S3Service,
     private readonly serviceEventPublisher:TenantEventPublsiher
   ) {}
+
+  private mapTenancyToListItem(tenancy: {
+    id: number;
+    rentAmount: any;
+    securityDeposit: any;
+    tenancyStatus: TenancyStatus;
+    joinedAt: Date;
+    leftAt: Date | null;
+    tenent: {
+      id: number;
+      fullName: string;
+      email: string | null;
+      phoneNumber: string;
+      tenentProfile: any;
+    };
+    room: {
+      roomNumber: string;
+      floorNumber: number | null;
+    };
+  }) {
+    return {
+      id: tenancy.tenent.id,
+      tenancyId: tenancy.id,
+      fullName: tenancy.tenent.fullName,
+      email: tenancy.tenent.email,
+      phoneNumber: tenancy.tenent.phoneNumber,
+      roomNumber: tenancy.room.roomNumber,
+      floorNumber: tenancy.room.floorNumber,
+      rentAmount: tenancy.rentAmount,
+      securityDeposit: tenancy.securityDeposit,
+      status: tenancy.tenancyStatus,
+      joinedAt: formatDate(toDateOnly(tenancy.joinedAt)),
+      leftAt: tenancy.leftAt ? formatDate(toDateOnly(tenancy.leftAt)) : null,
+      profile: tenancy.tenent.tenentProfile,
+    };
+  }
 
   async getTenantsByRoom(roomId: number) {
     return this.roomService.fetchAllTenantsOfRoom(roomId);
@@ -76,21 +113,7 @@ export class TenentService {
       },
     });
 
-    return tenancies.map((tenancy) => ({
-      id: tenancy.tenent.id,
-      tenancyId: tenancy.id,
-      fullName: tenancy.tenent.fullName,
-      email: tenancy.tenent.email,
-      phoneNumber: tenancy.tenent.phoneNumber,
-      roomNumber: tenancy.room.roomNumber,
-      floorNumber: tenancy.room.floorNumber,
-      rentAmount: tenancy.rentAmount,
-      securityDeposit: tenancy.securityDeposit,
-      status: tenancy.tenancyStatus,
-      joinedAt: tenancy.joinedAt,
-      leftAt: tenancy.leftAt,
-      profile: tenancy.tenent.tenentProfile,
-    }));
+    return tenancies.map((tenancy) => this.mapTenancyToListItem(tenancy));
   }
 
   async getTenantStats(propertyId: number) {
@@ -100,7 +123,8 @@ export class TenentService {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const [statusCounts, todayBookings] = await Promise.all([
+    const [statusCounts, todayBookings, waitingToMoveIn, securityDepositPending] =
+      await Promise.all([
       this.prisma.tenancy.groupBy({
         by: ['tenancyStatus'],
         where: {
@@ -118,6 +142,32 @@ export class TenentService {
             gte: today,
             lt: tomorrow,
           },
+        },
+      }),
+
+      this.prisma.tenancy.count({
+        where: {
+          propertyId,
+          deletedAt: null,
+          tenancyStatus: {
+            notIn: [TenancyStatus.EXITED, TenancyStatus.EVICTED],
+          },
+          OR: [
+            { tenancyStatus: TenancyStatus.PENDING },
+            {
+              joinedAt: { gte: today },
+              tenancyStatus: TenancyStatus.ACTIVE,
+            },
+          ],
+        },
+      }),
+
+      this.prisma.tenantDue.count({
+        where: {
+          propertyId,
+          dueType: 'SECURITY_DEPOSIT',
+          status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] },
+          balanceAmount: { gt: 0 },
         },
       }),
     ]);
@@ -141,6 +191,8 @@ export class TenentService {
       activeTenants,
       underNoticeTenants,
       todayBookings,
+      waitingToMoveIn,
+      securityDepositPending,
       pendingDues: 0,
     };
   }
@@ -428,21 +480,7 @@ export class TenentService {
       },
     });
 
-    return tenancies.map((tenancy) => ({
-      id: tenancy.tenent.id,
-      tenancyId: tenancy.id,
-      fullName: tenancy.tenent.fullName,
-      email: tenancy.tenent.email,
-      phoneNumber: tenancy.tenent.phoneNumber,
-      roomNumber: tenancy.room.roomNumber,
-      floorNumber: tenancy.room.floorNumber,
-      rentAmount: tenancy.rentAmount,
-      securityDeposit: tenancy.securityDeposit,
-      status: tenancy.tenancyStatus,
-      joinedAt: tenancy.joinedAt,
-      leftAt: tenancy.leftAt,
-      profile: tenancy.tenent.tenentProfile,
-    }));
+    return tenancies.map((tenancy) => this.mapTenancyToListItem(tenancy));
   }
 
   async fetchTenancyDetails(tenantId: number) {
