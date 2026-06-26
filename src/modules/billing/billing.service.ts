@@ -169,6 +169,9 @@ export class BillingService {
         id: dueId,
         property: { ownerId: ownerUserId },
       },
+      include: {
+        property: { select: { ownerId: true } },
+      },
     });
     if (!due) {
       throw new NotFoundException('Due not found');
@@ -177,49 +180,110 @@ export class BillingService {
       throw new BadRequestException('Paid dues cannot be edited');
     }
 
-    const month = due.month;
-    const year = due.year;
-    const propertyId = due.propertyId;
-    const propertyKey = `dash:property:${propertyId}:${year}:${month}`;
-    let dueTobeDeleted = due.totalAmount;
-    let dueTobeAdded;
-    if (dto.dueAmount) {
-      dueTobeAdded = dto.dueAmount;
+    const oldTotal = Number(due.totalAmount);
+    const paidAmount = Number(due.paidAmount);
+    const newTotal =
+      dto.dueAmount !== undefined ? Number(dto.dueAmount) : oldTotal;
+    if (!Number.isFinite(newTotal) || newTotal <= 0) {
+      throw new BadRequestException('Due amount must be greater than 0');
     }
+
+    const newBalance = Math.max(newTotal - paidAmount, 0);
+    const nextDueDate = dto.toDate ?? due.dueDate;
+    const nextMonth = nextDueDate.getMonth() + 1;
+    const nextYear = nextDueDate.getFullYear();
+    const oldMonth = due.month;
+    const oldYear = due.year;
+    const monthChanged = nextMonth !== oldMonth || nextYear !== oldYear;
+    const amountChanged = dto.dueAmount !== undefined && newTotal !== oldTotal;
 
     const updated = await this.prisma.tenantDue.update({
       where: { id: dueId },
       data: {
         ...(dto.fromDate && { periodStart: dto.fromDate }),
-        ...(dto.toDate && { periodEnd: dto.toDate }),
+        ...(dto.toDate && {
+          periodEnd: dto.toDate,
+          dueDate: dto.toDate,
+        }),
         ...(dto.dueAmount !== undefined && {
-          totalAmount: dto.dueAmount,
-          balanceAmount: dto.dueAmount - Number(due.paidAmount),
+          totalAmount: newTotal,
+          balanceAmount: newBalance,
         }),
         ...(dto.dueType && { dueType: dto.dueType }),
         ...(dto.dueType === 'OTHER'
           ? { customDueType: dto.customDueType ?? null }
           : dto.dueType
-          ? { customDueType: null }
-          : {}),
+            ? { customDueType: null }
+            : {}),
+        ...(dto.toDate && {
+          month: nextMonth,
+          year: nextYear,
+        }),
       },
     });
-    await this.prisma.propertyMetrics.update({
-      where: {
-        propertyId_month_year: { propertyId, month, year },
-      },
-      data: {
-        totalDuesGenerated: { decrement: dueTobeDeleted },
-      },
-    });
-    await this.prisma.propertyMetrics.update({
-      where: {
-        propertyId_month_year: { propertyId, month, year },
-      },
-      data: {
-        totalDuesGenerated: { increment: dueTobeAdded },
-      },
-    });
-    return updated;
+
+    if (monthChanged) {
+      await this.adjustDuesGeneratedMetric(
+        due.propertyId,
+        due.property.ownerId,
+        oldMonth,
+        oldYear,
+        -oldTotal,
+      );
+      await this.adjustDuesGeneratedMetric(
+        due.propertyId,
+        due.property.ownerId,
+        nextMonth,
+        nextYear,
+        newTotal,
+      );
+    } else if (amountChanged) {
+      const delta = newTotal - oldTotal;
+      await this.adjustDuesGeneratedMetric(
+        due.propertyId,
+        due.property.ownerId,
+        oldMonth,
+        oldYear,
+        delta,
+      );
+    }
+
+    return { message: 'Due updated successfully', due: updated };
+  }
+
+  private async adjustDuesGeneratedMetric(
+    propertyId: number,
+    ownerId: number,
+    month: number,
+    year: number,
+    delta: number,
+  ) {
+    if (delta === 0) return;
+
+    try {
+      await this.prisma.propertyMetrics.upsert({
+        where: {
+          propertyId_month_year: { propertyId, month, year },
+        },
+        create: {
+          propertyId,
+          ownerId,
+          month,
+          year,
+          totalDuesGenerated: Math.max(delta, 0),
+        },
+        update: {
+          totalDuesGenerated: { increment: delta },
+        },
+      });
+
+      const propertyKey = `dash:property:${propertyId}:${year}:${month}`;
+      await this.redis.getClient().hincrby(propertyKey, 'dues_generated', delta);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to adjust dues_generated metric for property ${propertyId} (${month}/${year})`,
+        error,
+      );
+    }
   }
 }
