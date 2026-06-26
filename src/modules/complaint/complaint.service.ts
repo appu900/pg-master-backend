@@ -3,23 +3,31 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { ComplaintCreateByOwnerDto } from './dto/create.complaint-by-owner.dto';
 import {
   ComplaintStatus,
+  MaintenanceJobPosition,
   MaintenancePriority,
+  Prisma,
   TenancyStatus,
-  TenantStatus,
   UserRole,
 } from '@prisma/client';
 import { CreateComplaintDto } from './dto/create-.complaint-by-tenent.dto';
 import { S3Service } from 'src/infra/s3/s3.service';
-import { error } from 'console';
-import { Prisma } from '@prisma/client';
 import { AddLogsDto } from './dto/addLogs.dto';
 import { EditComplaintByTenantDto } from './dto/edit-complaint-by-tenant.dto';
+
+type ComplaintAssignmentContext = {
+  id: number;
+  propertyId: number;
+  assignedOwnerId: number | null;
+  assignedMaintenanceStaffProfile: {
+    user: { fullName: string };
+    jobPosition: MaintenanceJobPosition;
+  } | null;
+};
 
 @Injectable()
 export class ComplaintService {
@@ -43,6 +51,75 @@ export class ComplaintService {
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
   ) {}
+
+  private formatStaffAssigneeName(
+    profile:
+      | {
+          user: { fullName: string };
+          jobPosition?: MaintenanceJobPosition | null;
+        }
+      | null
+      | undefined,
+  ): string | null {
+    if (!profile?.user?.fullName) return null;
+    if (profile.jobPosition) {
+      const role = String(profile.jobPosition).replace(/_/g, ' ').toLowerCase();
+      return `${profile.user.fullName} (${role})`;
+    }
+    return profile.user.fullName;
+  }
+
+  private formatOwnerAssigneeName(
+    owner: { fullName: string } | null | undefined,
+  ): string | null {
+    if (!owner?.fullName) return null;
+    return `${owner.fullName} (Property Owner)`;
+  }
+
+  private buildAssignmentLogTitle(
+    previousName: string | null,
+    newName: string,
+  ): string {
+    if (previousName && previousName !== newName) {
+      return `Reassigned from ${previousName} to ${newName}`;
+    }
+    return `Assigned to ${newName}`;
+  }
+
+  private async resolvePreviousAssigneeName(
+    complaint: ComplaintAssignmentContext,
+  ): Promise<string | null> {
+    const staffName = this.formatStaffAssigneeName(
+      complaint.assignedMaintenanceStaffProfile,
+    );
+    if (staffName) return staffName;
+
+    if (!complaint.assignedOwnerId) return null;
+
+    const owner = await this.prisma.user.findUnique({
+      where: { id: complaint.assignedOwnerId },
+      select: { fullName: true },
+    });
+    return this.formatOwnerAssigneeName(owner);
+  }
+
+  private buildAssignToOwnerUpdate(ownerUserId: number): Prisma.ComplaintUpdateInput {
+    return {
+      assignedOwnerId: ownerUserId,
+      assignedMaintenanceStaffProfileId: null,
+      status: ComplaintStatus.ASSIGNED,
+    } as Prisma.ComplaintUpdateInput;
+  }
+
+  private buildAssignToStaffUpdate(
+    staffProfileId: number,
+  ): Prisma.ComplaintUpdateInput {
+    return {
+      assignedMaintenanceStaffProfileId: staffProfileId,
+      assignedOwnerId: null,
+      status: ComplaintStatus.ASSIGNED,
+    } as Prisma.ComplaintUpdateInput;
+  }
 
   // create complaint by owner
   async createComplaintByOwner(
@@ -104,6 +181,26 @@ export class ComplaintService {
     const hasAssignee =
       dto.assignToSelf || !!dto.assignedMaintenanceStaffProfileId;
 
+    let initialLogTitle = 'Complaint raised';
+    if (dto.assignToSelf) {
+      const ownerName = this.formatOwnerAssigneeName(owner);
+      initialLogTitle = ownerName
+        ? `Complaint raised · ${this.buildAssignmentLogTitle(null, ownerName)}`
+        : 'Complaint raised and assigned to property owner';
+    } else if (dto.assignedMaintenanceStaffProfileId) {
+      const staff = await this.prisma.maintenanceStaffProfile.findUnique({
+        where: { id: dto.assignedMaintenanceStaffProfileId },
+        select: {
+          user: { select: { fullName: true } },
+          jobPosition: true,
+        },
+      });
+      const staffName = this.formatStaffAssigneeName(staff);
+      initialLogTitle = staffName
+        ? `Complaint raised · ${this.buildAssignmentLogTitle(null, staffName)}`
+        : 'Complaint raised and assigned to staff';
+    }
+
     const complaint = await this.prisma.complaint.create({
       data: {
         title: dto.title,
@@ -120,12 +217,10 @@ export class ComplaintService {
         roomNumber: dto.roomNumber,
         logs: {
           create: {
-            title: dto.assignToSelf
-              ? 'complaint raised and assigned to owner'
-              : 'complaint raised',
+            title: initialLogTitle,
           },
         },
-      },
+      } as Prisma.ComplaintUncheckedCreateInput,
     });
 
     if (uploadImageUrls.length > 0) {
@@ -158,7 +253,7 @@ export class ComplaintService {
     const activeTenancy = await this.prisma.tenancy.findFirst({
       where: {
         tenentId: tenant.id,
-        tenancyStatus:TenancyStatus.ACTIVE,
+        tenancyStatus: TenancyStatus.ACTIVE,
         deletedAt: null,
       },
       select: {
@@ -271,7 +366,7 @@ export class ComplaintService {
         priority: true,
         roomNumber: true,
         ...this.assigneeSelect,
-        logs: true,
+        logs: { orderBy: { createdAt: 'asc' } },
         images: true,
       },
     });
@@ -286,36 +381,56 @@ export class ComplaintService {
     complaintId: number,
     options: { staffProfileId?: number; assignToSelf?: boolean },
   ) {
-    const complaint = await this.prisma.complaint.findUnique({
+    const complaint = (await this.prisma.complaint.findUnique({
       where: { id: complaintId },
       select: {
         id: true,
-        property: { select: { ownerId: true } },
+        propertyId: true,
+        assignedOwnerId: true,
+        assignedMaintenanceStaffProfile: {
+          select: {
+            user: { select: { fullName: true } },
+            jobPosition: true,
+          },
+        },
       },
-    });
+    })) as ComplaintAssignmentContext | null;
     if (!complaint) throw new NotFoundException('Complaint not found');
-    if (complaint.property.ownerId !== ownerUserId) {
+
+    const property = await this.prisma.property.findFirst({
+      where: { id: complaint.propertyId, ownerId: ownerUserId },
+      select: { id: true },
+    });
+    if (!property) {
       throw new ForbiddenException(
         'You can only assign complaints for your own properties',
       );
     }
 
+    const previousAssigneeName =
+      await this.resolvePreviousAssigneeName(complaint);
+
     if (options.assignToSelf) {
-    await this.prisma.complaint.update({
-      where: { id: complaintId },
-      data: {
-        assignedOwnerId: ownerUserId,
-        assignedMaintenanceStaffProfileId: null,
-        status: ComplaintStatus.ASSIGNED,
-      },
-    });
-    await this.prisma.complaintActivityLog.create({
-      data: {
-        complaintId,
-        title: 'Assigned to property owner',
-      },
-    });
-    return { message: 'Complaint assigned to you successfully' };
+      const owner = await this.prisma.user.findUnique({
+        where: { id: ownerUserId },
+        select: { fullName: true },
+      });
+      const newAssigneeName = this.formatOwnerAssigneeName(owner);
+      const logTitle = newAssigneeName
+        ? this.buildAssignmentLogTitle(previousAssigneeName, newAssigneeName)
+        : 'Assigned to property owner';
+
+      await this.prisma.complaint.update({
+        where: { id: complaintId },
+        data: this.buildAssignToOwnerUpdate(ownerUserId),
+      });
+      await this.prisma.complaintActivityLog.create({
+        data: {
+          complaintId,
+          title: logTitle,
+        },
+      });
+      return { message: 'Complaint assigned to you successfully' };
     }
 
     if (!options.staffProfileId) {
@@ -335,18 +450,26 @@ export class ComplaintService {
       throw new ForbiddenException('Staff not found or access denied');
     }
 
+    const staff = await this.prisma.maintenanceStaffProfile.findUnique({
+      where: { id: options.staffProfileId },
+      select: {
+        user: { select: { fullName: true } },
+        jobPosition: true,
+      },
+    });
+    const newAssigneeName = this.formatStaffAssigneeName(staff);
+    const logTitle = newAssigneeName
+      ? this.buildAssignmentLogTitle(previousAssigneeName, newAssigneeName)
+      : 'Assigned to staff member';
+
     await this.prisma.complaint.update({
       where: { id: complaintId },
-      data: {
-        assignedMaintenanceStaffProfileId: options.staffProfileId,
-        assignedOwnerId: null,
-        status: ComplaintStatus.ASSIGNED,
-      },
+      data: this.buildAssignToStaffUpdate(options.staffProfileId),
     });
     await this.prisma.complaintActivityLog.create({
       data: {
         complaintId,
-        title: 'Staff assigned to complaint',
+        title: logTitle,
       },
     });
 
