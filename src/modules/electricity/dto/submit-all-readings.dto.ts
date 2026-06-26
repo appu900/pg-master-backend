@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
   IsArray,
   IsInt,
   IsNumber,
@@ -18,7 +19,7 @@ export class MainMeterReadingDto {
   currentReading!: number;
 
   @IsNumber()
-  @Min(0)
+  @Min(0.01)
   unitPrice!: number;
 }
 
@@ -50,6 +51,7 @@ export class SubmitAllReadingsDto {
   mainMeter!: MainMeterReadingDto;
 
   @IsArray()
+  @ArrayMinSize(0)
   @ValidateNested({ each: true })
   @Type(() => RoomReadingDto)
   rooms!: RoomReadingDto[];

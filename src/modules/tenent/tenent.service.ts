@@ -271,7 +271,7 @@ export class TenentService {
         tenancy: {
           where: {
             propertyId,
-            tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD'] },
+            tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD', 'PENDING'] },
             deletedAt: null,
           },
           select: {
@@ -298,7 +298,11 @@ export class TenentService {
     if (!tenant) throw new NotFoundException('Tenant not found');
 
     const tenancy = tenant.tenancy[0];
-    if (!tenancy) throw new NotFoundException('No active tenancy found for this tenant in the given property');
+    if (!tenancy) {
+      throw new NotFoundException(
+        'No tenancy found for this tenant in the given property',
+      );
+    }
 
     if (tenancy.property.ownerId !== ownerUserId) {
       throw new ForbiddenException("You do not own this tenant's property");

@@ -130,6 +130,7 @@ export class StaffService {
         monthlySalary: true,
         user: {
           select: {
+            id: true,
             fullName: true,
           },
         },
