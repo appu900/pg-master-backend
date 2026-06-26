@@ -21,6 +21,7 @@ model User {
   deletedAt               DateTime?
   adminProfile            AdminProfile?
   complaints              Complaint[]              @relation("ComplaintRaisedBy")
+  assignedComplaints      Complaint[]              @relation("ComplaintAssignedOwner")
   employeeBooks           EmployeeBook[]
   maintenanceStaffProfile MaintenanceStaffProfile?
   property                Property[]
@@ -503,6 +504,7 @@ model Complaint {
   description                       String
   raisedById                        Int
   assignedMaintenanceStaffProfileId Int?
+  assignedOwnerId                   Int?
   status                            ComplaintStatus          @default(OPEN)
   createdAt                         DateTime                 @default(now())
   updatedAt                         DateTime                 @updatedAt
@@ -512,6 +514,7 @@ model Complaint {
   priority                          MaintenancePriority?
   roomNumber                        String?
   assignedMaintenanceStaffProfile   MaintenanceStaffProfile? @relation(fields: [assignedMaintenanceStaffProfileId], references: [id])
+  assignedOwner                     User?                    @relation("ComplaintAssignedOwner", fields: [assignedOwnerId], references: [id])
   property                          Property                 @relation(fields: [propertyId], references: [id])
   raisedBy                          User                     @relation("ComplaintRaisedBy", fields: [raisedById], references: [id])
   logs                              ComplaintActivityLog[]
@@ -519,6 +522,7 @@ model Complaint {
 
   @@index([raisedById])
   @@index([assignedMaintenanceStaffProfileId])
+  @@index([assignedOwnerId])
   @@index([status])
 }
 

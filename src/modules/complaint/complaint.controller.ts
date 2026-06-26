@@ -110,11 +110,14 @@ export class ComplaintController {
   @Put('assign-staff')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async assignMaintenanceStaff(@Body() dto: assignMaintenanceStaffDto) {
-    return this.complaintService.assignMaintenanceStaff(
-      dto.complaintId,
-      dto.staffProfileId,
-    );
+  async assignMaintenanceStaff(
+    @Body() dto: assignMaintenanceStaffDto,
+    @GetUser() user: any,
+  ) {
+    return this.complaintService.assignMaintenanceStaff(user.userId, dto.complaintId, {
+      staffProfileId: dto.staffProfileId,
+      assignToSelf: dto.assignToSelf,
+    });
   }
 
   @Get('/raisedby/tenant')

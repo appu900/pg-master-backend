@@ -1,5 +1,6 @@
 import { ComplaintStatus } from '@prisma/client';
 import {
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -7,7 +8,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export class ComplaintCreateByOwnerDto {
   @IsNotEmpty()
@@ -19,9 +20,9 @@ export class ComplaintCreateByOwnerDto {
   description: string;
 
   @IsInt()
-  @IsNotEmpty()
+  @IsOptional()
   @Type(() => Number)
-  tenantId: number;
+  tenantId?: number;
 
   @IsInt()
   @IsNotEmpty()
@@ -29,15 +30,20 @@ export class ComplaintCreateByOwnerDto {
   propertyId: number;
 
   @IsString()
-  @IsNotEmpty()
-  roomNumber: string;
+  @IsOptional()
+  roomNumber?: string;
 
   @IsEnum(ComplaintStatus)
   @IsNotEmpty()
   status: ComplaintStatus;
 
   @IsInt()
-  @IsNotEmpty()
+  @IsOptional()
   @Type(() => Number)
   assignedMaintenanceStaffProfileId?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  assignToSelf?: boolean;
 }

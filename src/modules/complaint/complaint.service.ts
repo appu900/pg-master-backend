@@ -24,6 +24,21 @@ import { EditComplaintByTenantDto } from './dto/edit-complaint-by-tenant.dto';
 @Injectable()
 export class ComplaintService {
   private readonly COMPLAINT_S3_FOLDER_NAME = 'complaints';
+
+  private readonly assigneeSelect = {
+    assignedMaintenanceStaffProfile: {
+      select: {
+        id: true,
+        user: { select: { fullName: true, phoneNumber: true } },
+        whatsAppNumber: true,
+        jobPosition: true,
+      },
+    },
+    assignedOwner: {
+      select: { id: true, fullName: true, phoneNumber: true },
+    },
+  } as const;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
@@ -48,6 +63,32 @@ export class ComplaintService {
         throw new BadRequestException('Invalid tenant for this request owner');
     }
 
+    const property = await this.prisma.property.findFirst({
+      where: { id: dto.propertyId, ownerId: owner.id },
+      select: { id: true },
+    });
+    if (!property) {
+      throw new ForbiddenException('Property not found or access denied');
+    }
+
+    if (dto.assignToSelf && dto.assignedMaintenanceStaffProfileId) {
+      throw new BadRequestException(
+        'Cannot assign both yourself and a staff member',
+      );
+    }
+
+    if (dto.assignedMaintenanceStaffProfileId) {
+      const staffBook = await this.prisma.employeeBook.findFirst({
+        where: {
+          ownerId: owner.id,
+          employeeProfileId: dto.assignedMaintenanceStaffProfileId,
+        },
+      });
+      if (!staffBook) {
+        throw new ForbiddenException('Staff not found or access denied');
+      }
+    }
+
     // images upload endpoint
     let uploadImageUrls: string[] = [];
     if (images && images.length > 0) {
@@ -60,19 +101,28 @@ export class ComplaintService {
       }
     }
 
+    const hasAssignee =
+      dto.assignToSelf || !!dto.assignedMaintenanceStaffProfileId;
+
     const complaint = await this.prisma.complaint.create({
       data: {
         title: dto.title,
         description: dto.description,
-        raisedById: dto.tenantId,
+        raisedById: dto.tenantId ?? ownerId,
         propertyId: dto.propertyId,
-        assignedMaintenanceStaffProfileId:
-          dto.assignedMaintenanceStaffProfileId ?? null,
-        status: dto.status as ComplaintStatus,
+        assignedMaintenanceStaffProfileId: dto.assignToSelf
+          ? null
+          : (dto.assignedMaintenanceStaffProfileId ?? null),
+        assignedOwnerId: dto.assignToSelf ? ownerId : null,
+        status: hasAssignee
+          ? ComplaintStatus.ASSIGNED
+          : (dto.status as ComplaintStatus),
         roomNumber: dto.roomNumber,
         logs: {
           create: {
-            title: 'complaint raised',
+            title: dto.assignToSelf
+              ? 'complaint raised and assigned to owner'
+              : 'complaint raised',
           },
         },
       },
@@ -199,14 +249,7 @@ export class ComplaintService {
             fullName: true,
           },
         },
-        assignedMaintenanceStaffProfile: {
-          select: {
-            user: {
-              select: { fullName: true, phoneNumber: true },
-            },
-            whatsAppNumber: true,
-          },
-        },
+        ...this.assigneeSelect,
         createdAt: true,
       },
     });
@@ -227,9 +270,7 @@ export class ComplaintService {
         requestedVisitTime: true,
         priority: true,
         roomNumber: true,
-        assignedMaintenanceStaffProfile: {
-          select: { user: { select: { fullName: true } } },
-        },
+        ...this.assigneeSelect,
         logs: true,
         images: true,
       },
@@ -240,23 +281,75 @@ export class ComplaintService {
     return complaint;
   }
 
-  async assignMaintenanceStaff(complaintId: number, staffProfileId: number) {
+  async assignMaintenanceStaff(
+    ownerUserId: number,
+    complaintId: number,
+    options: { staffProfileId?: number; assignToSelf?: boolean },
+  ) {
     const complaint = await this.prisma.complaint.findUnique({
       where: { id: complaintId },
+      select: {
+        id: true,
+        property: { select: { ownerId: true } },
+      },
     });
-    const staff = await this.prisma.maintenanceStaffProfile.findUnique({
-      where: { id: staffProfileId },
-    });
-    if (!staff) throw new NotFoundException('staff not found');
-    if (!complaint) throw new NotFoundException();
+    if (!complaint) throw new NotFoundException('Complaint not found');
+    if (complaint.property.ownerId !== ownerUserId) {
+      throw new ForbiddenException(
+        'You can only assign complaints for your own properties',
+      );
+    }
+
+    if (options.assignToSelf) {
     await this.prisma.complaint.update({
       where: { id: complaintId },
       data: {
-        assignedMaintenanceStaffProfileId: staffProfileId,
+        assignedOwnerId: ownerUserId,
+        assignedMaintenanceStaffProfileId: null,
         status: ComplaintStatus.ASSIGNED,
       },
     });
-    // **TODO add notification here to send this event to the staff whatsapp
+    await this.prisma.complaintActivityLog.create({
+      data: {
+        complaintId,
+        title: 'Assigned to property owner',
+      },
+    });
+    return { message: 'Complaint assigned to you successfully' };
+    }
+
+    if (!options.staffProfileId) {
+      throw new BadRequestException(
+        'Provide staffProfileId or set assignToSelf to true',
+      );
+    }
+
+    const staffBook = await this.prisma.employeeBook.findFirst({
+      where: {
+        ownerId: ownerUserId,
+        employeeProfileId: options.staffProfileId,
+      },
+      select: { id: true },
+    });
+    if (!staffBook) {
+      throw new ForbiddenException('Staff not found or access denied');
+    }
+
+    await this.prisma.complaint.update({
+      where: { id: complaintId },
+      data: {
+        assignedMaintenanceStaffProfileId: options.staffProfileId,
+        assignedOwnerId: null,
+        status: ComplaintStatus.ASSIGNED,
+      },
+    });
+    await this.prisma.complaintActivityLog.create({
+      data: {
+        complaintId,
+        title: 'Staff assigned to complaint',
+      },
+    });
+
     return {
       message: 'staff assigned sucessfully',
     };
@@ -447,23 +540,40 @@ export class ComplaintService {
     });
 
     const allPropertyIds = allPropertiesOfOwner.map((p) => p.id);
-    console.log(allPropertyIds)
     const complaints = await this.prisma.complaint.findMany({
       where: {
         propertyId: { in: allPropertyIds },
       },
-      include: {
-        property: true,
-        raisedBy: true,
-        assignedMaintenanceStaffProfile: true,
-        logs: true,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        property: {
+          select: {
+            name: true,
+            id: true,
+          },
+        },
+        roomNumber: true,
+        requestedVisitDate: true,
+        requestedVisitTime: true,
+        priority: true,
         images: true,
+        logs: true,
+        raisedBy: {
+          select: {
+            fullName: true,
+          },
+        },
+        ...this.assigneeSelect,
+        createdAt: true,
       },
-      orderBy:{
-        createdAt:'desc'
+      orderBy: {
+        createdAt: 'desc',
       },
-      take:100
+      take: 100,
     });
-    return complaints
+    return complaints;
   }
 }
