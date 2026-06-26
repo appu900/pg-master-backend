@@ -18,6 +18,7 @@ import { EditTenancyDto } from './dto/update-tenancy.dto';
 import { AddTenantDto } from './dto/add.tenant.dto';
 import { ShiftRoomDto } from './dto/shift-room.dto';
 import { RejectMoveOutDto } from './dto/reject-moveout.dto';
+import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
 
 @Controller('tenancy')
 export class TenancyController {
@@ -57,8 +58,20 @@ export class TenancyController {
   async putOnNoticePeriod(
     @Param('tenancyId', ParseIntPipe) tenancyId: number,
     @GetUser() user: any,
+    @Body() dto: MoveOutTenantDto,
   ) {
-    return this.tenancyService.putOnNoticePeriod(tenancyId, user.userId);
+    return this.tenancyService.putOnNoticePeriod(tenancyId, user.userId, dto);
+  }
+
+  // revert notice period — tenant stays active
+  @Post('/:tenancyId/cancel-notice')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async cancelNoticePeriod(
+    @Param('tenancyId', ParseIntPipe) tenancyId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.cancelNoticePeriod(tenancyId, user.userId);
   }
 
   // list all pending moveout requests for a property

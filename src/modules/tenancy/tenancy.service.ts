@@ -13,6 +13,7 @@ import { RejectMoveOutDto } from './dto/reject-moveout.dto';
 import { EditTenancyDto } from './dto/update-tenancy.dto';
 import { AddTenantDto } from './dto/add.tenant.dto';
 import { ShiftRoomDto } from './dto/shift-room.dto';
+import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
 import {
   calculateProratedRent,
   formatDate,
@@ -543,7 +544,9 @@ export class TenancyService {
     const tenancy = await this.prisma.tenancy.findFirst({
       where: {
         id: tenancyId,
-        tenancyStatus: 'ACTIVE',
+        tenancyStatus: {
+          in: [TenancyStatus.ACTIVE, TenancyStatus.NOTICE_PERIOD],
+        },
         deletedAt: null,
         property: { ownerId },
       },
@@ -917,25 +920,101 @@ export class TenancyService {
 
   
 
-  async putOnNoticePeriod(tenancyId: number, ownerUserId: number) {
+  async putOnNoticePeriod(
+    tenancyId: number,
+    ownerUserId: number,
+    dto: MoveOutTenantDto,
+  ) {
+    const moveOut = parseDateUTC(dto.moveOutDate);
+    if (isNaN(moveOut.getTime())) {
+      throw new BadRequestException('moveOutDate is not a valid date');
+    }
+
+    const today = toDateOnly(new Date());
+    if (moveOut < today) {
+      throw new BadRequestException('Move-out date cannot be in the past');
+    }
+
     const tenancy = await this.prisma.tenancy.findFirst({
       where: {
         id: tenancyId,
-        tenancyStatus: TenancyStatus.ACTIVE,
+        tenancyStatus: {
+          in: [TenancyStatus.ACTIVE, TenancyStatus.NOTICE_PERIOD],
+        },
         deletedAt: null,
         property: { ownerId: ownerUserId },
       },
-      select: { id: true },
+      select: { id: true, tenentId: true, joinedAt: true, tenancyStatus: true },
     });
 
-    if (!tenancy) throw new NotFoundException('Active tenancy not found or access denied');
+    if (!tenancy) {
+      throw new NotFoundException(
+        'Active tenancy not found or access denied',
+      );
+    }
 
-    await this.prisma.tenancy.update({
-      where: { id: tenancyId },
-      data: { tenancyStatus: TenancyStatus.NOTICE_PERIOD },
+    const joinDate = toDateOnly(tenancy.joinedAt);
+    if (moveOut <= joinDate) {
+      throw new BadRequestException(
+        'Move-out date must be after the tenant joining date',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (tenancy.tenancyStatus === TenancyStatus.ACTIVE) {
+        await tx.tenancy.update({
+          where: { id: tenancyId },
+          data: { tenancyStatus: TenancyStatus.NOTICE_PERIOD },
+        });
+      }
+      await tx.tenentProfile.update({
+        where: { userId: tenancy.tenentId },
+        data: { moveOutDate: moveOut },
+      });
     });
 
-    return { message: 'Tenant placed on notice period', tenancyId };
+    return {
+      message:
+        tenancy.tenancyStatus === TenancyStatus.NOTICE_PERIOD
+          ? 'Move-out date updated'
+          : 'Tenant placed on notice period',
+      tenancyId,
+      moveOutDate: formatDate(moveOut),
+    };
+  }
+
+  async cancelNoticePeriod(tenancyId: number, ownerUserId: number) {
+    const tenancy = await this.prisma.tenancy.findFirst({
+      where: {
+        id: tenancyId,
+        tenancyStatus: TenancyStatus.NOTICE_PERIOD,
+        deletedAt: null,
+        property: { ownerId: ownerUserId },
+      },
+      select: { id: true, tenentId: true },
+    });
+
+    if (!tenancy) {
+      throw new NotFoundException(
+        'Tenancy on notice not found or access denied',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tenancy.update({
+        where: { id: tenancyId },
+        data: { tenancyStatus: TenancyStatus.ACTIVE },
+      });
+      await tx.tenentProfile.update({
+        where: { userId: tenancy.tenentId },
+        data: { moveOutDate: null },
+      });
+    });
+
+    return {
+      message: 'Move-out cancelled — tenant is active again',
+      tenancyId,
+    };
   }
 
   async getMoveOutRequests(propertyId: number, ownerUserId: number) {
@@ -1025,7 +1104,7 @@ export class TenancyService {
   async approveMoveOutRequest(requestId: number, ownerUserId: number) {
     const request = await this.prisma.moveOutRequest.findFirst({
       where: { id: requestId, status: 'PENDING', property: { ownerId: ownerUserId } },
-      select: { id: true, tenancyId: true },
+      select: { id: true, tenancyId: true, tenantId: true, requestedMoveOutDate: true },
     });
 
     if (!request) throw new NotFoundException('Pending move-out request not found or access denied');
@@ -1038,6 +1117,10 @@ export class TenancyService {
       await tx.tenancy.update({
         where: { id: request.tenancyId },
         data: { tenancyStatus: TenancyStatus.NOTICE_PERIOD },
+      });
+      await tx.tenentProfile.update({
+        where: { userId: request.tenantId },
+        data: { moveOutDate: toDateOnly(request.requestedMoveOutDate) },
       });
     });
 
