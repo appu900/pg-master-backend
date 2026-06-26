@@ -23,6 +23,7 @@ import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenentService } from './tenent.service';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { RequestMoveOutDto } from './dto/request-moveout.dto';
+import { RequestRoomShiftDto } from './dto/request-room-shift.dto';
 
 @Controller('tenant')
 export class TenentController {
@@ -136,5 +137,29 @@ export class TenentController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getMyMoveOutRequest(@GetUser() user: any) {
     return this.tenentService.getMyMoveOutRequest(user.userId);
+  }
+
+  @Post('/room-shift-request')
+  @Roles(Role.TENANT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async requestRoomShift(@GetUser() user: any, @Body() dto: RequestRoomShiftDto) {
+    return this.tenentService.requestRoomShift(user.userId, dto);
+  }
+
+  @Get('/room-shift-request/me')
+  @Roles(Role.TENANT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getMyRoomShiftRequest(@GetUser() user: any) {
+    return this.tenentService.getMyRoomShiftRequest(user.userId);
+  }
+
+  @Get('/room-shift/available-rooms')
+  @Roles(Role.TENANT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getAvailableRoomsForShift(
+    @GetUser() user: any,
+    @Query('propertyId', ParseIntPipe) propertyId: number,
+  ) {
+    return this.tenentService.getAvailableRoomsForShift(user.userId, propertyId);
   }
 }

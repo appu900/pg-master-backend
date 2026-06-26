@@ -33,6 +33,7 @@ model User {
   noticePeriodTenants     NoticePeriodTenants[]
   tenantKycs              TenantKyc[]
   moveOutRequests         MoveOutRequest[]
+  roomShiftRequests       RoomShiftRequest[]
 
   @@index([phoneNumber])
   @@index([role])
@@ -259,8 +260,10 @@ model Property {
   gatewayTransactions    PaymentGatewayTransaction[]
   noticePeriodTenants    NoticePeriodTenants[]
 
-  moveOutRequests    MoveOutRequest[]
-  lateFineConfig     PropertyLateFineConfig?
+  moveOutRequests              MoveOutRequest[]
+  roomShiftRequests            RoomShiftRequest[]
+  destinationRoomShiftRequests RoomShiftRequest[] @relation("RoomShiftDestinationProperty")
+  lateFineConfig               PropertyLateFineConfig?
 
   @@index([ownerId])
   @@index([pinCode])
@@ -300,6 +303,7 @@ model Room {
   images             RoomImages[]
   tenants            Tenancy[]
   roomMeterReadings  RoomMeterReading[]
+  roomShiftRequests  RoomShiftRequest[] @relation("RoomShiftTarget")
 
   @@index([propertyId])
   @@index([sharingType])
@@ -349,6 +353,7 @@ model Tenancy {
   dailyReminderQueues DailyReminderQueue[]
   noticePeriodTenants NoticePeriodTenants[]
   moveOutRequests     MoveOutRequest[]
+  roomShiftRequests   RoomShiftRequest[]
 
   @@index([roomId, tenentId])
   @@index([propertyId])
@@ -836,6 +841,31 @@ model MoveOutRequest {
   @@index([tenantId])
   @@index([tenancyId])
   @@index([propertyId, status])
+}
+
+model RoomShiftRequest {
+  id                  Int                  @id @default(autoincrement())
+  tenantId            Int
+  tenancyId           Int
+  propertyId          Int
+  requestedRoomId     Int
+  requestedPropertyId Int?
+  reason              String?
+  status              MoveOutRequestStatus @default(PENDING)
+  rejectionReason     String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  tenant            User      @relation(fields: [tenantId], references: [id])
+  tenancy           Tenancy   @relation(fields: [tenancyId], references: [id])
+  property          Property  @relation(fields: [propertyId], references: [id])
+  requestedRoom     Room      @relation("RoomShiftTarget", fields: [requestedRoomId], references: [id])
+  requestedProperty Property? @relation("RoomShiftDestinationProperty", fields: [requestedPropertyId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenancyId])
+  @@index([propertyId, status])
+  @@index([requestedRoomId])
 }
 
 enum MoveOutRequestStatus {

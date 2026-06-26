@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, TenancyStatus, UserRole } from '@prisma/client';
 import { RejectMoveOutDto } from './dto/reject-moveout.dto';
+import { RejectRoomShiftDto } from './dto/reject-room-shift.dto';
 import { EditTenancyDto } from './dto/update-tenancy.dto';
 import { AddTenantDto } from './dto/add.tenant.dto';
 import { ShiftRoomDto } from './dto/shift-room.dto';
@@ -1244,5 +1245,193 @@ export class TenancyService {
     });
 
     return { message: 'Move-out request rejected', requestId };
+  }
+
+  async getRoomShiftRequests(propertyId: number, ownerUserId: number) {
+    const property = await this.prisma.property.findFirst({
+      where: { id: propertyId, ownerId: ownerUserId },
+      select: { id: true },
+    });
+    if (!property) throw new NotFoundException('Property not found or access denied');
+
+    return this.prisma.roomShiftRequest.findMany({
+      where: { propertyId, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        reason: true,
+        createdAt: true,
+        tenant: {
+          select: { id: true, fullName: true, phoneNumber: true, email: true },
+        },
+        tenancy: {
+          select: {
+            id: true,
+            room: { select: { roomNumber: true, floorNumber: true } },
+          },
+        },
+        requestedRoom: {
+          select: { id: true, roomNumber: true, floorNumber: true },
+        },
+        requestedProperty: { select: { id: true, name: true } },
+        property: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  async getRoomShiftRequestDetails(requestId: number, ownerUserId: number) {
+    const request = await this.prisma.roomShiftRequest.findFirst({
+      where: {
+        id: requestId,
+        property: { ownerId: ownerUserId },
+      },
+      select: {
+        id: true,
+        status: true,
+        reason: true,
+        rejectionReason: true,
+        createdAt: true,
+        tenant: {
+          select: {
+            id: true,
+            fullName: true,
+            phoneNumber: true,
+            email: true,
+            tenentProfile: {
+              select: { profileImage: true, profession: true, JoiningDate: true },
+            },
+          },
+        },
+        tenancy: {
+          select: {
+            id: true,
+            rentAmount: true,
+            joinedAt: true,
+            tenancyStatus: true,
+            room: { select: { roomNumber: true, floorNumber: true, sharingType: true } },
+          },
+        },
+        requestedRoom: {
+          select: {
+            id: true,
+            roomNumber: true,
+            floorNumber: true,
+            sharingType: true,
+            totalBeds: true,
+            occupiedBeds: true,
+          },
+        },
+        requestedProperty: { select: { id: true, name: true } },
+        property: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Room shift request not found or access denied');
+    }
+    return request;
+  }
+
+  async approveRoomShiftRequest(requestId: number, ownerUserId: number) {
+    const request = await this.prisma.roomShiftRequest.findFirst({
+      where: {
+        id: requestId,
+        status: 'PENDING',
+        property: { ownerId: ownerUserId },
+      },
+      select: {
+        id: true,
+        tenancyId: true,
+        requestedRoomId: true,
+        requestedPropertyId: true,
+        tenancy: {
+          select: {
+            deletedAt: true,
+            tenancyStatus: true,
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException(
+        'Pending room shift request not found or access denied',
+      );
+    }
+
+    if (request.tenancy.deletedAt) {
+      throw new BadRequestException('Tenancy is no longer active');
+    }
+
+    if (
+      request.tenancy.tenancyStatus !== TenancyStatus.ACTIVE &&
+      request.tenancy.tenancyStatus !== TenancyStatus.NOTICE_PERIOD
+    ) {
+      throw new BadRequestException(
+        'Room shift can only be approved for active or notice-period tenancies',
+      );
+    }
+
+    const shiftResult = await this.shiftTenantRoom(
+      {
+        tenancyId: request.tenancyId,
+        newRoomId: request.requestedRoomId,
+        newPropertyId: request.requestedPropertyId ?? undefined,
+      },
+      ownerUserId,
+    );
+
+    await this.prisma.roomShiftRequest.update({
+      where: { id: requestId },
+      data: { status: 'APPROVED' },
+    });
+
+    await this.prisma.roomShiftRequest.updateMany({
+      where: {
+        tenancyId: request.tenancyId,
+        status: 'PENDING',
+        id: { not: requestId },
+      },
+      data: {
+        status: 'REJECTED',
+        rejectionReason: 'Superseded by an approved room shift request',
+      },
+    });
+
+    return {
+      message: 'Room shift request approved — tenant moved successfully',
+      requestId,
+      fromRoom: shiftResult.fromRoom,
+      toRoom: shiftResult.toRoom,
+    };
+  }
+
+  async rejectRoomShiftRequest(
+    requestId: number,
+    ownerUserId: number,
+    dto: RejectRoomShiftDto,
+  ) {
+    const request = await this.prisma.roomShiftRequest.findFirst({
+      where: {
+        id: requestId,
+        status: 'PENDING',
+        property: { ownerId: ownerUserId },
+      },
+      select: { id: true },
+    });
+
+    if (!request) {
+      throw new NotFoundException(
+        'Pending room shift request not found or access denied',
+      );
+    }
+
+    await this.prisma.roomShiftRequest.update({
+      where: { id: requestId },
+      data: { status: 'REJECTED', rejectionReason: dto.reason ?? null },
+    });
+
+    return { message: 'Room shift request rejected', requestId };
   }
 }

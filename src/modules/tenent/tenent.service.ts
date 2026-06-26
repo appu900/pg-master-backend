@@ -15,6 +15,7 @@ import { S3Service } from 'src/infra/s3/s3.service';
 import { TenantEventPublsiher } from './events/tenant.events';
 import { TenantDeletedEvent } from './events-types/tenant.deleted.event.type';
 import { RequestMoveOutDto } from './dto/request-moveout.dto';
+import { RequestRoomShiftDto } from './dto/request-room-shift.dto';
 
 @Injectable()
 export class TenentService {
@@ -466,6 +467,175 @@ export class TenentService {
 
     if (!request) throw new NotFoundException('No move-out request found');
     return request;
+  }
+
+  async requestRoomShift(tenantUserId: number, dto: RequestRoomShiftDto) {
+    const tenancy = await this.prisma.tenancy.findFirst({
+      where: {
+        tenentId: tenantUserId,
+        propertyId: dto.propertyId,
+        tenancyStatus: { in: [TenancyStatus.ACTIVE, TenancyStatus.NOTICE_PERIOD] },
+        deletedAt: null,
+      },
+      select: { id: true, propertyId: true, roomId: true },
+    });
+
+    if (!tenancy) {
+      throw new NotFoundException('No active tenancy found for this property');
+    }
+
+    const destinationPropertyId = dto.requestedPropertyId ?? tenancy.propertyId;
+
+    if (dto.requestedRoomId === tenancy.roomId && destinationPropertyId === tenancy.propertyId) {
+      throw new BadRequestException('Requested room is the same as your current room');
+    }
+
+    const currentProperty = await this.prisma.property.findUnique({
+      where: { id: tenancy.propertyId },
+      select: { ownerId: true },
+    });
+    if (!currentProperty) {
+      throw new NotFoundException('Current property not found');
+    }
+
+    const destRoom = await this.prisma.room.findFirst({
+      where: {
+        id: dto.requestedRoomId,
+        propertyId: destinationPropertyId,
+        property: { ownerId: currentProperty.ownerId },
+      },
+      select: {
+        id: true,
+        roomNumber: true,
+        occupiedBeds: true,
+        totalBeds: true,
+      },
+    });
+
+    if (!destRoom) {
+      throw new NotFoundException('Requested room not found or not accessible');
+    }
+
+    if (destRoom.occupiedBeds >= destRoom.totalBeds) {
+      throw new ConflictException(
+        `Room ${destRoom.roomNumber} is full — choose another room`,
+      );
+    }
+
+    const existing = await this.prisma.roomShiftRequest.findFirst({
+      where: { tenancyId: tenancy.id, status: 'PENDING' },
+    });
+    if (existing) {
+      throw new ConflictException(
+        'A pending room shift request already exists for this tenancy',
+      );
+    }
+
+    const request = await this.prisma.roomShiftRequest.create({
+      data: {
+        tenantId: tenantUserId,
+        tenancyId: tenancy.id,
+        propertyId: dto.propertyId,
+        requestedRoomId: dto.requestedRoomId,
+        requestedPropertyId:
+          destinationPropertyId !== tenancy.propertyId
+            ? destinationPropertyId
+            : null,
+        reason: dto.reason?.trim() || null,
+        status: 'PENDING',
+      },
+    });
+
+    return {
+      message: 'Room shift request submitted successfully',
+      requestId: request.id,
+    };
+  }
+
+  async getMyRoomShiftRequest(tenantUserId: number) {
+    const request = await this.prisma.roomShiftRequest.findFirst({
+      where: { tenantId: tenantUserId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        reason: true,
+        rejectionReason: true,
+        createdAt: true,
+        property: { select: { id: true, name: true } },
+        requestedProperty: { select: { id: true, name: true } },
+        tenancy: {
+          select: {
+            room: { select: { roomNumber: true, floorNumber: true } },
+          },
+        },
+        requestedRoom: {
+          select: { roomNumber: true, floorNumber: true },
+        },
+      },
+    });
+
+    if (!request) throw new NotFoundException('No room shift request found');
+    return request;
+  }
+
+  async getAvailableRoomsForShift(tenantUserId: number, propertyId: number) {
+    const tenancy = await this.prisma.tenancy.findFirst({
+      where: {
+        tenentId: tenantUserId,
+        propertyId,
+        tenancyStatus: { in: [TenancyStatus.ACTIVE, TenancyStatus.NOTICE_PERIOD] },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        roomId: true,
+        property: { select: { ownerId: true } },
+      },
+    });
+
+    if (!tenancy) {
+      throw new NotFoundException('No active tenancy found for this property');
+    }
+
+    const ownerProperties = await this.prisma.property.findMany({
+      where: { ownerId: tenancy.property.ownerId },
+      select: { id: true, name: true },
+    });
+    const ownerPropertyIds = ownerProperties.map((p) => p.id);
+
+    const rooms = await this.prisma.room.findMany({
+      where: {
+        propertyId: { in: ownerPropertyIds },
+      },
+      select: {
+        id: true,
+        roomNumber: true,
+        floorNumber: true,
+        totalBeds: true,
+        occupiedBeds: true,
+        sharingType: true,
+        propertyId: true,
+        property: { select: { id: true, name: true } },
+      },
+      orderBy: [{ propertyId: 'asc' }, { floorNumber: 'asc' }, { roomNumber: 'asc' }],
+    });
+
+    return rooms
+      .filter((room) => room.occupiedBeds < room.totalBeds)
+      .filter(
+        (room) =>
+          !(room.id === tenancy.roomId && room.propertyId === propertyId),
+      )
+      .map((room) => ({
+        id: room.id,
+        roomNumber: room.roomNumber,
+        floorNumber: room.floorNumber,
+        sharingType: room.sharingType,
+        availableBeds: room.totalBeds - room.occupiedBeds,
+        property: room.property,
+        isCurrentRoom: room.id === tenancy.roomId,
+      }));
   }
 
   async moveTenantOut(tenancyId: number, dto: MoveOutTenantDto) {

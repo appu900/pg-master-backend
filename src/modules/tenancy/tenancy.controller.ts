@@ -18,6 +18,7 @@ import { EditTenancyDto } from './dto/update-tenancy.dto';
 import { AddTenantDto } from './dto/add.tenant.dto';
 import { ShiftRoomDto } from './dto/shift-room.dto';
 import { RejectMoveOutDto } from './dto/reject-moveout.dto';
+import { RejectRoomShiftDto } from './dto/reject-room-shift.dto';
 import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
 
 @Controller('tenancy')
@@ -117,5 +118,46 @@ export class TenancyController {
     @Body() dto: RejectMoveOutDto,
   ) {
     return this.tenancyService.rejectMoveOutRequest(requestId, user.userId, dto);
+  }
+
+  @Get('/room-shift-requests/property/:propertyId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async getRoomShiftRequests(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.getRoomShiftRequests(propertyId, user.userId);
+  }
+
+  @Get('/room-shift-request/:requestId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async getRoomShiftRequestDetails(
+    @Param('requestId', ParseIntPipe) requestId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.getRoomShiftRequestDetails(requestId, user.userId);
+  }
+
+  @Post('/room-shift-request/:requestId/approve')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async approveRoomShiftRequest(
+    @Param('requestId', ParseIntPipe) requestId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.approveRoomShiftRequest(requestId, user.userId);
+  }
+
+  @Post('/room-shift-request/:requestId/reject')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async rejectRoomShiftRequest(
+    @Param('requestId', ParseIntPipe) requestId: number,
+    @GetUser() user: any,
+    @Body() dto: RejectRoomShiftDto,
+  ) {
+    return this.tenancyService.rejectRoomShiftRequest(requestId, user.userId, dto);
   }
 }
