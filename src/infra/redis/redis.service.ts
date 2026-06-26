@@ -25,10 +25,12 @@ export class RedisService implements OnModuleDestroy {
     };
 
     if (process.env.REDIS_URL) {
-      const url = process.env.REDIS_URL.replace(/^redis:\/\//, 'rediss://');
+      const url =
+        process.env.REDIS_TLS === 'true'
+          ? process.env.REDIS_URL.replace(/^redis:\/\//, 'rediss://')
+          : process.env.REDIS_URL;
       this.client = new Redis(url, options);
-      console.log('redis client', this.client);
-      this.logger.debug('REDIS CLIENT - ', this.client);
+      this.logger.debug('Redis client created from REDIS_URL');
     } else {
       this.client = new Redis({
         host: process.env.REDIS_HOST || '127.0.0.1',
