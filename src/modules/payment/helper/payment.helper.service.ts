@@ -23,7 +23,13 @@ export class PaymentHelperService {
       select: {
         tenancy: {
           where: {
-            tenancyStatus: { in: [TenancyStatus.ACTIVE, TenancyStatus.NOTICE_PERIOD] },
+            tenancyStatus: {
+              in: [
+                TenancyStatus.ACTIVE,
+                TenancyStatus.NOTICE_PERIOD,
+                TenancyStatus.PENDING,
+              ],
+            },
             deletedAt: null,
           },
         },
@@ -33,7 +39,7 @@ export class PaymentHelperService {
     const tenancy = tenant.tenancy[0];
     if (!tenancy)
       throw new BadRequestException(
-        'We could not found any active tenancy for this request',
+        'We could not found any billable tenancy for this request',
       );
 
     return {

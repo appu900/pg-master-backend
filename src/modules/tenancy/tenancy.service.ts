@@ -22,6 +22,8 @@ import {
   toDateOnly,
 } from 'src/utils/Proration.utils';
 import { TenancyEvents, TenantAddedEventPayload } from './tenancy.event';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { DueCreatedEvent } from 'src/core/events/domain-events';
 
 const BLOCKING_TENANCY_STATUSES = new Set([
   'ACTIVE',
@@ -36,6 +38,7 @@ export class TenancyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: TenancyEvents,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
 
@@ -548,6 +551,20 @@ export class TenancyService {
       dueDate: formatDate(periodEnd),
     };
     this.events.emitTenancyCreated(tenantCreateEventPayload);
+
+    this.eventEmitter.emit(
+      'due.created',
+      new DueCreatedEvent(
+        txResult.rentDueId,
+        txResult.tenancyId,
+        dto.propertyId,
+        'RENT',
+        proratedAmount,
+        currentMonthNumber,
+        currentYear,
+      ),
+    );
+
     return {
       tenantUserId: txResult.resolvedUserId,
       tenancyId: txResult.tenancyId,

@@ -34,7 +34,13 @@ export class BillingService {
       where: {
         tenentId: payload.tenantId,
         propertyId: payload.propertyId,
-        tenancyStatus: TenancyStatus.ACTIVE,
+        tenancyStatus: {
+          in: [
+            TenancyStatus.ACTIVE,
+            TenancyStatus.NOTICE_PERIOD,
+            TenancyStatus.PENDING,
+          ],
+        },
         deletedAt: null,
         property: {
           ownerId: ownerUserId,
@@ -44,7 +50,7 @@ export class BillingService {
     if (!tenancy) {
       return {
         success: false,
-        message: 'No active tenancy found for the tenant and property',
+        message: 'No billable tenancy found for the tenant and property',
         tenancy: null,
       };
     }

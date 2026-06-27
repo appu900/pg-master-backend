@@ -20,8 +20,12 @@ import {
 } from 'src/core/events/domain-events';
 import { StreamName } from 'bullmq';
 
-
-
+/** Tenancies that can have dues viewed, collected, and created. */
+const BILLABLE_TENANCY_STATUSES: TenancyStatus[] = [
+  TenancyStatus.ACTIVE,
+  TenancyStatus.NOTICE_PERIOD,
+  TenancyStatus.PENDING,
+];
 
 @Injectable()
 export class DueService {
@@ -36,7 +40,7 @@ export class DueService {
       where: {
         propertyId: propertyId,
         tenentId: dto.tenantId,
-        tenancyStatus: TenancyStatus.ACTIVE,
+        tenancyStatus: { in: BILLABLE_TENANCY_STATUSES },
         deletedAt: null,
       },
     });
@@ -100,7 +104,7 @@ export class DueService {
     const tenencies = await this.prisma.tenancy.findMany({
       where: {
         roomId: dto.roomId,
-        tenancyStatus: TenancyStatus.ACTIVE,
+        tenancyStatus: { in: BILLABLE_TENANCY_STATUSES },
         deletedAt: null,
         propertyId: propertyId,
       },
@@ -111,7 +115,7 @@ export class DueService {
       },
     });
     if (tenencies.length === 0)
-      throw new BadRequestException('No active tenancy found for the room');
+      throw new BadRequestException('No billable tenancy found for the room');
     const totaltenents = tenencies.length;
 
     const individualAmounts = Math.ceil(dto.totalAmount / totaltenents);
@@ -167,7 +171,7 @@ export class DueService {
   async fetchAllDuesByTenantId(requestingTenantId: number) {
     const tenancy = await this.prisma.tenancy.findFirst({
       where: {
-        tenancyStatus: 'ACTIVE',
+        tenancyStatus: { in: BILLABLE_TENANCY_STATUSES },
         tenentId: requestingTenantId,
         deletedAt: null,
       },
@@ -211,13 +215,13 @@ export class DueService {
     const dues = await this.prisma.tenancy.findFirst({
       where: {
         tenentId: tenantId,
-        tenancyStatus: 'ACTIVE',
+        tenancyStatus: { in: BILLABLE_TENANCY_STATUSES },
         deletedAt: null,
       },
     });
     if (!dues) {
       throw new InternalServerErrorException(
-        'No active tenancy found for tenant',
+        'No billable tenancy found for tenant',
       );
     }
     const tenantDues = await this.prisma.tenantDue.findMany({
@@ -289,12 +293,12 @@ export class DueService {
     const tenancy = await this.prisma.tenancy.findFirst({
       where: {
         tenentId: tenantId,
-        tenancyStatus: 'ACTIVE',
+        tenancyStatus: { in: BILLABLE_TENANCY_STATUSES },
         deletedAt: null,
       },
     });
     if (!tenancy) {
-      throw new BadRequestException('No active tenancy found for tenant');
+      throw new BadRequestException('No billable tenancy found for tenant');
     }
     const dues = await this.prisma.tenantDue.findMany({
       where: {
@@ -330,13 +334,15 @@ export class DueService {
       where: {
         tenentId: tenantId,
         propertyId,
-        tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD'] },
+        tenancyStatus: { in: BILLABLE_TENANCY_STATUSES },
         deletedAt: null,
       },
       select: { id: true },
     });
     if (!tenancy) {
-      throw new BadRequestException('No active tenancy found for this tenant in the given property');
+      throw new BadRequestException(
+        'No billable tenancy found for this tenant in the given property',
+      );
     }
 
     const dues = await this.prisma.tenantDue.findMany({

@@ -50,7 +50,9 @@ export class NotificationListner {
     const result = await this.prisma.tenancy.findFirst({
       where: {
         id: event.tenancyId,
-        tenancyStatus: 'ACTIVE',
+        tenancyStatus: {
+          in: ['ACTIVE', 'NOTICE_PERIOD', 'PENDING'],
+        },
         deletedAt: null,
         propertyId: event.propertyId,
       },
