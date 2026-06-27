@@ -334,10 +334,11 @@ export class DueService {
       where: {
         tenentId: tenantId,
         propertyId,
-        tenancyStatus: { in: BILLABLE_TENANCY_STATUSES },
+        tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD', 'PENDING'] },
         deletedAt: null,
       },
       select: { id: true },
+      orderBy: { createdAt: 'desc' },
     });
     if (!tenancy) {
       throw new BadRequestException(

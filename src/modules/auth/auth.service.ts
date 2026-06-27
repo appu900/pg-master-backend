@@ -127,7 +127,7 @@ export class AuthService {
         const tenancies = await this.prisma.tenancy.findMany({
           where: {
             tenentId: user.id,
-            tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD'] },
+            tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD', 'PENDING'] },
             deletedAt: null,
           },
           select: {
@@ -138,6 +138,7 @@ export class AuthService {
             property: { select: { id: true, name: true, pinCode: true } },
             room: { select: { id: true, roomNumber: true, floorNumber: true } },
           },
+          orderBy: { createdAt: 'desc' },
         });
 
         return {
