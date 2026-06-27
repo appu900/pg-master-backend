@@ -33,6 +33,7 @@ export class TenentService {
     tenancyStatus: TenancyStatus;
     joinedAt: Date;
     leftAt: Date | null;
+    createdAt: Date;
     tenent: {
       id: number;
       fullName: string;
@@ -58,6 +59,7 @@ export class TenentService {
       status: tenancy.tenancyStatus,
       joinedAt: formatDate(toDateOnly(tenancy.joinedAt)),
       leftAt: tenancy.leftAt ? formatDate(toDateOnly(tenancy.leftAt)) : null,
+      createdAt: tenancy.createdAt.toISOString(),
       profile: tenancy.tenent.tenentProfile,
     };
   }
@@ -118,11 +120,9 @@ export class TenentService {
   }
 
   async getTenantStats(propertyId: number) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayUtc = toDateOnly(new Date());
+    const tomorrowUtc = new Date(todayUtc);
+    tomorrowUtc.setUTCDate(tomorrowUtc.getUTCDate() + 1);
 
     const [statusCounts, todayBookings, waitingToMoveIn, securityDepositPending] =
       await Promise.all([
@@ -130,6 +130,7 @@ export class TenentService {
         by: ['tenancyStatus'],
         where: {
           propertyId: propertyId,
+          deletedAt: null,
         },
         _count: {
           id: true,
@@ -138,10 +139,11 @@ export class TenentService {
 
       this.prisma.tenancy.count({
         where: {
-          propertyId: propertyId,
-          joinedAt: {
-            gte: today,
-            lt: tomorrow,
+          propertyId,
+          deletedAt: null,
+          createdAt: {
+            gte: todayUtc,
+            lt: tomorrowUtc,
           },
         },
       }),
@@ -156,7 +158,7 @@ export class TenentService {
           OR: [
             { tenancyStatus: TenancyStatus.PENDING },
             {
-              joinedAt: { gte: today },
+              joinedAt: { gt: todayUtc },
               tenancyStatus: TenancyStatus.ACTIVE,
             },
           ],
