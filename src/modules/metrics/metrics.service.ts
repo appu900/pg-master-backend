@@ -123,6 +123,55 @@ export class MetricsService {
     return Number(agg._sum.balanceAmount ?? 0);
   }
 
+  private async aggregateSecurityDepositPending(
+    propertyId: number,
+  ): Promise<number> {
+    const agg = await this.prisma.tenantDue.aggregate({
+      where: {
+        propertyId,
+        dueType: 'SECURITY_DEPOSIT',
+        status: { in: UNPAID_STATUSES },
+        balanceAmount: { gt: 0 },
+      },
+      _sum: { balanceAmount: true },
+    });
+    return Math.round(Number(agg._sum.balanceAmount ?? 0));
+  }
+
+  private async aggregateLivePropertyOtherMetrics(propertyId: number) {
+    const [rooms, statusCounts] = await Promise.all([
+      this.prisma.room.findMany({
+        where: { propertyId },
+        select: { totalBeds: true, occupiedBeds: true },
+      }),
+      this.prisma.tenancy.groupBy({
+        by: ['tenancyStatus'],
+        where: { propertyId, deletedAt: null },
+        _count: { id: true },
+      }),
+    ]);
+
+    const totalBeds = rooms.reduce((sum, room) => sum + room.totalBeds, 0);
+    const occupiedBeds = rooms.reduce(
+      (sum, room) => sum + room.occupiedBeds,
+      0,
+    );
+    const totalVacantBeds = Math.max(totalBeds - occupiedBeds, 0);
+    const countByStatus = (status: string) =>
+      statusCounts.find((group) => group.tenancyStatus === status)?._count.id ??
+      0;
+
+    return {
+      totalBeds,
+      totalVacantBeds,
+      totalRooms: rooms.length,
+      totalActiveTenants: countByStatus('ACTIVE'),
+      totalTenantsInNoticePeriod: countByStatus('NOTICE_PERIOD'),
+      totalTenantsReadyToMoveIn: countByStatus('PENDING'),
+      totalTenantsReadyToMoveout: countByStatus('NOTICE_PERIOD'),
+    };
+  }
+
   private async fetchFromDB(
     propertyId: number,
     currentMonth: number,
@@ -135,6 +184,8 @@ export class MetricsService {
       propertyPreviousMonthMetrics,
       propertyOtherMetrics,
       totalAllPendingDue,
+      securityDepositPending,
+      liveOtherMetrics,
     ] = await Promise.all([
       this.aggregateDuesForMonth(propertyId, currentMonth, currentYear),
       this.aggregateDuesForMonth(propertyId, previousMonth, previousYear),
@@ -142,12 +193,22 @@ export class MetricsService {
         where: { propertyId },
       }),
       this.aggregateAllPendingDues(propertyId),
+      this.aggregateSecurityDepositPending(propertyId),
+      this.aggregateLivePropertyOtherMetrics(propertyId),
     ]);
+
+    propertyFinancePropertyMetricsCurrent.totalSecurityDepositePending =
+      securityDepositPending;
+
+    const enrichedPropertyOtherMetrics = {
+      ...(propertyOtherMetrics ?? { propertyId }),
+      ...liveOtherMetrics,
+    };
 
     return {
       propertyFinancePropertyMetricsCurrent,
       propertyPreviousMonthMetrics,
-      propertyOtherMetrics,
+      propertyOtherMetrics: enrichedPropertyOtherMetrics,
       totalAllPendingDue,
     };
   }

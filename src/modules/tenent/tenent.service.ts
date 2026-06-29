@@ -124,8 +124,13 @@ export class TenentService {
     const tomorrowUtc = new Date(todayUtc);
     tomorrowUtc.setUTCDate(tomorrowUtc.getUTCDate() + 1);
 
-    const [statusCounts, todayBookings, waitingToMoveIn, securityDepositPending] =
-      await Promise.all([
+    const [
+      statusCounts,
+      todayBookings,
+      waitingToMoveIn,
+      securityDepositPending,
+      pendingDuesGroups,
+    ] = await Promise.all([
       this.prisma.tenancy.groupBy({
         by: ['tenancyStatus'],
         where: {
@@ -173,6 +178,16 @@ export class TenentService {
           balanceAmount: { gt: 0 },
         },
       }),
+
+      this.prisma.tenantDue.groupBy({
+        by: ['tenancyId'],
+        where: {
+          propertyId,
+          dueType: { not: 'SECURITY_DEPOSIT' },
+          status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] },
+          balanceAmount: { gt: 0 },
+        },
+      }),
     ]);
 
     const totalTenants = statusCounts.reduce(
@@ -196,7 +211,7 @@ export class TenentService {
       todayBookings,
       waitingToMoveIn,
       securityDepositPending,
-      pendingDues: 0,
+      pendingDues: pendingDuesGroups.length,
     };
   }
 

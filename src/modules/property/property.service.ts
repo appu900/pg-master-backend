@@ -219,6 +219,8 @@ export class PropertyService {
     if (dto.lastMeterReading)
       updateData.lastMeterReading = dto.lastMeterReading;
     if (dto.amenity && dto.amenity.length > 0) updateData.amenity = dto.amenity;
+    if (dto.hasMeter !== undefined) updateData.hasMeter = dto.hasMeter;
+    if (dto.isAcRoom !== undefined) updateData.isAcRoom = dto.isAcRoom;
 
     if (dto.sharingType) {
       updateData.sharingType = dto.sharingType.toUpperCase() as RoomSharingType;
