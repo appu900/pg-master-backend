@@ -20,6 +20,7 @@ import {
   formatDate,
   parseDateUTC,
   toDateOnly,
+  toLocalDateOnly,
 } from 'src/utils/Proration.utils';
 import { TenancyEvents, TenantAddedEventPayload } from './tenancy.event';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -1468,7 +1469,7 @@ export class TenancyService {
   }
 
   async confirmMoveIn(tenancyId: number, ownerUserId: number) {
-    const todayUtc = toDateOnly(new Date());
+    const todayDate = toLocalDateOnly(new Date());
 
     const tenancy = await this.prisma.tenancy.findFirst({
       where: {
@@ -1501,7 +1502,7 @@ export class TenancyService {
     const wasPending = tenancy.tenancyStatus === TenancyStatus.PENDING;
     const isFutureActiveJoin =
       tenancy.tenancyStatus === TenancyStatus.ACTIVE &&
-      toDateOnly(tenancy.joinedAt).getTime() > todayUtc.getTime();
+      toDateOnly(tenancy.joinedAt).getTime() > todayDate.getTime();
 
     if (!wasPending && !isFutureActiveJoin) {
       throw new BadRequestException('Tenant is not waiting to move in');
@@ -1526,13 +1527,13 @@ export class TenancyService {
         where: { id: tenancyId },
         data: {
           tenancyStatus: TenancyStatus.ACTIVE,
-          joinedAt: todayUtc,
+          joinedAt: todayDate,
         },
       });
 
       await tx.tenentProfile.updateMany({
         where: { userId: tenancy.tenentId },
-        data: { JoiningDate: todayUtc },
+        data: { JoiningDate: todayDate },
       });
 
       const existingTracker = await tx.tenantMoveInTracker.findFirst({
@@ -1593,6 +1594,8 @@ export class TenancyService {
     return {
       message: `${tenancy.tenent.fullName} has been moved in successfully`,
       tenancyId,
+      joinedAt: formatDate(todayDate),
+      movedInDate: formatDate(toLocalDateOnly(movedInDate)),
     };
   }
 

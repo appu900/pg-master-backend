@@ -31,6 +31,16 @@ export function parseDateUTC(dateStr: string): Date {
 }
 
 /**
+ * Strip time → UTC midnight using the machine's local calendar date.
+ * Use for owner-facing actions like move-in confirmation (today in local TZ).
+ */
+export function toLocalDateOnly(date: Date): Date {
+  return new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+  );
+}
+
+/**
  * Strip time → UTC midnight of the same calendar date.
  */
 export function toDateOnly(date: Date): Date {
