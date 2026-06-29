@@ -34,6 +34,7 @@ export class TenentService {
     joinedAt: Date;
     leftAt: Date | null;
     createdAt: Date;
+    moveInTrackers?: { id: number }[];
     tenent: {
       id: number;
       fullName: string;
@@ -60,6 +61,7 @@ export class TenentService {
       joinedAt: formatDate(toLocalDateOnly(tenancy.joinedAt)),
       leftAt: tenancy.leftAt ? formatDate(toDateOnly(tenancy.leftAt)) : null,
       createdAt: tenancy.createdAt.toISOString(),
+      hadScheduledMoveIn: (tenancy.moveInTrackers?.length ?? 0) > 0,
       profile: tenancy.tenent.tenentProfile
         ? {
             ...tenancy.tenent.tenentProfile,
@@ -117,6 +119,7 @@ export class TenentService {
             floorNumber: true,
           },
         },
+        moveInTrackers: { select: { id: true }, take: 1 },
       },
       orderBy: {
         createdAt: 'desc',
@@ -157,6 +160,7 @@ export class TenentService {
             gte: todayStart,
             lt: tomorrowStart,
           },
+          moveInTrackers: { none: {} },
         },
       }),
 
@@ -779,6 +783,7 @@ export class TenentService {
             floorNumber: true,
           },
         },
+        moveInTrackers: { select: { id: true }, take: 1 },
       },
       orderBy: {
         createdAt: 'desc',
