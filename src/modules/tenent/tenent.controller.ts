@@ -69,6 +69,24 @@ export class TenentController {
     return this.tenentService.fetchTenancyDetails(user.userId);
   }
 
+  @Patch('/profile')
+  @Roles(Role.TENANT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseInterceptors(
+    FileInterceptor('profileImage', { limits: UPLOAD_FILE_SIZE_LIMITS }),
+  )
+  async editProfile(
+    @GetUser() user: any,
+    @Body() dto: UpdateTenantDto,
+    @UploadedFile() profileImage?: Express.Multer.File,
+  ) {
+    return this.tenentService.editProfileByTenant(
+      user.userId,
+      dto,
+      profileImage,
+    );
+  }
+
   @Get('/:tenantId')
   @Roles(Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)

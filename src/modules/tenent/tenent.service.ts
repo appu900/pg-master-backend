@@ -200,6 +200,91 @@ export class TenentService {
     };
   }
 
+  private normalizeTenentProfile(profile: any) {
+    if (!profile) return null;
+    return {
+      gender: profile.geneder ?? null,
+      profession: profile.profession ?? null,
+      pinCode: profile.pinCode ?? null,
+      state: profile.state ?? null,
+      address: profile.Address ?? null,
+      profileImage: profile.profileImage ?? null,
+    };
+  }
+
+  async editProfileByTenant(
+    tenantId: number,
+    dto: UpdateTenantDto,
+    profileImage?: Express.Multer.File,
+  ) {
+    const tenant = await this.prisma.user.findUnique({
+      where: { id: tenantId, role: UserRole.TENANT },
+      include: { tenentProfile: true },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    let newProfileImageUrl: string | undefined;
+    if (profileImage) {
+      newProfileImageUrl = await this.s3Serice.uploadFile(
+        profileImage,
+        `tenant-profile/${tenantId}`,
+      );
+      if (tenant.tenentProfile?.profileImage) {
+        try {
+          await this.s3Serice.deleteFile(tenant.tenentProfile.profileImage);
+        } catch (error) {
+          console.error('Could not delete previous tenant profile image', error);
+        }
+      }
+    }
+
+    const userUpdate: Record<string, string> = {};
+    if (dto.fullName !== undefined) userUpdate.fullName = dto.fullName;
+    if (dto.email !== undefined) userUpdate.email = dto.email;
+
+    if (Object.keys(userUpdate).length > 0) {
+      await this.prisma.user.update({
+        where: { id: tenantId },
+        data: userUpdate,
+      });
+    }
+
+    const profileData: Record<string, any> = {};
+    if (dto.gender !== undefined) profileData.geneder = dto.gender;
+    if (dto.profession !== undefined) profileData.profession = dto.profession;
+    if (dto.pinCode !== undefined) profileData.pinCode = dto.pinCode;
+    if (dto.state !== undefined) profileData.state = dto.state;
+    if (dto.address !== undefined) profileData.Address = dto.address;
+    if (newProfileImageUrl) {
+      profileData.profileImage = newProfileImageUrl;
+    } else if (dto.profileImage !== undefined) {
+      profileData.profileImage = dto.profileImage;
+    }
+
+    if (tenant.tenentProfile) {
+      if (Object.keys(profileData).length > 0) {
+        await this.prisma.tenentProfile.update({
+          where: { userId: tenantId },
+          data: profileData as any,
+        });
+      }
+    } else if (Object.keys(profileData).length > 0 || dto.pinCode) {
+      await this.prisma.tenentProfile.create({
+        data: {
+          userId: tenantId,
+          pinCode: dto.pinCode || '000000',
+          JoiningDate: new Date(),
+          ...profileData,
+        } as any,
+      });
+    }
+
+    return this.fetchTenancyDetails(tenantId);
+  }
+
   async updateTenant(
     tenantId: number,
     dto: UpdateTenantDto,
@@ -685,6 +770,7 @@ export class TenentService {
     const tenant = await this.prisma.user.findUnique({
       where: { id: tenantId, role: UserRole.TENANT },
       include: {
+        tenentProfile: true,
         tenancy: {
           where: {
             tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD'] },
@@ -716,7 +802,12 @@ export class TenentService {
     if (!tenant) {
       throw new NotFoundException('No tenancy details found for this tenant');
     }
-    return tenant;
+
+    const { tenentProfile, ...rest } = tenant;
+    return {
+      ...rest,
+      tenentProfile: this.normalizeTenentProfile(tenentProfile),
+    };
   }
 
   // async editProfile(tenantId:number,editProfileDto:UpdateProfileDto,image?:Express.Multer.File[]){
