@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { TenancyStatus, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
-import { formatDate, toDateOnly } from 'src/utils/Proration.utils';
+import { formatDate, toDateOnly, toLocalDateOnly } from 'src/utils/Proration.utils';
 import { RoomService } from '../room/room.service';
 import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -57,10 +57,17 @@ export class TenentService {
       rentAmount: tenancy.rentAmount,
       securityDeposit: tenancy.securityDeposit,
       status: tenancy.tenancyStatus,
-      joinedAt: formatDate(toDateOnly(tenancy.joinedAt)),
+      joinedAt: formatDate(toLocalDateOnly(tenancy.joinedAt)),
       leftAt: tenancy.leftAt ? formatDate(toDateOnly(tenancy.leftAt)) : null,
       createdAt: tenancy.createdAt.toISOString(),
-      profile: tenancy.tenent.tenentProfile,
+      profile: tenancy.tenent.tenentProfile
+        ? {
+            ...tenancy.tenent.tenentProfile,
+            JoiningDate: formatDate(
+              toLocalDateOnly(tenancy.tenent.tenentProfile.JoiningDate),
+            ),
+          }
+        : null,
     };
   }
 
@@ -120,9 +127,9 @@ export class TenentService {
   }
 
   async getTenantStats(propertyId: number) {
-    const todayUtc = toDateOnly(new Date());
-    const tomorrowUtc = new Date(todayUtc);
-    tomorrowUtc.setUTCDate(tomorrowUtc.getUTCDate() + 1);
+    const todayStart = toLocalDateOnly(new Date());
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
 
     const [
       statusCounts,
@@ -147,8 +154,8 @@ export class TenentService {
           propertyId,
           deletedAt: null,
           createdAt: {
-            gte: todayUtc,
-            lt: tomorrowUtc,
+            gte: todayStart,
+            lt: tomorrowStart,
           },
         },
       }),
@@ -163,7 +170,7 @@ export class TenentService {
           OR: [
             { tenancyStatus: TenancyStatus.PENDING },
             {
-              joinedAt: { gt: todayUtc },
+              joinedAt: { gt: todayStart },
               tenancyStatus: TenancyStatus.ACTIVE,
             },
           ],
