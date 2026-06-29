@@ -156,11 +156,22 @@ export class TenentService {
         where: {
           propertyId,
           deletedAt: null,
+          tenancyStatus: {
+            notIn: [
+              TenancyStatus.EXITED,
+              TenancyStatus.EVICTED,
+              TenancyStatus.PENDING,
+            ],
+          },
           createdAt: {
             gte: todayStart,
             lt: tomorrowStart,
           },
           moveInTrackers: { none: {} },
+          NOT: {
+            tenancyStatus: TenancyStatus.ACTIVE,
+            joinedAt: { gt: todayStart },
+          },
         },
       }),
 
