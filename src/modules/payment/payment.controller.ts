@@ -6,6 +6,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -79,7 +80,15 @@ export class PaymentController {
   @Get('history/:tenantId')
   @Roles(Role.TENANT, Role.PROPERTY_OWNER)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getPaymentHistory(@Param('tenantId', ParseIntPipe) tenantId: number) {
-    return this.paymentService.getTenantPaymentHistory(tenantId);
+  async getPaymentHistory(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @Query('tenancyId') tenancyId?: string,
+    @Query('propertyId') propertyId?: string,
+  ) {
+    return this.paymentService.getTenantPaymentHistory(
+      tenantId,
+      tenancyId ? Number(tenancyId) : undefined,
+      propertyId ? Number(propertyId) : undefined,
+    );
   }
 }

@@ -804,9 +804,23 @@ export class PaymentService {
     this.logger.log(`Multi-due payment SUCCESS: transactionId=${transaction.id} easepayid=${easepayid}`);
   }
 
-  async getTenantPaymentHistory(tenantUserId: number) {
+  async getTenantPaymentHistory(
+    tenantUserId: number,
+    tenancyId?: number,
+    propertyId?: number,
+  ) {
+    const tenancyWhere: {
+      tenentId: number;
+      deletedAt: null;
+      id?: number;
+      propertyId?: number;
+    } = { tenentId: tenantUserId, deletedAt: null };
+
+    if (tenancyId) tenancyWhere.id = tenancyId;
+    if (propertyId) tenancyWhere.propertyId = propertyId;
+
     const tenancies = await this.prisma.tenancy.findMany({
-      where: { tenentId: tenantUserId },
+      where: tenancyWhere,
       select: { id: true },
     });
 
@@ -816,76 +830,180 @@ export class PaymentService {
 
     const tenancyIds = tenancies.map((t) => t.id);
 
-    const payments = await this.prisma.duePayment.findMany({
-      where: { tenancyId: { in: tenancyIds } },
-      take: 20,
-      orderBy: { paidAt: 'desc' },
-      select: {
-        id: true,
-        amount: true,
-        paymentMode: true,
-        upiApp: true,
-        transactionId: true,
-        notes: true,
-        paidAt: true,
-        month: true,
-        year: true,
-        due: {
-          select: {
-            id: true,
-            dueType: true,
-            title: true,
-            totalAmount: true,
-            paidAmount: true,
-            balanceAmount: true,
-            status: true,
-            property: { select: { id: true, name: true } },
-            tenancy: {
-              select: {
-                room: { select: { roomNumber: true } },
+    const [payments, gatewayAttempts] = await Promise.all([
+      this.prisma.duePayment.findMany({
+        where: { tenancyId: { in: tenancyIds } },
+        orderBy: { paidAt: 'desc' },
+        select: {
+          id: true,
+          amount: true,
+          paymentMode: true,
+          upiApp: true,
+          transactionId: true,
+          notes: true,
+          paidAt: true,
+          month: true,
+          year: true,
+          due: {
+            select: {
+              id: true,
+              dueType: true,
+              title: true,
+              totalAmount: true,
+              paidAmount: true,
+              balanceAmount: true,
+              status: true,
+              property: { select: { id: true, name: true } },
+              tenancy: {
+                select: {
+                  room: { select: { roomNumber: true } },
+                },
               },
-            },
-            gatewayTransactions: {
-              where: { status: 'SUCCESS' },
-              select: {
-                txnId: true,
-                status: true,
-                easepayId: true,
-                paymentSource: true,
-                createdAt: true,
+              gatewayTransactions: {
+                where: { status: 'SUCCESS' },
+                select: {
+                  txnId: true,
+                  status: true,
+                  easepayId: true,
+                  paymentSource: true,
+                  createdAt: true,
+                },
+                take: 1,
               },
-              take: 1,
             },
           },
         },
+      }),
+      this.prisma.paymentGatewayTransaction.findMany({
+        where: {
+          tenancyId: { in: tenancyIds },
+          status: { in: ['FAILED', 'CANCELLED', 'INITIATED'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          txnId: true,
+          amount: true,
+          status: true,
+          easepayId: true,
+          paymentSource: true,
+          createdAt: true,
+          property: { select: { id: true, name: true } },
+          due: {
+            select: {
+              id: true,
+              dueType: true,
+              title: true,
+              totalAmount: true,
+              paidAmount: true,
+              balanceAmount: true,
+              status: true,
+              property: { select: { id: true, name: true } },
+            },
+          },
+          transactionDues: {
+            select: {
+              amount: true,
+              due: {
+                select: {
+                  id: true,
+                  dueType: true,
+                  title: true,
+                  totalAmount: true,
+                  paidAmount: true,
+                  balanceAmount: true,
+                  status: true,
+                  property: { select: { id: true, name: true } },
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const collected = payments.map((p) => ({
+      entryType: 'COLLECTED' as const,
+      paymentStatus: 'PAID' as const,
+      paymentId: p.id,
+      amount: Number(p.amount),
+      paymentMode: p.paymentMode,
+      upiApp: p.upiApp ?? null,
+      transactionId: p.transactionId ?? null,
+      notes: p.notes ?? null,
+      paidAt: p.paidAt,
+      month: p.month,
+      year: p.year,
+      due: {
+        id: p.due.id,
+        type: p.due.dueType,
+        title: p.due.title,
+        totalAmount: Number(p.due.totalAmount),
+        paidAmount: Number(p.due.paidAmount),
+        balanceAmount: Number(p.due.balanceAmount),
+        status: p.due.status,
       },
+      property: p.due.property,
+      roomNumber: p.due.tenancy?.room?.roomNumber ?? null,
+      gateway: p.due.gatewayTransactions[0] ?? null,
+    }));
+
+    const attempts = gatewayAttempts.map((g) => {
+      const linkedDue = g.due ?? g.transactionDues[0]?.due ?? null;
+      const paymentStatus =
+        g.status === 'INITIATED' ? ('PENDING' as const) : ('FAILED' as const);
+
+      return {
+        entryType: 'GATEWAY_ATTEMPT' as const,
+        paymentStatus,
+        paymentId: g.id,
+        amount: Number(g.amount),
+        paymentMode: 'ONLINE_GATEWAY' as const,
+        upiApp: null,
+        transactionId: g.txnId,
+        notes: null,
+        paidAt: g.createdAt,
+        month: null,
+        year: null,
+        due: linkedDue
+          ? {
+              id: linkedDue.id,
+              type: linkedDue.dueType,
+              title: linkedDue.title,
+              totalAmount: Number(linkedDue.totalAmount),
+              paidAmount: Number(linkedDue.paidAmount),
+              balanceAmount: Number(linkedDue.balanceAmount),
+              status: linkedDue.status,
+            }
+          : {
+              id: 0,
+              type: 'DUE',
+              title: 'Online payment',
+              totalAmount: Number(g.amount),
+              paidAmount: 0,
+              balanceAmount: Number(g.amount),
+              status: paymentStatus,
+            },
+        property: g.property ?? linkedDue?.property ?? null,
+        roomNumber: null,
+        gateway: {
+          txnId: g.txnId,
+          status: g.status,
+          easepayId: g.easepayId,
+          paymentSource: g.paymentSource,
+          createdAt: g.createdAt,
+        },
+      };
     });
 
+    const merged = [...collected, ...attempts].sort(
+      (a, b) =>
+        new Date(b.paidAt ?? 0).getTime() - new Date(a.paidAt ?? 0).getTime(),
+    );
+
     return {
-      total: payments.length,
-      payments: payments.map((p) => ({
-        paymentId: p.id,
-        amount: Number(p.amount),
-        paymentMode: p.paymentMode,
-        upiApp: p.upiApp ?? null,
-        transactionId: p.transactionId ?? null,
-        notes: p.notes ?? null,
-        paidAt: p.paidAt,
-        month: p.month,
-        year: p.year,
-        due: {
-          id: p.due.id,
-          type: p.due.dueType,
-          title: p.due.title,
-          totalAmount: Number(p.due.totalAmount),
-          paidAmount: Number(p.due.paidAmount),
-          balanceAmount: Number(p.due.balanceAmount),
-          status: p.due.status,
-        },
-        property: p.due.property,
-        roomNumber: p.due.tenancy.room.roomNumber,
-        gateway: p.due.gatewayTransactions[0] ?? null,
-      })),
+      total: merged.length,
+      payments: merged,
     };
   }
 
