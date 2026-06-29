@@ -264,6 +264,7 @@ model Property {
   roomShiftRequests            RoomShiftRequest[]
   destinationRoomShiftRequests RoomShiftRequest[] @relation("RoomShiftDestinationProperty")
   lateFineConfig               PropertyLateFineConfig?
+  moveInTrackers               TenantMoveInTracker[]
 
   @@index([ownerId])
   @@index([pinCode])
@@ -354,6 +355,7 @@ model Tenancy {
   noticePeriodTenants NoticePeriodTenants[]
   moveOutRequests     MoveOutRequest[]
   roomShiftRequests   RoomShiftRequest[]
+  moveInTrackers      TenantMoveInTracker[]
 
   @@index([roomId, tenentId])
   @@index([propertyId])
@@ -1234,4 +1236,28 @@ enum TenancyStatus {
   EXITED
   EVICTED
   PENDING
+}
+
+enum MoveInstatus {
+  WAITING
+  MOVED_IN
+}
+
+model TenantMoveInTracker {
+  id          Int          @id @default(autoincrement())
+  propertyId  Int
+  tenancyId   Int
+  month       Int
+  year        Int
+  moveInDate  DateTime
+  movedInDate DateTime?
+  status      MoveInstatus @default(WAITING)
+  createdAt   DateTime     @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id])
+  tenancy  Tenancy  @relation(fields: [tenancyId], references: [id])
+
+  @@index([propertyId])
+  @@index([propertyId, status])
+  @@index([tenancyId])
 }

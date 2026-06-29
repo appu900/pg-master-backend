@@ -8,7 +8,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, TenancyStatus, UserRole } from '@prisma/client';
+import { MoveInstatus, Prisma, TenancyStatus, UserRole } from '@prisma/client';
 import { RejectMoveOutDto } from './dto/reject-moveout.dto';
 import { RejectRoomShiftDto } from './dto/reject-room-shift.dto';
 import { EditTenancyDto } from './dto/update-tenancy.dto';
@@ -421,6 +421,21 @@ export class TenancyService {
           where: { id: dto.roomId },
           data: { occupiedBeds: { increment: 1 } },
         });
+
+        // ** create move-in tracker for future-dated (PENDING) tenancies
+        if (isFutureJoin) {
+          const now = new Date();
+          await tx.tenantMoveInTracker.create({
+            data: {
+              propertyId: dto.propertyId,
+              tenancyId: tenancy.id,
+              month: joinDate.getMonth() + 1,
+              year: joinDate.getFullYear(),
+              moveInDate: joinDate,
+              status: MoveInstatus.WAITING,
+            },
+          });
+        }
 
         return {
           resolvedUserId,
@@ -1450,5 +1465,180 @@ export class TenancyService {
     });
 
     return { message: 'Room shift request rejected', requestId };
+  }
+
+  async confirmMoveIn(tenancyId: number, ownerUserId: number) {
+    const todayUtc = toDateOnly(new Date());
+
+    const tenancy = await this.prisma.tenancy.findFirst({
+      where: {
+        id: tenancyId,
+        deletedAt: null,
+        property: { ownerId: ownerUserId },
+        tenancyStatus: {
+          notIn: [
+            TenancyStatus.EXITED,
+            TenancyStatus.EVICTED,
+            TenancyStatus.NOTICE_PERIOD,
+          ],
+        },
+      },
+      select: {
+        id: true,
+        propertyId: true,
+        tenentId: true,
+        joinedAt: true,
+        tenancyStatus: true,
+        tenent: { select: { fullName: true } },
+        property: { select: { ownerId: true } },
+      },
+    });
+
+    if (!tenancy) {
+      throw new NotFoundException('Tenancy not found or access denied');
+    }
+
+    const wasPending = tenancy.tenancyStatus === TenancyStatus.PENDING;
+    const isFutureActiveJoin =
+      tenancy.tenancyStatus === TenancyStatus.ACTIVE &&
+      toDateOnly(tenancy.joinedAt).getTime() > todayUtc.getTime();
+
+    if (!wasPending && !isFutureActiveJoin) {
+      throw new BadRequestException('Tenant is not waiting to move in');
+    }
+
+    const alreadyMovedIn = await this.prisma.tenantMoveInTracker.findFirst({
+      where: { tenancyId, status: MoveInstatus.MOVED_IN },
+      select: { id: true },
+    });
+    if (alreadyMovedIn) {
+      throw new BadRequestException('Move-in has already been confirmed');
+    }
+
+    const now = new Date();
+    const movedInDate = now;
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    const scheduledMoveInDate = tenancy.joinedAt;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tenancy.update({
+        where: { id: tenancyId },
+        data: {
+          tenancyStatus: TenancyStatus.ACTIVE,
+          joinedAt: todayUtc,
+        },
+      });
+
+      await tx.tenentProfile.updateMany({
+        where: { userId: tenancy.tenentId },
+        data: { JoiningDate: todayUtc },
+      });
+
+      const existingTracker = await tx.tenantMoveInTracker.findFirst({
+        where: { tenancyId, status: MoveInstatus.WAITING },
+        select: { id: true },
+      });
+
+      if (existingTracker) {
+        await tx.tenantMoveInTracker.update({
+          where: { id: existingTracker.id },
+          data: { movedInDate, status: MoveInstatus.MOVED_IN, month, year },
+        });
+      } else {
+        await tx.tenantMoveInTracker.create({
+          data: {
+            propertyId: tenancy.propertyId,
+            tenancyId,
+            month,
+            year,
+            moveInDate: scheduledMoveInDate,
+            movedInDate,
+            status: MoveInstatus.MOVED_IN,
+          },
+        });
+      }
+
+      if (wasPending) {
+        await tx.propertyOtherMetrics.updateMany({
+          where: { propertyId: tenancy.propertyId },
+          data: {
+            totalTenantsReadyToMoveIn: { decrement: 1 },
+            totalActiveTenants: { increment: 1 },
+          },
+        });
+
+        await tx.propertyMetrics.upsert({
+          where: {
+            propertyId_month_year: {
+              propertyId: tenancy.propertyId,
+              month,
+              year,
+            },
+          },
+          create: {
+            propertyId: tenancy.propertyId,
+            ownerId: tenancy.property.ownerId,
+            month,
+            year,
+            activeTenants: 1,
+          },
+          update: {
+            activeTenants: { increment: 1 },
+          },
+        });
+      }
+    });
+
+    return {
+      message: `${tenancy.tenent.fullName} has been moved in successfully`,
+      tenancyId,
+    };
+  }
+
+  async getMoveInHistory(propertyId: number, ownerUserId: number) {
+    const property = await this.prisma.property.findFirst({
+      where: { id: propertyId, ownerId: ownerUserId },
+      select: { id: true },
+    });
+
+    if (!property) {
+      throw new NotFoundException('Property not found or access denied');
+    }
+
+    return this.prisma.tenantMoveInTracker.findMany({
+      where: { propertyId, status: MoveInstatus.MOVED_IN },
+      orderBy: { movedInDate: 'desc' },
+      select: {
+        id: true,
+        month: true,
+        year: true,
+        moveInDate: true,
+        movedInDate: true,
+        status: true,
+        createdAt: true,
+        tenancy: {
+          select: {
+            id: true,
+            rentAmount: true,
+            securityDeposit: true,
+            joinedAt: true,
+            tenancyStatus: true,
+            room: { select: { roomNumber: true, floorNumber: true } },
+            tenent: {
+              select: {
+                id: true,
+                fullName: true,
+                phoneNumber: true,
+                email: true,
+                tenentProfile: {
+                  select: { profileImage: true, profession: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
   }
 }

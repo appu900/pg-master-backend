@@ -160,4 +160,24 @@ export class TenancyController {
   ) {
     return this.tenancyService.rejectRoomShiftRequest(requestId, user.userId, dto);
   }
+
+  @Post('/:tenancyId/confirm-move-in')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async confirmMoveIn(
+    @Param('tenancyId', ParseIntPipe) tenancyId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.confirmMoveIn(tenancyId, user.userId);
+  }
+
+  @Get('/move-in-history/property/:propertyId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async getMoveInHistory(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.getMoveInHistory(propertyId, user.userId);
+  }
 }
