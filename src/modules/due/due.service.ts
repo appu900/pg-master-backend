@@ -587,7 +587,7 @@ export class DueService {
       }
 
       jobs.push({
-        name: 'bulk.reminder',
+        name: 'send',
         data: {
           type: 'RENT_REMINDER',
           phone: '+91' + cleaned,
