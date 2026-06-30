@@ -1526,13 +1526,13 @@ export class TenancyService {
         where: { id: tenancyId },
         data: {
           tenancyStatus: TenancyStatus.ACTIVE,
-          joinedAt: todayDate,
+          joinedAt: tenancy.joinedAt,
         },
       });
 
       await tx.tenentProfile.updateMany({
         where: { userId: tenancy.tenentId },
-        data: { JoiningDate: todayDate },
+        data: { JoiningDate:tenancy.joinedAt },
       });
 
       const existingTracker = await tx.tenantMoveInTracker.findFirst({
