@@ -37,26 +37,24 @@ export class ElectricityService {
     return property;
   }
 
-  /**
-   * Enforce that submissions are for the current calendar month in IST
-   * (Asia/Kolkata, UTC+5:30). Guards against server-timezone edge cases
-   * at month boundaries when the server runs in UTC.
-   */
-  private assertCurrentBillingMonth(month: number, year: number) {
+ 
+  private assertBillingMonthAllowed(month: number, year: number) {
     const istString = new Date().toLocaleString('en-US', {
       timeZone: 'Asia/Kolkata',
     });
     const istNow = new Date(istString);
     const currentMonth = istNow.getMonth() + 1;
     const currentYear = istNow.getFullYear();
-    if (month !== currentMonth || year !== currentYear) {
+    const isFuture =
+      year > currentYear ||
+      (year === currentYear && month > currentMonth);
+    if (isFuture) {
       throw new BadRequestException(
-        'Meter readings can only be submitted for the current month',
+        'Meter readings cannot be submitted for future months',
       );
     }
   }
 
-  // ─── expected previous readings ───────────────────────────────────────────
 
   private async getExpectedPreviousReadings(
     propertyId: number,
@@ -172,7 +170,7 @@ export class ElectricityService {
     dto: SubmitMainMeterDto,
   ) {
     await this.verifyOwnership(propertyId, ownerUserId);
-    this.assertCurrentBillingMonth(dto.month, dto.year);
+    this.assertBillingMonthAllowed(dto.month, dto.year);
 
     const unitConsumed = new Decimal(dto.currentReading).sub(
       new Decimal(dto.previousReading),
@@ -231,7 +229,7 @@ export class ElectricityService {
     dto: SubmitMainMeterDto,
   ) {
     await this.verifyOwnership(propertyId, ownerUserId);
-    this.assertCurrentBillingMonth(dto.month, dto.year);
+    this.assertBillingMonthAllowed(dto.month, dto.year);
 
     const room = await this.prisma.room.findFirst({
       where: { id: roomId, propertyId, hasMeter: true },
@@ -397,7 +395,7 @@ export class ElectricityService {
     dto: SubmitAllReadingsDto,
   ) {
     await this.verifyOwnership(propertyId, ownerUserId);
-    this.assertCurrentBillingMonth(dto.month, dto.year);
+    this.assertBillingMonthAllowed(dto.month, dto.year);
 
     const { month, year, mainMeter, rooms } = dto;
 
@@ -481,7 +479,6 @@ export class ElectricityService {
       }
     }
 
-    // ── sum-of-rooms ≤ main meter ─────────────────────────────────────────
     const totalRoomUnits = rooms.reduce(
       (sum, r) =>
         sum + Number(new Decimal(r.currentReading).sub(new Decimal(r.previousReading))),
@@ -493,7 +490,6 @@ export class ElectricityService {
       );
     }
 
-    // ── block resubmit once dues are being collected ──────────────────────
     const paidDue = await this.prisma.tenantDue.findFirst({
       where: {
         propertyId,
