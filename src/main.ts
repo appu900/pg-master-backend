@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import * as bodyParser from 'body-parser';
 import { AuthService } from './modules/auth/auth.service';
+import { TenancyService } from './modules/tenancy/tenancy.service';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -56,6 +57,12 @@ async function bootstrap() {
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
   console.log(process.env.APP_BASE_URL)
+
+  // const moveinService = app.get(TenancyService)
+  // const data = await moveinService.getMoveInHistory(2,2)
+  // data.map((d)=>(
+  //   console.log(d.tenancy.tenent.fullName,"joinning date",d.tenancy.joinedAt.toISOString())
+  // ))
 
   logger.log(`Application is running on: http://localhost:${port}/api`);
 }

@@ -7,6 +7,7 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { MoveInstatus, Prisma, TenancyStatus, UserRole } from '@prisma/client';
 import { RejectMoveOutDto } from './dto/reject-moveout.dto';
@@ -1660,5 +1661,35 @@ export class TenancyService {
         },
       })),
     );
+  }
+
+
+  // fetch all tenency detals and tenant details whose status marked as expired recently
+  async fetchRecentlyDeletedTenants(propertyId:number,ownerId:number) {
+    const property = await this.prisma.property.findUnique({
+      where: {
+        id: propertyId,
+        ownerId:ownerId
+      }
+    })
+    if (!property) {
+      throw new UnauthorizedException();
+    }
+    const response = await this.prisma.tenancy.findMany({
+      where:{
+        propertyId:propertyId,
+        tenancyStatus:TenancyStatus.EXITED
+      },
+      orderBy:{
+        deletedAt:'desc'
+      },
+      include:{
+        tenent:true,
+        property:true,
+        room:true
+      }
+    })
+    return response
+    
   }
 }

@@ -1,7 +1,10 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Post,
@@ -48,7 +51,11 @@ export class TenancyController {
     @GetUser() user: any,
     @Param('tenancyId', ParseIntPipe) tenancyId: number,
   ) {
-    const res = await this.tenancyService.updateTenancyDetails(tenancyId, user.userId, dto);
+    const res = await this.tenancyService.updateTenancyDetails(
+      tenancyId,
+      user.userId,
+      dto,
+    );
     return { res, message: 'Update rental details successful' };
   }
 
@@ -117,7 +124,11 @@ export class TenancyController {
     @GetUser() user: any,
     @Body() dto: RejectMoveOutDto,
   ) {
-    return this.tenancyService.rejectMoveOutRequest(requestId, user.userId, dto);
+    return this.tenancyService.rejectMoveOutRequest(
+      requestId,
+      user.userId,
+      dto,
+    );
   }
 
   @Get('/room-shift-requests/property/:propertyId')
@@ -137,7 +148,10 @@ export class TenancyController {
     @Param('requestId', ParseIntPipe) requestId: number,
     @GetUser() user: any,
   ) {
-    return this.tenancyService.getRoomShiftRequestDetails(requestId, user.userId);
+    return this.tenancyService.getRoomShiftRequestDetails(
+      requestId,
+      user.userId,
+    );
   }
 
   @Post('/room-shift-request/:requestId/approve')
@@ -158,7 +172,11 @@ export class TenancyController {
     @GetUser() user: any,
     @Body() dto: RejectRoomShiftDto,
   ) {
-    return this.tenancyService.rejectRoomShiftRequest(requestId, user.userId, dto);
+    return this.tenancyService.rejectRoomShiftRequest(
+      requestId,
+      user.userId,
+      dto,
+    );
   }
 
   @Post('/:tenancyId/confirm-move-in')
@@ -179,5 +197,24 @@ export class TenancyController {
     @GetUser() user: any,
   ) {
     return this.tenancyService.getMoveInHistory(propertyId, user.userId);
+  }
+
+  @Get('/recently-deleted/:propertyId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  @HttpCode(HttpStatus.OK)
+  async fetchRecentlyDeletedTenants(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
+  ) {
+    if (!propertyId) throw new BadRequestException();
+    const res = await this.tenancyService.fetchRecentlyDeletedTenants(
+      propertyId,
+      user.userId,
+    );
+    return {
+      messsage: 'fetched all recently deleted tenants for this property',
+      res,
+    };
   }
 }

@@ -7,9 +7,6 @@ export class PaymentAuthController {
     private readonly logger = new Logger(PaymentAuthController.name)
     constructor(private readonly paymentAuthService:PaymentAuthService) {}
 
-    
-
-
     @HttpCode(HttpStatus.OK)
     @Post('/send-otp')
     async makePaymentAuthVerfication(@Body() dto: PayUserVerificationDto){
