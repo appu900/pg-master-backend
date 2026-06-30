@@ -1503,7 +1503,7 @@ export class TenancyService {
       tenancy.tenancyStatus === TenancyStatus.ACTIVE &&
       toDateOnly(tenancy.joinedAt).getTime() > todayDate.getTime();
 
-    if (!wasPending && !isFutureActiveJoin) {
+    if (!wasPending) {
       throw new BadRequestException('Tenant is not waiting to move in');
     }
 
@@ -1526,38 +1526,19 @@ export class TenancyService {
         where: { id: tenancyId },
         data: {
           tenancyStatus: TenancyStatus.ACTIVE,
-          joinedAt: tenancy.joinedAt,
         },
       });
 
-      await tx.tenentProfile.updateMany({
-        where: { userId: tenancy.tenentId },
-        data: { JoiningDate:tenancy.joinedAt },
-      });
 
-      const existingTracker = await tx.tenantMoveInTracker.findFirst({
-        where: { tenancyId, status: MoveInstatus.WAITING },
-        select: { id: true },
+      const existingTrackerstatusChanged = await tx.tenantMoveInTracker.updateMany({
+        where: {
+          tenancyId: tenancyId,
+          status: MoveInstatus.WAITING,
+        },
+        data: {
+          status: MoveInstatus.MOVED_IN,
+        },
       });
-
-      if (existingTracker) {
-        await tx.tenantMoveInTracker.update({
-          where: { id: existingTracker.id },
-          data: { movedInDate, status: MoveInstatus.MOVED_IN, month, year },
-        });
-      } else {
-        await tx.tenantMoveInTracker.create({
-          data: {
-            propertyId: tenancy.propertyId,
-            tenancyId,
-            month,
-            year,
-            moveInDate: scheduledMoveInDate,
-            movedInDate,
-            status: MoveInstatus.MOVED_IN,
-          },
-        });
-      }
 
       if (wasPending) {
         await tx.propertyOtherMetrics.updateMany({
