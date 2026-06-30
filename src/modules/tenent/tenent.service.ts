@@ -140,23 +140,13 @@ export class TenentService {
     tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
 
     const [
-      statusCounts,
       todayBookings,
       waitingToMoveIn,
       securityDepositPending,
       pendingDuesGroups,
+      underNoticeTenants,
+      activeTenants,
     ] = await Promise.all([
-      this.prisma.tenancy.groupBy({
-        by: ['tenancyStatus'],
-        where: {
-          propertyId: propertyId,
-          deletedAt: null,
-        },
-        _count: {
-          id: true,
-        },
-      }),
-
       this.prisma.tenancy.count({
         where: {
           propertyId,
@@ -220,21 +210,26 @@ export class TenentService {
           balanceAmount: { gt: 0 },
         },
       }),
+
+      this.prisma.tenancy.count({
+        where: {
+          propertyId,
+          deletedAt: null,
+          tenancyStatus: TenancyStatus.NOTICE_PERIOD,
+        },
+      }),
+
+      this.prisma.tenancy.count({
+        where: {
+          propertyId,
+          deletedAt: null,
+          tenancyStatus: TenancyStatus.ACTIVE,
+          joinedAt: { lte: todayStart },
+        },
+      }),
     ]);
 
-    const totalTenants = statusCounts.reduce(
-      (sum, group) => sum + group._count.id,
-      0,
-    );
-
-    const activeTenants =
-      statusCounts.find((group) => group.tenancyStatus === TenancyStatus.ACTIVE)
-        ?._count.id || 0;
-
-    const underNoticeTenants =
-      statusCounts.find(
-        (group) => group.tenancyStatus === TenancyStatus.NOTICE_PERIOD,
-      )?._count.id || 0;
+    const totalTenants = activeTenants + waitingToMoveIn + underNoticeTenants;
 
     return {
       totalTenants,

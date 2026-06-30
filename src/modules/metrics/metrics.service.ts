@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DueStatus, Prisma } from '@prisma/client';
+import { DueStatus, MoveInstatus, Prisma, TenancyStatus } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { RedisService } from 'src/infra/redis/redis.service';
+import { toLocalDateOnly } from 'src/utils/Proration.utils';
 
 const UNPAID_STATUSES: DueStatus[] = [
   DueStatus.UNPAID,
@@ -147,17 +148,51 @@ export class MetricsService {
   }
 
   private async aggregateLivePropertyOtherMetrics(propertyId: number) {
-    const [rooms, statusCounts] = await Promise.all([
-      this.prisma.room.findMany({
-        where: { propertyId },
-        select: { totalBeds: true, occupiedBeds: true },
-      }),
-      this.prisma.tenancy.groupBy({
-        by: ['tenancyStatus'],
-        where: { propertyId, deletedAt: null },
-        _count: { id: true },
-      }),
-    ]);
+    const todayStart = toLocalDateOnly(new Date());
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+
+    const [rooms, noticePeriod, waitingToMoveIn, activeTenants] =
+      await Promise.all([
+        this.prisma.room.findMany({
+          where: { propertyId },
+          select: { totalBeds: true, occupiedBeds: true },
+        }),
+        this.prisma.tenancy.count({
+          where: {
+            propertyId,
+            deletedAt: null,
+            tenancyStatus: TenancyStatus.NOTICE_PERIOD,
+          },
+        }),
+        this.prisma.tenancy.count({
+          where: {
+            propertyId,
+            deletedAt: null,
+            tenancyStatus: {
+              notIn: [TenancyStatus.EXITED, TenancyStatus.EVICTED],
+            },
+            NOT: {
+              moveInTrackers: { some: { status: MoveInstatus.MOVED_IN } },
+            },
+            OR: [
+              { tenancyStatus: TenancyStatus.PENDING },
+              {
+                joinedAt: { gt: todayStart },
+                tenancyStatus: TenancyStatus.ACTIVE,
+              },
+            ],
+          },
+        }),
+        this.prisma.tenancy.count({
+          where: {
+            propertyId,
+            deletedAt: null,
+            tenancyStatus: TenancyStatus.ACTIVE,
+            joinedAt: { lte: todayStart },
+          },
+        }),
+      ]);
 
     const totalBeds = rooms.reduce((sum, room) => sum + room.totalBeds, 0);
     const occupiedBeds = rooms.reduce(
@@ -165,18 +200,15 @@ export class MetricsService {
       0,
     );
     const totalVacantBeds = Math.max(totalBeds - occupiedBeds, 0);
-    const countByStatus = (status: string) =>
-      statusCounts.find((group) => group.tenancyStatus === status)?._count.id ??
-      0;
 
     return {
       totalBeds,
       totalVacantBeds,
       totalRooms: rooms.length,
-      totalActiveTenants: countByStatus('ACTIVE'),
-      totalTenantsInNoticePeriod: countByStatus('NOTICE_PERIOD'),
-      totalTenantsReadyToMoveIn: countByStatus('PENDING'),
-      totalTenantsReadyToMoveout: countByStatus('NOTICE_PERIOD'),
+      totalActiveTenants: activeTenants,
+      totalTenantsInNoticePeriod: noticePeriod,
+      totalTenantsReadyToMoveIn: waitingToMoveIn,
+      totalTenantsReadyToMoveout: noticePeriod,
     };
   }
 
