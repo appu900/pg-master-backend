@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -19,6 +20,12 @@ import {
   DuePaymentCollectedEvent,
 } from 'src/core/events/domain-events';
 import { StreamName } from 'bullmq';
+import {
+  IQueueProducer,
+  QUEUE_PRODUCER,
+} from 'src/core/ports/queue-producer.port';
+import { QUEUES } from 'src/core/queue/queue.constants';
+import { BulkReminderDto, BulkReminderResult } from './dto/bulk-reminder.dto';
 
 /** Tenancies that can have dues viewed, collected, and created. */
 const BILLABLE_TENANCY_STATUSES: TenancyStatus[] = [
@@ -33,6 +40,7 @@ export class DueService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    @Inject(QUEUE_PRODUCER) private readonly queue: IQueueProducer,
   ) {}
 
   async addDueToTenant(dto: CreateDueForTenantDto, propertyId: number) {
@@ -510,6 +518,108 @@ export class DueService {
 
     if (!due) throw new NotFoundException('Due not found');
     return due;
+  }
+
+  async sendBulkReminder(
+    propertyId: number,
+    dto: BulkReminderDto,
+  ): Promise<BulkReminderResult> {
+    const unpaidDues = await this.prisma.tenantDue.findMany({
+      where: {
+        propertyId,
+        status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] },
+      },
+      select: {
+        id: true,
+        balanceAmount: true,
+        dueDate: true,
+        tenancy: {
+          select: {
+            tenent: {
+              select: { id: true, fullName: true, phoneNumber: true },
+            },
+          },
+        },
+      },
+    });
+
+    const tenantFilter =
+      !dto.sendToAll && dto.tenantIds && dto.tenantIds.length > 0
+        ? new Set(dto.tenantIds)
+        : null;
+
+    const tenantMap = new Map<
+      number,
+      { name: string; phone: string; totalAmount: number; dueCount: number }
+    >();
+
+    for (const due of unpaidDues) {
+      const tenant = due.tenancy?.tenent;
+      if (!tenant) continue;
+      if (tenantFilter && !tenantFilter.has(tenant.id)) continue;
+
+      const amount = Number(due.balanceAmount);
+      const existing = tenantMap.get(tenant.id);
+      if (existing) {
+        existing.totalAmount += amount;
+        existing.dueCount += 1;
+      } else {
+        tenantMap.set(tenant.id, {
+          name: tenant.fullName,
+          phone: tenant.phoneNumber,
+          totalAmount: amount,
+          dueCount: 1,
+        });
+      }
+    }
+
+    const jobs: { name: string; data: any; opts: { jobId: string } }[] = [];
+    let skipped = 0;
+
+    Array.from(tenantMap.entries()).forEach(([tenantId, info]) => {
+      const cleaned = info.phone?.replace(/\D/g, '').slice(-10) ?? '';
+      if (cleaned.length !== 10) {
+        skipped++;
+        this.logger.warn(
+          `Skipping tenant ${tenantId} — invalid phone: ${info.phone}`,
+        );
+        return;
+      }
+
+      jobs.push({
+        name: 'bulk.reminder',
+        data: {
+          type: 'RENT_REMINDER',
+          phone: '+91' + cleaned,
+          channels: ['whatsapp'],
+          data: {
+            tenantName: info.name,
+            amount: String(Math.round(info.totalAmount)),
+            due_date: 'at the earliest',
+            payment_link: 'https://pay.pgmaster.in',
+          },
+        },
+        opts: {
+          jobId: `bulk-reminder-${propertyId}-${tenantId}-${Date.now()}`,
+        },
+      });
+    });
+
+    if (jobs.length > 0) {
+      await this.queue.bulkEnqueue(QUEUES.NOTIFICATION, jobs);
+      this.logger.log(
+        `Bulk reminder: queued ${jobs.length} jobs for property ${propertyId}`,
+      );
+    }
+
+    return {
+      message:
+        jobs.length > 0
+          ? `Reminders queued for ${jobs.length} tenant${jobs.length === 1 ? '' : 's'}`
+          : 'No reminders sent — no valid tenants found',
+      sent: jobs.length,
+      skipped,
+    };
   }
 
   async getPropertyCollections(propertyId: number) {

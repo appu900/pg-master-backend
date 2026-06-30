@@ -18,6 +18,7 @@ import {
   CreateDueForTenantDto,
 } from './dto/create.due.dto';
 import { CollectDueDto } from './dto/collect-due.dto';
+import { BulkReminderDto } from './dto/bulk-reminder.dto';
 
 @Controller('dues')
 export class DuesController {
@@ -101,6 +102,16 @@ export class DuesController {
     @Param('propertyId', ParseIntPipe) propertyId: number,
   ) {
     return this.dueService.getPropertyCollections(propertyId);
+  }
+
+  @Post('/property/:propertyId/bulk-remind')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async sendBulkReminder(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @Body() dto: BulkReminderDto,
+  ) {
+    return this.dueService.sendBulkReminder(propertyId, dto);
   }
 
   @Get('/:dueId')

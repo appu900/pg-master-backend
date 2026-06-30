@@ -22,8 +22,6 @@ export class ElectricityService {
     private readonly electricityBillingService: ElectricityBillingService,
   ) {}
 
-  // ─── helpers ──────────────────────────────────────────────────────────────
-
   private async verifyOwnership(propertyId: number, ownerUserId: number) {
     const property = await this.prisma.property.findFirst({
       where: { id: propertyId, ownerId: ownerUserId },
@@ -116,8 +114,6 @@ export class ElectricityService {
 
     return { mainPreviousReading, roomPreviousReadings };
   }
-
-  // ─── public API ───────────────────────────────────────────────────────────
 
   async getRoomsWithMeter(propertyId: number, ownerUserId: number) {
     const property = await this.verifyOwnership(propertyId, ownerUserId);
@@ -399,7 +395,6 @@ export class ElectricityService {
 
     const { month, year, mainMeter, rooms } = dto;
 
-    // ── previous reading integrity check ──────────────────────────────────
     const expectedReadings = await this.getExpectedPreviousReadings(
       propertyId,
       month,
@@ -414,7 +409,6 @@ export class ElectricityService {
       );
     }
 
-    // ── main meter arithmetic ─────────────────────────────────────────────
     const mainUnitConsumed = new Decimal(mainMeter.currentReading).sub(
       new Decimal(mainMeter.previousReading),
     );
@@ -505,7 +499,6 @@ export class ElectricityService {
       );
     }
 
-    // ── persist readings ──────────────────────────────────────────────────
     const roomData = rooms.map((r) => ({
       ...r,
       unitConsumed: new Decimal(r.currentReading).sub(
@@ -561,9 +554,7 @@ export class ElectricityService {
       ),
     ]);
 
-    // ── run billing synchronously so dues always generate immediately ─────
-    // If billing fails (e.g. transient DB error), we fall back to the
-    // queue-based retry so readings are never left without dues.
+
     try {
       await this.electricityBillingService.runBilling({ propertyId, month, year });
     } catch (billingError: any) {
