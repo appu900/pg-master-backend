@@ -45,16 +45,26 @@ export class MetricsService {
     };
   }
 
+  private duesForPropertyWhere(
+    propertyId: number,
+    extra?: Prisma.TenantDueWhereInput,
+  ): Prisma.TenantDueWhereInput {
+    return {
+      propertyId,
+      tenancy: {
+        propertyId,
+        deletedAt: null,
+      },
+      ...extra,
+    };
+  }
+
   private async aggregateDuesForMonth(
     propertyId: number,
     month: number,
     year: number,
   ): Promise<FinanceMetricsSnapshot> {
-    const baseWhere: Prisma.TenantDueWhereInput = {
-      propertyId,
-      month,
-      year,
-    };
+    const baseWhere = this.duesForPropertyWhere(propertyId, { month, year });
 
     const [allMonthAgg, pendingAgg, electricityAgg, tenantPaymentCounts] =
       await Promise.all([
@@ -114,10 +124,9 @@ export class MetricsService {
 
   private async aggregateAllPendingDues(propertyId: number): Promise<number> {
     const agg = await this.prisma.tenantDue.aggregate({
-      where: {
-        propertyId,
+      where: this.duesForPropertyWhere(propertyId, {
         status: { in: UNPAID_STATUSES },
-      },
+      }),
       _sum: { balanceAmount: true },
     });
     return Number(agg._sum.balanceAmount ?? 0);
@@ -127,12 +136,11 @@ export class MetricsService {
     propertyId: number,
   ): Promise<number> {
     const agg = await this.prisma.tenantDue.aggregate({
-      where: {
-        propertyId,
+      where: this.duesForPropertyWhere(propertyId, {
         dueType: 'SECURITY_DEPOSIT',
         status: { in: UNPAID_STATUSES },
         balanceAmount: { gt: 0 },
-      },
+      }),
       _sum: { balanceAmount: true },
     });
     return Math.round(Number(agg._sum.balanceAmount ?? 0));

@@ -9,7 +9,13 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { MoveInstatus, Prisma, TenancyStatus, UserRole } from '@prisma/client';
+import {
+  ComplaintStatus,
+  MoveInstatus,
+  Prisma,
+  TenancyStatus,
+  UserRole,
+} from '@prisma/client';
 import { RejectMoveOutDto } from './dto/reject-moveout.dto';
 import { RejectRoomShiftDto } from './dto/reject-room-shift.dto';
 import { EditTenancyDto } from './dto/update-tenancy.dto';
@@ -726,6 +732,7 @@ export class TenancyService {
         id: true,
         roomId: true,
         propertyId: true,
+        tenentId: true,
         property: { select: { ownerId: true, name: true } },
         room: { select: { roomNumber: true } },
       },
@@ -973,6 +980,44 @@ export class TenancyService {
             update: {
               activeTenants: { increment: 1 },
               occupiedBeds: { increment: 1 },
+            },
+          });
+
+          await tx.propertyOtherMetrics.updateMany({
+            where: { propertyId: tenancy.propertyId },
+            data: {
+              totalActiveTenants: { decrement: 1 },
+            },
+          });
+
+          await tx.propertyOtherMetrics.upsert({
+            where: { propertyId: newPropertyId },
+            create: {
+              propertyId: newPropertyId,
+              ownerId: newOwnerId,
+              totalActiveTenants: 1,
+            },
+            update: {
+              totalActiveTenants: { increment: 1 },
+            },
+          });
+
+          await tx.complaint.updateMany({
+            where: {
+              propertyId: tenancy.propertyId,
+              raisedById: tenancy.tenentId,
+              status: {
+                in: [
+                  ComplaintStatus.OPEN,
+                  ComplaintStatus.PENDING,
+                  ComplaintStatus.ASSIGNED,
+                  ComplaintStatus.IN_PROGRESS,
+                ],
+              },
+            },
+            data: {
+              propertyId: newPropertyId,
+              roomNumber: newRoom.roomNumber,
             },
           });
         }
@@ -1445,6 +1490,8 @@ export class TenancyService {
       requestId,
       fromRoom: shiftResult.fromRoom,
       toRoom: shiftResult.toRoom,
+      fromPropertyId: shiftResult.fromPropertyId,
+      toPropertyId: shiftResult.toPropertyId,
     };
   }
 

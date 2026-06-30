@@ -203,6 +203,7 @@ export class TenentService {
       this.prisma.tenantDue.count({
         where: {
           propertyId,
+          tenancy: { propertyId, deletedAt: null },
           dueType: 'SECURITY_DEPOSIT',
           status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] },
           balanceAmount: { gt: 0 },
@@ -213,6 +214,7 @@ export class TenentService {
         by: ['tenancyId'],
         where: {
           propertyId,
+          tenancy: { propertyId, deletedAt: null },
           dueType: { not: 'SECURITY_DEPOSIT' },
           status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] },
           balanceAmount: { gt: 0 },
