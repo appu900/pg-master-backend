@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common'
 import * as crypto from 'crypto';
 import { IQueueProducer, QUEUE_PRODUCER } from 'src/core/ports/queue-producer.port';
 import { RedisService } from 'src/infra/redis/redis.service';
+import { normalizePhoneNumber } from 'src/utils/phone.utils';
 
 @Injectable()
 export class OtpService {
@@ -16,16 +17,17 @@ export class OtpService {
   async sendOtp(
     phoneNumber: string,
   ): Promise<{ message: string; expiredIn: number }> {
+    const phone = normalizePhoneNumber(phoneNumber);
     // Use cryptographically secure random number generation
     const otp = crypto.randomInt(100000, 999999).toString();
     await this.redisService.set(
-      `otp:${phoneNumber}`,
+      `otp:${phone}`,
       otp,
       this.OTP_EXPIRY_SECONDS,
     );
     
     const payload = {
-      to: '+91'+phoneNumber,
+      to: '+91'+phone,
       templateKey: 'OTP',
       templateData: {
         otp: otp,
@@ -38,17 +40,17 @@ export class OtpService {
     console.log("blocking starts here")
     await this.queue.enqueue('notification','send',{
       type:'OTP',
-      phone:'+91'+phoneNumber,
+      phone:'+91'+phone,
       channels: ['whatsapp'],
       data: { otp },
     },{
-       jobId: `otp-${phoneNumber}-${Date.now()}`,
+       jobId: `otp-${phone}-${Date.now()}`,
       priority: 1, 
       attempts: 2, 
     })
     console.log("no blocking here bro")
     
-    this.logger.log(`OTP sent to ${phoneNumber.slice(-4).padStart(10, '*')}`);
+    this.logger.log(`OTP sent to ${phone.slice(-4).padStart(10, '*')}`);
 
     return {
       message: 'otp sent',
@@ -57,11 +59,12 @@ export class OtpService {
   }
 
   async verifyOtp(phoneNumber: string, providedOtp: string): Promise<void> {
-    const storedOtp = await this.redisService.get(`otp:${phoneNumber}`);
+    const phone = normalizePhoneNumber(phoneNumber);
+    const storedOtp = await this.redisService.get(`otp:${phone}`);
 
     if (!storedOtp) {
       this.logger.warn(
-        `OTP verification failed: expired for ${phoneNumber.slice(-4).padStart(10, '*')}`,
+        `OTP verification failed: expired for ${phone.slice(-4).padStart(10, '*')}`,
       );
       throw new BadRequestException(
         'OTP has expired. Please request a new one',
@@ -70,14 +73,14 @@ export class OtpService {
 
     if (storedOtp !== providedOtp) {
       this.logger.warn(
-        `OTP verification failed: invalid for ${phoneNumber.slice(-4).padStart(10, '*')}`,
+        `OTP verification failed: invalid for ${phone.slice(-4).padStart(10, '*')}`,
       );
       throw new BadRequestException('Invalid OTP. Please check and try again');
     }
 
-    await this.redisService.del(`otp:${phoneNumber}`);
+    await this.redisService.del(`otp:${phone}`);
     this.logger.log(
-      `OTP verified successfully for ${phoneNumber.slice(-4).padStart(10, '*')}`,
+      `OTP verified successfully for ${phone.slice(-4).padStart(10, '*')}`,
     );
   }
 }

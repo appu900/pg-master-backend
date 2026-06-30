@@ -25,6 +25,10 @@ import {
 import { TenancyEvents, TenantAddedEventPayload } from './tenancy.event';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DueCreatedEvent } from 'src/core/events/domain-events';
+import {
+  normalizePhoneNumber,
+  phoneSearchVariants,
+} from 'src/utils/phone.utils';
 
 const BLOCKING_TENANCY_STATUSES = new Set([
   'ACTIVE',
@@ -125,7 +129,10 @@ export class TenancyService {
     const [existingByPhone, emailConflict, propertyRoom] = await Promise.all([
       // look by phone - fetch tenancy details for conflict messages
       this.prisma.user.findFirst({
-        where: { phoneNumber: dto.phoneNumber, deletedAt: null },
+        where: {
+          phoneNumber: { in: phoneSearchVariants(dto.phoneNumber) },
+          deletedAt: null,
+        },
         select: {
           id: true,
           role: true,
@@ -500,6 +507,7 @@ export class TenancyService {
   }
 
   async createTenant(dto: AddTenantDto, requestingOwnerId: number) {
+    dto.phoneNumber = normalizePhoneNumber(dto.phoneNumber);
     const joinDate = toDateOnly(new Date(dto.joiningDate));
     this.validateDates(dto, joinDate);
     const preflight = await this.runPreFlightChecks(dto, requestingOwnerId);

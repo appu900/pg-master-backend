@@ -2,6 +2,11 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
+import {
+  normalizePhoneNumber,
+  phoneNumbersEqual,
+  phoneSearchVariants,
+} from 'src/utils/phone.utils';
 import { CreateAdminDto } from '../auth/dto/create-admin.dto';
 import { CreatePropertyOwnerDto } from '../auth/dto/create.Property-owner.dto';
 
@@ -15,23 +20,37 @@ export class UserService {
   }
 
   async findUserExists(phoneNumber: string, email: string) {
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    const phoneVariants = phoneSearchVariants(normalizedPhone);
     return await this.prisma.user.findFirst({
-      where: { OR: [{ email: email }, { phoneNumber: phoneNumber }] },
+      where: {
+        OR: [
+          { email: email },
+          ...(phoneVariants.length
+            ? [{ phoneNumber: { in: phoneVariants } }]
+            : []),
+        ],
+      },
     });
   }
 
   async findUserByPhoneNumber(userPhoneNumber: string) {
+    const phoneVariants = phoneSearchVariants(userPhoneNumber);
+    if (!phoneVariants.length) {
+      return null;
+    }
     return this.prisma.user.findFirst({
-      where: { phoneNumber: userPhoneNumber },
+      where: { phoneNumber: { in: phoneVariants } },
     });
   }
 
   async createAdmin(payload: CreateAdminDto) {
+    const phoneNumber = normalizePhoneNumber(payload.phoneNumber);
     const hashedPassword = await bcrypt.hash(payload.password, 10);
     return this.prisma.user.create({
       data: {
         fullName: payload.fullName,
-        phoneNumber: payload.phoneNumber,
+        phoneNumber,
         email: payload.email,
         role: UserRole.ADMIN,
         adminProfile: { create: { createdBy: 'backend team', password: hashedPassword } },
@@ -47,14 +66,21 @@ export class UserService {
   }
 
   async createPropertyOwner(dto: CreatePropertyOwnerDto) {
+    const phoneNumber = normalizePhoneNumber(dto.phoneNumber);
+    const phoneVariants = phoneSearchVariants(phoneNumber);
     const userExists = await this.prisma.user.findFirst({
       where: {
-        OR: [{ phoneNumber: dto.phoneNumber }, { email: dto.email }],
+        OR: [
+          ...(phoneVariants.length
+            ? [{ phoneNumber: { in: phoneVariants } }]
+            : []),
+          { email: dto.email },
+        ],
       },
     });
 
     if (userExists) {
-      if (userExists.phoneNumber === dto.phoneNumber) {
+      if (phoneNumbersEqual(userExists.phoneNumber, phoneNumber)) {
         throw new ConflictException(
           'A user with this phone number already exists',
         );
@@ -66,7 +92,7 @@ export class UserService {
 
     const user = await this.prisma.user.create({
       data: {
-        phoneNumber: dto.phoneNumber,
+        phoneNumber,
         fullName: dto.fullName,
         email: dto.email,
         pinCode: dto.pinCode,

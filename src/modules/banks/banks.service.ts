@@ -9,6 +9,7 @@ import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { AddBankAccountDto, AddUPIdetailsDto } from './dto/add.backaccount.dto';
 import { AccountDetailsType, payeeCategory, Prisma } from '@prisma/client';
 import { UpdateBankAccountDto } from './dto/update.bankaccount.dto';
+import { normalizePhoneNumber } from 'src/utils/phone.utils';
 
 @Injectable()
 export class BanksService {
@@ -30,7 +31,7 @@ export class BanksService {
       data: {
         propertyOwnerProfileId: user.propertyOwnerProfile!.id,
         accountHolderName: dto.accountHolderName,
-        phoneNumber: dto.phoneNumber,
+        phoneNumber: normalizePhoneNumber(dto.phoneNumber),
         PayeeCategory: dto.payeeCategory as payeeCategory,
         AccountNumber: dto.accountNumber,
         UPIId: dto.upiId ?? null,
@@ -60,7 +61,7 @@ export class BanksService {
       data: {
         propertyOwnerProfileId: user.propertyOwnerProfile!.id,
         accountHolderName: dto.accountHolderName,
-        phoneNumber: dto.phoneNumber,
+        phoneNumber: normalizePhoneNumber(dto.phoneNumber),
         PayeeCategory: dto.payeeCategory as payeeCategory,
         UPIId: dto.UPIId,
         accountType: AccountDetailsType.BANKACCOUNT,
@@ -131,7 +132,8 @@ export class BanksService {
     if (dto.accountHolderName)
       updatedData.accountHolderName = dto.accountHolderName;
     if (dto.AccountNumber) updatedData.AccountNumber = dto.AccountNumber;
-    if (dto.phoneNumber) updatedData.phoneNumber = dto.phoneNumber;
+    if (dto.phoneNumber)
+      updatedData.phoneNumber = normalizePhoneNumber(dto.phoneNumber);
     if (dto.PayeeCategory)
       updatedData.PayeeCategory = dto.PayeeCategory as payeeCategory;
     if (dto.UPIid) updatedData.UPIId = dto.UPIid;

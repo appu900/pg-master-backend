@@ -7,6 +7,7 @@ import {
 import { BusinessApprovalStatus, Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { S3Service } from 'src/infra/s3/s3.service';
+import { normalizePhoneNumber } from 'src/utils/phone.utils';
 import { AddBusinessDetails } from './dto/AddBusiness-details.dto';
 import { UpdatePropertyOwnerProfileDto } from './dto/update-property-owner.profile.dto';
 import { UpdateTenantProfileByOwnerDto } from './dto/update-tenant_profile.dto';
@@ -38,7 +39,9 @@ export class PropertyownerService {
 
     const userupdateData: Prisma.UserUpdateInput = {};
     if (editProfilePayload.phoneNumber)
-      userupdateData.phoneNumber = editProfilePayload.phoneNumber;
+      userupdateData.phoneNumber = normalizePhoneNumber(
+        editProfilePayload.phoneNumber,
+      );
     if (editProfilePayload.email)
       userupdateData.email = editProfilePayload.email;
     if (editProfilePayload.fullName)

@@ -11,6 +11,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { OtpService } from 'src/infra/notification/OTP/otp.service';
 import { UserService } from '../user/user.service';
+import { normalizePhoneNumber } from 'src/utils/phone.utils';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { OtpLoginDto } from './dto/auth.otp.login.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
@@ -67,7 +68,8 @@ export class AuthService {
   }
 
   async sendOtp(phoneNumber: string) {
-    const user = await this.userService.findUserByPhoneNumber(phoneNumber);
+    const phone = normalizePhoneNumber(phoneNumber);
+    const user = await this.userService.findUserByPhoneNumber(phone);
 
     if (!user) {
       throw new BadRequestException('User not found with this phone number');
@@ -81,7 +83,7 @@ export class AuthService {
       throw new BadRequestException('Your account is inactive');
     }
 
-    await this.otpService.sendOtp(phoneNumber);
+    await this.otpService.sendOtp(phone);
     return {
       status: 'success',
       message: 'OTP sent successfully',
@@ -91,22 +93,20 @@ export class AuthService {
 
   async login(dto: OtpLoginDto) {
     try {
-      const DEMO_PHONE = '+918888888888';
-      const DEMO_PHONE2 = '8260826082';
+      const phone = normalizePhoneNumber(dto.phoneNumber);
+      const DEMO_PHONES = new Set(['8888888888', '8260826082']);
       const DEMO_OTP = '123456';
-      if (dto.phoneNumber === DEMO_PHONE || dto.phoneNumber === DEMO_PHONE2) {
+      if (DEMO_PHONES.has(phone)) {
         if (dto.otp !== DEMO_OTP) {
           throw new BadRequestException('Invalid otp');
         }
       } else {
-        await this.otpService.verifyOtp(dto.phoneNumber, dto.otp);
+        await this.otpService.verifyOtp(phone, dto.otp);
       }
       // Verify OTP first
 
       // Get user details
-      const user = await this.userService.findUserByPhoneNumber(
-        dto.phoneNumber,
-      );
+      const user = await this.userService.findUserByPhoneNumber(phone);
 
       if (!user) {
         throw new BadRequestException('User not found');

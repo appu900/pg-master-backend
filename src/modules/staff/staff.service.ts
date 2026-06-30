@@ -16,6 +16,10 @@ import {
 import { StaffMapper } from './mappers/staff.mappers';
 import { EditStaffAccessDto } from './dto/edit-Staff_Access.dto';
 import { EditEmployeeProfileDto } from './dto/edit.staff.profile.dto';
+import {
+  normalizePhoneNumber,
+  phoneSearchVariants,
+} from 'src/utils/phone.utils';
 
 @Injectable()
 export class StaffService {
@@ -60,8 +64,10 @@ export class StaffService {
     }
 
     // ** check if the user already exists with the phone Number
+    const phoneNumber = normalizePhoneNumber(dto.phoneNumber);
+    const whatsappNumber = normalizePhoneNumber(dto.whatsappNumber);
     const userExists = await this.prisma.user.findFirst({
-      where: { phoneNumber: dto.phoneNumber },
+      where: { phoneNumber: { in: phoneSearchVariants(phoneNumber) } },
     });
 
     if (userExists)
@@ -70,15 +76,15 @@ export class StaffService {
       const user = await tx.user.create({
         data: {
           fullName: dto.fullName,
-          phoneNumber: dto.phoneNumber,
+          phoneNumber,
           role: UserRole.MAINTENANCE_STAFF,
         },
       });
       const staffProfile = await tx.maintenanceStaffProfile.create({
         data: {
           userId: user.id,
-          phoneNumber: dto.phoneNumber,
-          whatsAppNumber: dto.whatsappNumber,
+          phoneNumber,
+          whatsAppNumber: whatsappNumber,
           monthlySalary: dto.monthlySalary,
           staffType: dto.staffType as MaintenanceStaffType,
           jobPosition: dto.jobPosition as MaintenanceJobPosition,
@@ -175,7 +181,8 @@ export class StaffService {
 
       const staffUpdateData: any = {};
       if (dto.staffType) staffUpdateData.staffType = dto.staffType;
-      if (dto.phoneNumber) staffUpdateData.phoneNumber = dto.phoneNumber;
+      if (dto.phoneNumber)
+        staffUpdateData.phoneNumber = normalizePhoneNumber(dto.phoneNumber);
       if (dto.salary) staffUpdateData.monthlySalary = dto.salary;
       if (dto.jobPosition) staffUpdateData.jobPosition = dto.jobPosition;
 
