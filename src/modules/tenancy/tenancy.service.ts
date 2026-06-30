@@ -1503,7 +1503,7 @@ export class TenancyService {
       tenancy.tenancyStatus === TenancyStatus.ACTIVE &&
       toDateOnly(tenancy.joinedAt).getTime() > todayDate.getTime();
 
-    if (!wasPending) {
+    if (!wasPending && !isFutureActiveJoin) {
       throw new BadRequestException('Tenant is not waiting to move in');
     }
 
@@ -1529,16 +1529,29 @@ export class TenancyService {
         },
       });
 
-
-      const existingTrackerstatusChanged = await tx.tenantMoveInTracker.updateMany({
-        where: {
-          tenancyId: tenancyId,
-          status: MoveInstatus.WAITING,
-        },
-        data: {
-          status: MoveInstatus.MOVED_IN,
-        },
+      const existingTracker = await tx.tenantMoveInTracker.findFirst({
+        where: { tenancyId, status: MoveInstatus.WAITING },
+        select: { id: true },
       });
+
+      if (existingTracker) {
+        await tx.tenantMoveInTracker.update({
+          where: { id: existingTracker.id },
+          data: { movedInDate, status: MoveInstatus.MOVED_IN, month, year },
+        });
+      } else {
+        await tx.tenantMoveInTracker.create({
+          data: {
+            propertyId: tenancy.propertyId,
+            tenancyId,
+            month,
+            year,
+            moveInDate: scheduledMoveInDate,
+            movedInDate,
+            status: MoveInstatus.MOVED_IN,
+          },
+        });
+      }
 
       if (wasPending) {
         await tx.propertyOtherMetrics.updateMany({
@@ -1574,7 +1587,7 @@ export class TenancyService {
     return {
       message: `${tenancy.tenent.fullName} has been moved in successfully`,
       tenancyId,
-      joinedAt: formatDate(todayDate),
+      joinedAt: formatDate(toLocalDateOnly(scheduledMoveInDate)),
       movedInDate: formatDate(toLocalDateOnly(movedInDate)),
     };
   }
@@ -1622,6 +1635,22 @@ export class TenancyService {
           },
         },
       },
-    });
+    }).then((records) =>
+      records.map((record) => ({
+        id: record.id,
+        month: record.month,
+        year: record.year,
+        moveInDate: formatDate(toLocalDateOnly(record.moveInDate)),
+        movedInDate: record.movedInDate
+          ? formatDate(toLocalDateOnly(record.movedInDate))
+          : null,
+        status: record.status,
+        createdAt: record.createdAt.toISOString(),
+        tenancy: {
+          ...record.tenancy,
+          joinedAt: formatDate(toLocalDateOnly(record.tenancy.joinedAt)),
+        },
+      })),
+    );
   }
 }

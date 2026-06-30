@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { TenancyStatus, UserRole } from '@prisma/client';
+import { MoveInstatus, TenancyStatus, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { formatDate, toDateOnly, toLocalDateOnly } from 'src/utils/Proration.utils';
 import { RoomService } from '../room/room.service';
@@ -34,7 +34,7 @@ export class TenentService {
     joinedAt: Date;
     leftAt: Date | null;
     createdAt: Date;
-    moveInTrackers?: { id: number }[];
+    moveInTrackers?: { id: number; status: string }[];
     tenent: {
       id: number;
       fullName: string;
@@ -62,6 +62,7 @@ export class TenentService {
       leftAt: tenancy.leftAt ? formatDate(toDateOnly(tenancy.leftAt)) : null,
       createdAt: tenancy.createdAt.toISOString(),
       hadScheduledMoveIn: (tenancy.moveInTrackers?.length ?? 0) > 0,
+      moveInStatus: tenancy.moveInTrackers?.[0]?.status ?? null,
       profile: tenancy.tenent.tenentProfile
         ? {
             ...tenancy.tenent.tenentProfile,
@@ -119,7 +120,11 @@ export class TenentService {
             floorNumber: true,
           },
         },
-        moveInTrackers: { select: { id: true }, take: 1 },
+        moveInTrackers: {
+          select: { id: true, status: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -181,6 +186,9 @@ export class TenentService {
           deletedAt: null,
           tenancyStatus: {
             notIn: [TenancyStatus.EXITED, TenancyStatus.EVICTED],
+          },
+          NOT: {
+            moveInTrackers: { some: { status: MoveInstatus.MOVED_IN } },
           },
           OR: [
             { tenancyStatus: TenancyStatus.PENDING },
@@ -794,7 +802,11 @@ export class TenentService {
             floorNumber: true,
           },
         },
-        moveInTrackers: { select: { id: true }, take: 1 },
+        moveInTrackers: {
+          select: { id: true, status: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
       orderBy: {
         createdAt: 'desc',
