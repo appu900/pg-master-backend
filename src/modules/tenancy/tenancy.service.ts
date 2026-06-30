@@ -55,7 +55,7 @@ export class TenancyService {
       throw new BadRequestException('moveOutDate is not a valid date');
     }
 
-    const today = toDateOnly(new Date());
+    const today = toLocalDateOnly(new Date());
     if (moveOut < today) {
       throw new BadRequestException('Move-out date cannot be in the past');
     }
@@ -349,8 +349,8 @@ export class TenancyService {
           update: profilePayload,
         });
 
-        const todayUtc = toDateOnly(new Date());
-        const isFutureJoin = joinDate.getTime() > todayUtc.getTime();
+        const todayLocal = toLocalDateOnly(new Date());
+        const isFutureJoin = joinDate.getTime() > todayLocal.getTime();
 
         // ** create tenancy
         const tenancy = await tx.tenancy.create({
@@ -672,10 +672,9 @@ export class TenancyService {
       throw new BadRequestException('joiningDate is not a valid date');
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = toLocalDateOnly(new Date());
     const maxFuture = new Date(today);
-    maxFuture.setDate(maxFuture.getDate() + MAX_FUTURE_JOINING_DAYS);
+    maxFuture.setUTCDate(maxFuture.getUTCDate() + MAX_FUTURE_JOINING_DAYS);
     if (joinDate > maxFuture) {
       throw new BadRequestException(
         `Joining date cannot be more than ${MAX_FUTURE_JOINING_DAYS} days in the future`,

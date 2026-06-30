@@ -313,7 +313,7 @@ export class TenentService {
         data: {
           userId: tenantId,
           pinCode: dto.pinCode || '000000',
-          JoiningDate: new Date(),
+          JoiningDate: toLocalDateOnly(new Date()),
           ...profileData,
         } as any,
       });
