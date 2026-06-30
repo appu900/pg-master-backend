@@ -40,7 +40,7 @@ export const WHATSAPP_TEMPLATES = {
 
   RENT_REMINDER: {
     templateName: 'rent_reminder',
-    body: ['tenantName', 'amount', 'due_date', 'payment_link'] as const,
+    body: ['tenantName', 'amount', 'due_date', 'payment_link', 'pgname'] as const,
   },
 
   PAYMENT_CONFIRMATION: {

@@ -524,6 +524,12 @@ export class DueService {
     propertyId: number,
     dto: BulkReminderDto,
   ): Promise<BulkReminderResult> {
+    const property = await this.prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { name: true },
+    });
+    const pgName = property?.name ?? 'Your PG';
+
     const unpaidDues = await this.prisma.tenantDue.findMany({
       where: {
         propertyId,
@@ -597,6 +603,7 @@ export class DueService {
             amount: String(Math.round(info.totalAmount)),
             due_date: 'at the earliest',
             payment_link: 'https://pay.pgmaster.in',
+            pgname: pgName,
           },
         },
         opts: {
