@@ -1,6 +1,6 @@
 import { BusinessType } from '@prisma/client';
-import { IsEnum, IsNegative, IsNotEmpty, IsString } from 'class-validator';
-import { BusinessApprovalStatus } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsNotEmpty, IsString } from 'class-validator';
 export class AddBusinessDetails {
   @IsString()
   @IsNotEmpty()
@@ -8,5 +8,10 @@ export class AddBusinessDetails {
 
   @IsEnum(BusinessType)
   @IsNotEmpty()
-  businessType!:BusinessType;
+  businessType!: BusinessType;
+
+  @Type(() => Number)
+  @IsInt()
+  @IsNotEmpty()
+  propertyId!: number;
 }

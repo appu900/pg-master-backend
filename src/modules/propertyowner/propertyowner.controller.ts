@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   UploadedFile,
   UploadedFiles,
   UseGuards,
@@ -145,10 +146,15 @@ export class PropertyownerController {
   @Get('/buisnessdetails')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROPERTY_OWNER)
-  async fetchBuinessDetails(@GetUser() user: any) {
+  async fetchBuinessDetails(
+    @GetUser() user: any,
+    @Query('propertyId', ParseIntPipe) propertyId: number,
+  ) {
     const propertyOwnerUserId = user.userId;
-    const res = await this.serviceLayer.fetchTheBuinessDetails(propertyOwnerUserId);
-    console.log("this is the response",res)
+    const res = await this.serviceLayer.fetchTheBuinessDetails(
+      propertyOwnerUserId,
+      propertyId,
+    );
     return {
       success: true,
       message: 'buisness details fetched sucessfully',

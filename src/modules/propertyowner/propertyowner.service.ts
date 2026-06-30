@@ -167,13 +167,22 @@ export class PropertyownerService {
       throw new NotFoundException('user not found');
     }
 
+    const property = await this.prisma.property.findFirst({
+      where: { id: dto.propertyId, ownerId: propertyOwnerId },
+    });
+    if (!property) {
+      throw new NotFoundException('Property not found');
+    }
+
     const profileId = user.propertyOwnerProfile.id;
     const existingBusniessDetails =
       await this.prisma.businessDetails.findUnique({
-        where: { propertyOwnerProfileId: profileId },
+        where: { propertyId: dto.propertyId },
       });
     if (existingBusniessDetails) {
-      throw new BadRequestException('Business details already submitted');
+      throw new BadRequestException(
+        'Business details already submitted for this property',
+      );
     }
 
     const aadhaarFile = files.find((f) => f.fieldname === 'aadhaar');
@@ -196,6 +205,7 @@ export class PropertyownerService {
           businessName: dto.businessName,
           businessType: dto.businessType,
           status: BusinessApprovalStatus.PENDING,
+          propertyId: dto.propertyId,
           propertyOwnerProfileId: profileId,
           aadhaarCard: aadhaarUrl,
           panCard: panUrl,
@@ -205,24 +215,17 @@ export class PropertyownerService {
     });
   }
 
-  async fetchTheBuinessDetails(propertyOwnerId: number) {
-    const propertyOwner = await this.prisma.user.findUnique({
-      where: { id: propertyOwnerId },
-      select: {
-        propertyOwnerProfile: true,
-      },
+  async fetchTheBuinessDetails(propertyOwnerId: number, propertyId: number) {
+    const property = await this.prisma.property.findFirst({
+      where: { id: propertyId, ownerId: propertyOwnerId },
     });
-    if (!propertyOwner || !propertyOwner.propertyOwnerProfile) {
-      throw new NotFoundException('user not found');
+    if (!property) {
+      throw new NotFoundException('Property not found');
     }
 
-    const buisnessDetails = await this.prisma.businessDetails.findUnique({
-      where: {
-        propertyOwnerProfileId: propertyOwner.propertyOwnerProfile.id,
-      },
+    return this.prisma.businessDetails.findUnique({
+      where: { propertyId },
     });
-    console.log(buisnessDetails);
-    return buisnessDetails;
   }
 
   async updateTenantProfile(

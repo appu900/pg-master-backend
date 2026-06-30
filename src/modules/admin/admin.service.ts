@@ -31,6 +31,12 @@ export class AdminService {
         aadhaarCard: true,
         panCard: true,
         companyDocument: true,
+        property: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         propertyOwnerProfile: {
           select: {
             Profession: true,

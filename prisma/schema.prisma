@@ -60,7 +60,7 @@ model PropertyOwnerProfile {
   profileImage          String?
   BusinessProfileStatus Boolean              @default(false)
   BankAcconts           BankAccountDetails[]
-  businessDetails       BusinessDetails?
+  businessDetails       BusinessDetails[]
   user                  User                 @relation(fields: [userId], references: [id])
 
   @@index([pinCode])
@@ -220,7 +220,8 @@ model BusinessDetails {
   id                     Int                    @id @default(autoincrement())
   businessName           String
   businessType           BusinessType
-  propertyOwnerProfileId Int                    @unique
+  propertyId             Int                    @unique
+  propertyOwnerProfileId Int
   panCard                String
   companyDocument        String?
   rejectionReason        String?
@@ -228,10 +229,12 @@ model BusinessDetails {
   updatedAt              DateTime               @updatedAt
   aadhaarCard            String
   status                 BusinessApprovalStatus
+  property               Property               @relation(fields: [propertyId], references: [id])
   propertyOwnerProfile   PropertyOwnerProfile   @relation(fields: [propertyOwnerProfileId], references: [id])
 
   @@index([status])
   @@index([propertyOwnerProfileId])
+  @@index([propertyId])
 }
 
 model Property {
@@ -265,6 +268,7 @@ model Property {
   destinationRoomShiftRequests RoomShiftRequest[] @relation("RoomShiftDestinationProperty")
   lateFineConfig               PropertyLateFineConfig?
   moveInTrackers               TenantMoveInTracker[]
+  businessDetails              BusinessDetails?
 
   @@index([ownerId])
   @@index([pinCode])
