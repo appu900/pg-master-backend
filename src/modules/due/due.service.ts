@@ -528,7 +528,7 @@ export class DueService {
       where: { id: propertyId },
       select: { name: true },
     });
-    const pgName = property?.name ?? 'Your PG';
+    const pgName = `Regards, ${property?.name ?? 'PG Master'}`;
 
     const unpaidDues = await this.prisma.tenantDue.findMany({
       where: {
