@@ -861,6 +861,7 @@ model RoomShiftRequest {
   rejectionReason     String?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+  ranAt               DateTime             @default(now())
 
   tenant            User      @relation(fields: [tenantId], references: [id])
   tenancy           Tenancy   @relation(fields: [tenancyId], references: [id])
