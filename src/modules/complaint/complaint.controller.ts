@@ -154,6 +154,26 @@ export class ComplaintController {
     return this.complaintService.addLogs(compaintId, dto);
   }
 
+  @Post(':complaintId/photos')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseInterceptors(
+    FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
+  )
+  async addComplaintPhotos(
+    @Param('complaintId', ParseIntPipe) complaintId: number,
+    @UploadedFiles() images: Express.Multer.File[],
+    @GetUser() user: any,
+  ) {
+    const ownerId = user.userId;
+    if (!ownerId) throw new UnauthorizedException();
+    return this.complaintService.addComplaintPhotos(
+      ownerId,
+      complaintId,
+      images,
+    );
+  }
+
   @Get('owner/property/all')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROPERTY_OWNER)

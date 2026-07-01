@@ -32,6 +32,7 @@ type ComplaintAssignmentContext = {
 @Injectable()
 export class ComplaintService {
   private readonly COMPLAINT_S3_FOLDER_NAME = 'complaints';
+  private readonly MAX_COMPLAINT_PHOTOS = 10;
 
   private readonly assigneeSelect = {
     assignedMaintenanceStaffProfile: {
@@ -607,6 +608,72 @@ export class ComplaintService {
       },
     });
     return result;
+  }
+
+  async addComplaintPhotos(
+    ownerUserId: number,
+    complaintId: number,
+    images?: Express.Multer.File[],
+  ) {
+    if (!images || images.length === 0) {
+      throw new BadRequestException('At least one photo is required');
+    }
+
+    const complaint = await this.prisma.complaint.findUnique({
+      where: { id: complaintId },
+      select: {
+        id: true,
+        propertyId: true,
+        _count: { select: { images: true } },
+      },
+    });
+    if (!complaint) throw new NotFoundException('Complaint not found');
+
+    const property = await this.prisma.property.findFirst({
+      where: { id: complaint.propertyId, ownerId: ownerUserId },
+      select: { id: true },
+    });
+    if (!property) {
+      throw new ForbiddenException(
+        'You can only update complaints for your own properties',
+      );
+    }
+
+    const currentCount = complaint._count.images;
+    if (currentCount + images.length > this.MAX_COMPLAINT_PHOTOS) {
+      throw new BadRequestException(
+        `Maximum ${this.MAX_COMPLAINT_PHOTOS} photos allowed per complaint`,
+      );
+    }
+
+    const uploadedUrls: string[] = [];
+    for (const image of images) {
+      const url = await this.s3Service.uploadFile(
+        image,
+        this.COMPLAINT_S3_FOLDER_NAME,
+      );
+      uploadedUrls.push(url);
+    }
+
+    const photos = await this.prisma.$transaction(
+      uploadedUrls.map((imageUrl) =>
+        this.prisma.complaintPhoto.create({
+          data: { complaintId, imageUrl },
+        }),
+      ),
+    );
+
+    await this.prisma.complaintActivityLog.create({
+      data: {
+        complaintId,
+        title: `${images.length} photo${images.length > 1 ? 's' : ''} added`,
+      },
+    });
+
+    return {
+      message: 'Photos added successfully',
+      photos,
+    };
   }
 
   async getComplaintSummaryByProperty(propertyId: number, ownerUserId: number) {
