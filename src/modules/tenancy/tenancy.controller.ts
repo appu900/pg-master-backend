@@ -228,4 +228,19 @@ export class TenancyController {
       res,
     };
   }
+
+
+
+  @Put('/reactive-tenancy/:tenancyId/property/:propertyId')
+  async reactivateTenancy(
+    @Param('tenancyId', ParseIntPipe) tenancyId: number,
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.reActiveTenancy(
+      propertyId,
+      user.userId,
+      tenancyId
+    );
+  }
 }

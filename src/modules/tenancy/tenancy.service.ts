@@ -37,6 +37,7 @@ import {
   normalizePhoneNumber,
   phoneSearchVariants,
 } from 'src/utils/phone.utils';
+import { DeleteBucketOwnershipControlsCommand } from '@aws-sdk/client-s3';
 
 const BLOCKING_TENANCY_STATUSES = new Set([
   'ACTIVE',
@@ -1046,11 +1047,6 @@ export class TenancyService {
     );
   }
 
-
-
-
-  
-
   async putOnNoticePeriod(
     tenancyId: number,
     ownerUserId: number,
@@ -1712,6 +1708,7 @@ export class TenancyService {
   }
 
 
+
   async getMoveOutHistory(propertyId: number, ownerUserId: number) {
     const property = await this.prisma.property.findFirst({
       where: { id: propertyId, ownerId: ownerUserId },
@@ -1822,8 +1819,69 @@ export class TenancyService {
     
   }
 
+  
   async reActiveTenancy(propertyId:number,ownerId:number,tenancyId:number){
-    // need to implement here the code ..
-    //
+    const property = await this.prisma.property.findUnique({
+      where:{
+        id:propertyId,
+        ownerId:ownerId
+      }
+    })
+    if(!property){
+      throw new UnauthorizedException();
+    }
+    const tenancy = await this.prisma.tenancy.findUnique({
+      where:{
+        id:tenancyId,
+        propertyId:propertyId
+      }
+    })
+    if(!tenancy){
+      throw new NotFoundException('Tenancy not found');
+    }
+    if(tenancy.tenancyStatus !== TenancyStatus.EXITED){
+      throw new BadRequestException('Tenancy is not in exited status');
+    }
+    const room = await this.prisma.room.findUnique({
+      where:{
+        id:tenancy.roomId
+      }
+    })
+    if(!room){
+      throw new NotFoundException('Room not found');
+    }
+    if(room.occupiedBeds >= room.totalBeds){
+      throw new BadRequestException('Room is full');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.room.update({
+        where:{
+          id:room.id
+        },
+        data:{
+          occupiedBeds:{
+            increment:1
+          }
+        }
+      })
+      await tx.tenentProfile.update({
+        where:{
+          userId:tenancy.tenentId
+        },
+        data:{
+          moveOutDate:null
+        }
+      })
+      await tx.tenancy.update({
+        where:{
+          id:tenancy.id
+        },
+        data:{
+          tenancyStatus:TenancyStatus.ACTIVE,
+          deletedAt:null
+        }
+      })
+    })
+    return "tenancy re-activated successfully"
   }
 }
