@@ -812,10 +812,9 @@ export class PaymentService {
   ) {
     const tenancyWhere: {
       tenentId: number;
-      deletedAt: null;
       id?: number;
       propertyId?: number;
-    } = { tenentId: tenantUserId, deletedAt: null };
+    } = { tenentId: tenantUserId };
 
     if (tenancyId) tenancyWhere.id = tenancyId;
     if (propertyId) tenancyWhere.propertyId = propertyId;
@@ -823,6 +822,7 @@ export class PaymentService {
     const tenancies = await this.prisma.tenancy.findMany({
       where: tenancyWhere,
       select: { id: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     if (tenancies.length === 0) {

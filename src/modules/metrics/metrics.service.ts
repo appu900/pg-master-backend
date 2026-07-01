@@ -46,7 +46,19 @@ export class MetricsService {
     };
   }
 
-  private duesForPropertyWhere(
+  /** All dues for a property — includes exited/moved-out tenants for historical accuracy. */
+  private allDuesForPropertyWhere(
+    propertyId: number,
+    extra?: Prisma.TenantDueWhereInput,
+  ): Prisma.TenantDueWhereInput {
+    return {
+      propertyId,
+      ...extra,
+    };
+  }
+
+  /** Only active tenancies — used for current pending dues and live tenant counts. */
+  private activeDuesForPropertyWhere(
     propertyId: number,
     extra?: Prisma.TenantDueWhereInput,
   ): Prisma.TenantDueWhereInput {
@@ -65,38 +77,54 @@ export class MetricsService {
     month: number,
     year: number,
   ): Promise<FinanceMetricsSnapshot> {
-    const baseWhere = this.duesForPropertyWhere(propertyId, { month, year });
+    const allMonthWhere = this.allDuesForPropertyWhere(propertyId, {
+      month,
+      year,
+    });
+    const activeMonthWhere = this.activeDuesForPropertyWhere(propertyId, {
+      month,
+      year,
+    });
 
-    const [allMonthAgg, pendingAgg, electricityAgg, tenantPaymentCounts] =
-      await Promise.all([
-        this.prisma.tenantDue.aggregate({
-          where: baseWhere,
-          _sum: {
-            totalAmount: true,
-            paidAmount: true,
-            balanceAmount: true,
-          },
-        }),
-        this.prisma.tenantDue.aggregate({
-          where: {
-            ...baseWhere,
-            status: { in: UNPAID_STATUSES },
-          },
-          _sum: { balanceAmount: true },
-        }),
-        this.prisma.tenantDue.aggregate({
-          where: {
-            ...baseWhere,
-            dueType: 'ELECTRICITY',
-          },
-          _sum: { totalAmount: true },
-        }),
-        this.prisma.tenantDue.groupBy({
-          by: ['tenancyId'],
-          where: baseWhere,
-          _sum: { balanceAmount: true, paidAmount: true },
-        }),
-      ]);
+    const [
+      collectedAgg,
+      allMonthAgg,
+      pendingAgg,
+      electricityAgg,
+      tenantPaymentCounts,
+    ] = await Promise.all([
+      this.prisma.duePayment.aggregate({
+        where: { propertyId, month, year },
+        _sum: { amount: true },
+      }),
+      this.prisma.tenantDue.aggregate({
+        where: allMonthWhere,
+        _sum: {
+          totalAmount: true,
+          paidAmount: true,
+          balanceAmount: true,
+        },
+      }),
+      this.prisma.tenantDue.aggregate({
+        where: {
+          ...activeMonthWhere,
+          status: { in: UNPAID_STATUSES },
+        },
+        _sum: { balanceAmount: true },
+      }),
+      this.prisma.tenantDue.aggregate({
+        where: {
+          ...allMonthWhere,
+          dueType: 'ELECTRICITY',
+        },
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.tenantDue.groupBy({
+        by: ['tenancyId'],
+        where: activeMonthWhere,
+        _sum: { balanceAmount: true, paidAmount: true },
+      }),
+    ]);
 
     let tenantsPaid = 0;
     let tenantsNotPaid = 0;
@@ -115,7 +143,7 @@ export class MetricsService {
       totalElectricityDueGenerated: Math.round(
         Number(electricityAgg._sum.totalAmount ?? 0),
       ),
-      totalDueCollected: Math.round(Number(allMonthAgg._sum.paidAmount ?? 0)),
+      totalDueCollected: Math.round(Number(collectedAgg._sum.amount ?? 0)),
       totalPendingDue: Math.round(Number(pendingAgg._sum.balanceAmount ?? 0)),
       totalSecurityDepositePending: 0,
       totalTenantsPaid: tenantsPaid,
@@ -125,7 +153,7 @@ export class MetricsService {
 
   private async aggregateAllPendingDues(propertyId: number): Promise<number> {
     const agg = await this.prisma.tenantDue.aggregate({
-      where: this.duesForPropertyWhere(propertyId, {
+      where: this.activeDuesForPropertyWhere(propertyId, {
         status: { in: UNPAID_STATUSES },
       }),
       _sum: { balanceAmount: true },
@@ -137,7 +165,7 @@ export class MetricsService {
     propertyId: number,
   ): Promise<number> {
     const agg = await this.prisma.tenantDue.aggregate({
-      where: this.duesForPropertyWhere(propertyId, {
+      where: this.activeDuesForPropertyWhere(propertyId, {
         dueType: 'SECURITY_DEPOSIT',
         status: { in: UNPAID_STATUSES },
         balanceAmount: { gt: 0 },

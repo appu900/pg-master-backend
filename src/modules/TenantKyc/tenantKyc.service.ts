@@ -68,7 +68,21 @@ export class TenantKycService {
       uploadData.otherDocument = otherdocumentUrl;
     }
 
+    if (!Object.keys(uploadData).length) {
+      throw new BadRequestException('No document file received for upload');
+    }
+
     if (exisingKycDocument) {
+      const fieldsToReplace = Object.keys(uploadData) as Array<
+        keyof typeof uploadData
+      >;
+      for (const field of fieldsToReplace) {
+        const previousUrl = exisingKycDocument[field];
+        if (typeof previousUrl === 'string' && previousUrl.length > 0) {
+          await this.s3.deleteFile(previousUrl).catch(() => undefined);
+        }
+      }
+
       return this.prisma.tenantKycDetails.update({
         where: { tenantProfileId: tenantPofileId },
         data: uploadData,

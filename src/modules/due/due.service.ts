@@ -339,24 +339,23 @@ export class DueService {
   }
 
   async getDuesByTenantAndProperty(tenantId: number, propertyId: number) {
-    const tenancy = await this.prisma.tenancy.findFirst({
+    const tenancies = await this.prisma.tenancy.findMany({
       where: {
         tenentId: tenantId,
         propertyId,
-        tenancyStatus: { in: ['ACTIVE', 'NOTICE_PERIOD', 'PENDING'] },
-        deletedAt: null,
       },
       select: { id: true },
       orderBy: { createdAt: 'desc' },
     });
-    if (!tenancy) {
+    if (tenancies.length === 0) {
       throw new BadRequestException(
-        'No billable tenancy found for this tenant in the given property',
+        'No tenancy found for this tenant in the given property',
       );
     }
 
+    const tenancyIds = tenancies.map((tenancy) => tenancy.id);
     const dues = await this.prisma.tenantDue.findMany({
-      where: { tenancyId: tenancy.id },
+      where: { tenancyId: { in: tenancyIds } },
       select: {
         id: true,
         dueType: true,
@@ -659,6 +658,7 @@ export class DueService {
                 tenent: {
                   select: {
                     fullName: true,
+                    phoneNumber: true,
                     tenentProfile: { select: { profileImage: true } },
                   },
                 },
@@ -673,7 +673,9 @@ export class DueService {
     });
 
     return payments.map((payment) => {
-      const tenancy = payment.due.tenancy;
+      const tenancy = payment.due?.tenancy;
+      const tenent = tenancy?.tenent;
+      const room = tenancy?.room;
       const isOnline = payment.paymentMode === 'ONLINE_GATEWAY';
 
       return {
@@ -689,22 +691,24 @@ export class DueService {
         year: payment.year,
         due: {
           dueType: payment.due.dueType,
+          customDueType: payment.due.customDueType ?? null,
           title: payment.due.title,
           totalAmount: payment.due.totalAmount,
           balanceAmount: payment.due.balanceAmount,
           status: payment.due.status,
         },
         tenant: {
-          name: tenancy.tenent.fullName,
-          profileImage: tenancy.tenent.tenentProfile?.profileImage ?? null,
-          roomNumber: tenancy.room.roomNumber,
+          name: tenent?.fullName ?? 'Former Tenant',
+          profileImage: tenent?.tenentProfile?.profileImage ?? null,
+          roomNumber: room?.roomNumber ?? '-',
+          phoneNumber: tenent?.phoneNumber ?? null,
         },
         collectedBy: isOnline
           ? { type: 'online' as const, name: 'Payment Gateway', role: null }
           : {
               type: 'offline' as const,
-              name: payment.recordedBy.fullName,
-              role: payment.recordedBy.role,
+              name: payment.recordedBy?.fullName ?? 'Staff',
+              role: payment.recordedBy?.role ?? null,
             },
       };
     });
