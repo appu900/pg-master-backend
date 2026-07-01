@@ -8,6 +8,7 @@ import { DueStatus, TenancyStatus } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { DueCreatedEvent } from 'src/core/events/domain-events';
+import { nowIST } from 'src/utils/Proration.utils';
 import {
   getBillingPeriodDates,
   getTenantDaysInMonth,
@@ -202,7 +203,7 @@ export class ElectricityBillingService {
           unitPrice,
           totalDaysPool: poolTenancyDays > 0 ? poolTenancyDays : null,
           perDayRate: poolTenancyDays > 0 ? perDayRate : null,
-          ranAt: new Date(),
+          ranAt: nowIST(),
         },
         update: {
           status: 'COMPLETED',
@@ -212,7 +213,7 @@ export class ElectricityBillingService {
           unitPrice,
           totalDaysPool: poolTenancyDays > 0 ? poolTenancyDays : null,
           perDayRate: poolTenancyDays > 0 ? perDayRate : null,
-          ranAt: new Date(),
+          ranAt: nowIST(),
         },
       });
 

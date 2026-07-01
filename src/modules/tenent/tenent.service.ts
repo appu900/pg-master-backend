@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { MoveInstatus, TenancyStatus, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
-import { formatDate, toDateOnly, toLocalDateOnly } from 'src/utils/Proration.utils';
+import { formatDate, nowIST, toDateOnly, toLocalDateOnly } from 'src/utils/Proration.utils';
 import { RoomService } from '../room/room.service';
 import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -457,7 +457,7 @@ export class TenentService {
       });
     }
 
-    const now = new Date();
+    const now = nowIST();
     await this.prisma.$transaction(async (tx) => {
       await tx.tenancy.update({
         where: { id: tenancy.id },
@@ -469,8 +469,8 @@ export class TenentService {
         data: { occupiedBeds: { decrement: 1 } },
       });
 
-      const curMonth = now.getMonth() + 1;
-      const curYear = now.getFullYear();
+      const curMonth = now.getUTCMonth() + 1;
+      const curYear = now.getUTCFullYear();
       await tx.propertyMetrics.updateMany({
         where: { propertyId: tenancy.propertyId, month: curMonth, year: curYear },
         data: { activeTenants: { decrement: 1 }, occupiedBeds: { decrement: 1 } },
@@ -480,7 +480,7 @@ export class TenentService {
     const tenantDeletedEventPayload: TenantDeletedEvent = {
       propertyId: tenancy.propertyId,
       tenantId: tenantId,
-      deletedAt: new Date(),
+      deletedAt: nowIST(),
     };
     this.serviceEventPublisher.publishTenantDeletedEvent(tenantDeletedEventPayload);
 
@@ -511,7 +511,7 @@ export class TenentService {
 
     if (!tenancy) throw new NotFoundException('Exited tenancy not found or access denied');
 
-    const now = new Date();
+    const now = nowIST();
     await this.prisma.$transaction(async (tx) => {
       await tx.tenancy.update({
         where: { id: tenancyId },
@@ -528,8 +528,8 @@ export class TenentService {
         data: { isActive: true, deletedAt: null },
       });
 
-      const curMonth = now.getMonth() + 1;
-      const curYear = now.getFullYear();
+      const curMonth = now.getUTCMonth() + 1;
+      const curYear = now.getUTCFullYear();
       await tx.propertyMetrics.updateMany({
         where: { propertyId: tenancy.propertyId, month: curMonth, year: curYear },
         data: { activeTenants: { increment: 1 }, occupiedBeds: { increment: 1 } },

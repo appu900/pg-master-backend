@@ -10,6 +10,7 @@ import { executionAsyncId } from 'async_hooks';
 import { EditExpensesDto } from './dto/edit-expense.dto';
 import { NotFound } from '@aws-sdk/client-s3';
 import { Prisma } from '@prisma/client';
+import { nowIST } from 'src/utils/Proration.utils';
 
 @Injectable()
 export class ExpensesService {
@@ -27,9 +28,9 @@ export class ExpensesService {
     if (image) {
       imageurl = await this.s3.uploadFile(image, 'expenses');
     }
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const istNow = nowIST();
+    const currentMonth = istNow.getUTCMonth() + 1;
+    const currentYear = istNow.getUTCFullYear();
 
     const expenses = await this.prisma.expenses.create({
       data: {
@@ -51,9 +52,9 @@ export class ExpensesService {
   }
 
   async fetchAllExpensesByPropertyId(propertyId: number) {
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const istNow = nowIST();
+    const currentMonth = istNow.getUTCMonth() + 1;
+    const currentYear = istNow.getUTCFullYear();
     let previousMonth = currentMonth - 1;
     let previousYear = currentYear;
     if (previousMonth === 0) {

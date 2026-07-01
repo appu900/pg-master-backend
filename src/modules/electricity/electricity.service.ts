@@ -11,6 +11,7 @@ import { SubmitMainMeterDto } from './dto/submit.mainmeter.dto';
 import { SubmitAllReadingsDto } from './dto/submit-all-readings.dto';
 import { ElectricityEvents } from './electricity.events';
 import { ElectricityBillingService } from './electricity-billing.service';
+import { nowIST } from 'src/utils/Proration.utils';
 
 @Injectable()
 export class ElectricityService {
@@ -190,7 +191,7 @@ export class ElectricityService {
         unitConsumed,
         unitPrice: dto.unitPrice,
         status: 'SUBMITTED',
-        submittedAt: new Date(),
+        submittedAt: nowIST(),
       },
       update: {
         previousReading: dto.previousReading,
@@ -198,7 +199,7 @@ export class ElectricityService {
         unitConsumed,
         unitPrice: dto.unitPrice,
         status: 'SUBMITTED',
-        submittedAt: new Date(),
+        submittedAt: nowIST(),
       },
     });
 
@@ -256,14 +257,14 @@ export class ElectricityService {
         currentReading: dto.currentReading,
         unitConsumed,
         isSkipped: false,
-        submittedAt: new Date(),
+        submittedAt: nowIST(),
       },
       update: {
         previousReading: dto.previousReading,
         currentReading: dto.currentReading,
         unitConsumed,
         isSkipped: false,
-        submittedAt: new Date(),
+        submittedAt: nowIST(),
       },
     });
   }
@@ -518,7 +519,7 @@ export class ElectricityService {
           unitConsumed: mainUnitConsumed,
           unitPrice: mainMeter.unitPrice,
           status: 'SUBMITTED',
-          submittedAt: new Date(),
+          submittedAt: nowIST(),
         },
         update: {
           previousReading: mainMeter.previousReading,
@@ -526,7 +527,7 @@ export class ElectricityService {
           unitConsumed: mainUnitConsumed,
           unitPrice: mainMeter.unitPrice,
           status: 'SUBMITTED',
-          submittedAt: new Date(),
+          submittedAt: nowIST(),
         },
       }),
       ...roomData.map(({ roomId, previousReading, currentReading, unitConsumed }) =>
@@ -541,14 +542,14 @@ export class ElectricityService {
             currentReading,
             unitConsumed,
             isSkipped: false,
-            submittedAt: new Date(),
+            submittedAt: nowIST(),
           },
           update: {
             previousReading,
             currentReading,
             unitConsumed,
             isSkipped: false,
-            submittedAt: new Date(),
+            submittedAt: nowIST(),
           },
         }),
       ),

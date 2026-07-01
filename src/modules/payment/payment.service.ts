@@ -18,6 +18,7 @@ import { EasebuzzService } from 'src/infra/payment/easebuzz/easebuzz.service';
 import { PaymentConfigService } from '../payment-config/payment-config.service';
 import { DuePaymentCollectedEvent } from 'src/core/events/domain-events';
 import { EasebuzzWebhookPayload } from 'src/infra/payment/easebuzz/easebuzz.types';
+import { nowIST } from 'src/utils/Proration.utils';
 import { InitiatePaymentDto, MakePaymentDto } from './dto/initiate-payment.dto';
 import { PaymentHelperService } from './helper/payment.helper.service';
 import { Appevents } from 'src/core/events/app.events';
@@ -502,8 +503,8 @@ export class PaymentService {
     if (normalizedStatus === 'success') {
       await this.processSuccessfulPayment(transaction, webhook, easepayid);
       // ** add to the transaction settelment table 
-      const expetedDateOfSettelment = new Date()
-      expetedDateOfSettelment.setDate(expetedDateOfSettelment.getDate()+1)
+      const expetedDateOfSettelment = nowIST();
+      expetedDateOfSettelment.setUTCDate(expetedDateOfSettelment.getUTCDate() + 1);
       const settelmentTransaction = await this.prisma.settlementTransactions.create({
         data:{
           propertyId:transaction.propertyId,
@@ -511,7 +512,7 @@ export class PaymentService {
           transactionId:transaction.txnId,
           grossAmount:transaction.amount,
           settledAmount:0,
-          expectedSettlementDate:new Date(),
+          expectedSettlementDate: nowIST(),
           status:'PENDING'
         }
       })
@@ -764,7 +765,7 @@ export class PaymentService {
             paymentMode: PaymentMode.ONLINE_GATEWAY,
             transactionId: easepayid,
             notes: `EaseBuzz | txnId: ${transaction.id}`,
-            paidAt: new Date(),
+            paidAt: nowIST(),
             recordedById: due.tenancy.tenentId,
           },
         });

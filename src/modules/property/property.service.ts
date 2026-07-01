@@ -13,6 +13,7 @@ import { editRoomDto } from './dto/edit.room.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PropertyEvents } from './property.event';
 import { PropertyCreateEvent } from 'src/core/events/property-events';
+import { nowIST } from 'src/utils/Proration.utils';
 import { PropertyEventPublisher } from './events/services/property.events';
 import { PropertyCreatedEventPayload, RoomCreatedEventPayload } from 'src/core/events/app.event.payloads';
 import { PropertyCacheManager } from './cache/services/property.cache';
@@ -55,9 +56,9 @@ export class PropertyService {
         ownerId: Number(propertyOwnerId),
       },
     });
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const istNow = nowIST();
+    const currentMonth = istNow.getUTCMonth() + 1;
+    const currentYear = istNow.getUTCFullYear();
     const propertyCreateEventPayload: PropertyCreatedEventPayload = {
       propertyId: property.id,
       ownerId: propertyOwnerId,

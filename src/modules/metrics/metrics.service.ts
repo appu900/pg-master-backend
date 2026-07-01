@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DueStatus, MoveInstatus, Prisma, TenancyStatus } from '@prisma/client';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { RedisService } from 'src/infra/redis/redis.service';
-import { toLocalDateOnly } from 'src/utils/Proration.utils';
+import { nowIST, toLocalDateOnly } from 'src/utils/Proration.utils';
 
 const UNPAID_STATUSES: DueStatus[] = [
   DueStatus.UNPAID,
@@ -33,9 +33,9 @@ export class MetricsService {
   ) {}
 
   private getMonthAndYear() {
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth() + 1;
-    const currentYear = currentDate.getFullYear();
+    const istNow = nowIST();
+    const currentMonth = istNow.getUTCMonth() + 1;
+    const currentYear = istNow.getUTCFullYear();
     const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
     const previousYear = currentMonth === 1 ? currentYear - 1 : currentYear;
     return {

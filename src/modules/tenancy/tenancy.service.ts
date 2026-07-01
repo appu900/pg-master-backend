@@ -25,6 +25,7 @@ import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
 import {
   calculateProratedRent,
   formatDate,
+  nowIST,
   parseDateUTC,
   toDateOnly,
   toLocalDateOnly,
@@ -542,9 +543,9 @@ export class TenancyService {
         `period=${formatDate(periodStart)}→${formatDate(periodEnd)} | ` +
         `prorated=₹${proratedAmount} deposit=₹${dto.securityDeposit}`,
     );
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonthNumber = now.getMonth() + 1;
+    const istNow = nowIST();
+    const currentYear = istNow.getUTCFullYear();
+    const currentMonthNumber = istNow.getUTCMonth() + 1;
     const txResult = await this.runTransaction({
       dto,
       joinDate,
@@ -945,9 +946,9 @@ export class TenancyService {
           }
 
           // Adjust activeTenants + occupiedBeds on current-month metrics
-          const now = new Date();
-          const curMonth = now.getMonth() + 1;
-          const curYear = now.getFullYear();
+          const istNow = nowIST();
+          const curMonth = istNow.getUTCMonth() + 1;
+          const curYear = istNow.getUTCFullYear();
 
           await tx.propertyMetrics.updateMany({
             where: {
@@ -1571,10 +1572,10 @@ export class TenancyService {
       throw new BadRequestException('Move-in has already been confirmed');
     }
 
-    const now = new Date();
+    const now = nowIST();
     const movedInDate = now;
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
+    const month = now.getUTCMonth() + 1;
+    const year = now.getUTCFullYear();
     const scheduledMoveInDate = tenancy.joinedAt;
 
     await this.prisma.$transaction(async (tx) => {
@@ -1738,5 +1739,10 @@ export class TenancyService {
     })
     return response
     
+  }
+
+  async reActiveTenancy(propertyId:number,ownerId:number,tenancyId:number){
+    // need to implement here the code ..
+    //
   }
 }

@@ -5,6 +5,7 @@ import { pipe } from 'rxjs';
 import { QUEUES } from 'src/core/queue/queue.constants';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { RedisService } from 'src/infra/redis/redis.service';
+import { nowIST } from 'src/utils/Proration.utils';
 
 
 // metrics ttl for 45 days
@@ -67,8 +68,8 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
       where: {
         propertyId_month_year: {
           propertyId: propertyId,
-          month: new Date().getMonth() + 1,
-          year: new Date().getFullYear(),
+          month: nowIST().getUTCMonth() + 1,
+          year: nowIST().getUTCFullYear(),
         },
       },
       data: {
@@ -78,7 +79,8 @@ export class MetricsWorker extends WorkerHost implements OnModuleInit {
       },
     });
     console.log(securityDepositeAmount + 'security deposit amount');
-    const propertyKey = `dash:property:${propertyId}:${new Date().getFullYear()}:${new Date().getMonth() + 1}`;
+    const ist = nowIST();
+    const propertyKey = `dash:property:${propertyId}:${ist.getUTCFullYear()}:${ist.getUTCMonth() + 1}`;
     const pipeline = this.redis.getClient().pipeline();
     pipeline.hincrby(propertyKey, 'dues_generated', securityDepositeAmount);
     pipeline.hincrby(propertyKey, 'dues_unpaid', securityDepositeAmount);

@@ -16,6 +16,18 @@
 // Never serialize raw Date objects in API responses — always use formatDate().
 // ─────────────────────────────────────────────────────────────────────────────
 
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // UTC+5:30
+
+/**
+ * Returns a Date whose UTC fields equal the current IST wall-clock time.
+ * Use this whenever you need to store a literal IST datetime in a
+ * TIMESTAMP column (e.g. paidAt, deletedAt, submittedAt, ranAt).
+ * For IST month/year: nowIST().getUTCMonth()+1 / nowIST().getUTCFullYear()
+ */
+export function nowIST(): Date {
+  return new Date(Date.now() + IST_OFFSET_MS);
+}
+
 /**
  * Parse "YYYY-MM-DD" → UTC midnight Date. Always unambiguous.
  * Do NOT use new Date("2026-03-19T00:00:00") — that's LOCAL midnight

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
+import { nowIST } from 'src/utils/Proration.utils';
 
 @Injectable()
 export class PropertyMetricsListner {
@@ -10,8 +11,8 @@ export class PropertyMetricsListner {
   @OnEvent('property.created')
   async handlePropertyCreateEvent(payload: { propertyId: number }) {
     console.log('event triggered')
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const istNow = nowIST();
+    const currentMonth = istNow.getUTCMonth() + 1;
+    const currentYear = istNow.getUTCFullYear();
   }
 }

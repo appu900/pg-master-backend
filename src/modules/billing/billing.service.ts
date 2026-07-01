@@ -5,6 +5,7 @@ import { EditDueDto } from './dto/edit-due.dto';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
 import { DueStatus, TenancyStatus } from '@prisma/client';
 import { BillingEventHandler } from './biiling.eventpublisher';
+import { nowIST } from 'src/utils/Proration.utils';
 import { RedisService } from 'src/infra/redis/redis.service';
 
 @Injectable()
@@ -101,10 +102,10 @@ export class BillingService {
     // check due endDate should not be in the past
     // if past due date then the dueDate will be currentDate + 7days
     let lastDueDate = duePayload.dueEndDate;
-    const currentDate = new Date();
+    const currentDate = nowIST();
     const dueEndDate = new Date(duePayload.dueEndDate);
     if (dueEndDate <= currentDate) {
-      lastDueDate = new Date(currentDate.setDate(currentDate.getDate() + 7));
+      lastDueDate = new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
     }
 
     // craete due in db wirh status pending

@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/infra/Database/prisma/prisma.service';
+import { nowIST } from 'src/utils/Proration.utils';
 import { AddDueDto } from '../billing/dto/add-due.dto';
 import {
   CreateDueForRoomDto,
@@ -55,9 +56,9 @@ export class DueService {
     if (!tenancy) {
       throw new BadRequestException('Invalid tenant');
     }
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const year = now.getFullYear();
+    const istNow = nowIST();
+    const currentMonth = istNow.getUTCMonth() + 1;
+    const year = istNow.getUTCFullYear();
     const dueDate = dto.DuesToDate;
     const amount = Math.ceil(dto.amount);
     const dueLabel = dto.dueType === 'OTHER' && dto.customDueType ? dto.customDueType : dto.dueType;
@@ -127,9 +128,9 @@ export class DueService {
     const totaltenents = tenencies.length;
 
     const individualAmounts = Math.ceil(dto.totalAmount / totaltenents);
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const year = now.getFullYear();
+    const istNow = nowIST();
+    const currentMonth = istNow.getUTCMonth() + 1;
+    const year = istNow.getUTCFullYear();
     const dueDate = dto.DuesToDate;
     const dueLabel = dto.dueType === 'OTHER' && dto.customDueType ? dto.customDueType : dto.dueType;
     const txResult = await this.prisma.$transaction(async (tx) => {
