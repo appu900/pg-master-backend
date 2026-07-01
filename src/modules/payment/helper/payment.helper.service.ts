@@ -32,101 +32,84 @@ export class PaymentHelperService {
             },
             deletedAt: null,
           },
+          select: { id: true, propertyId: true },
         },
       },
     });
     if (!tenant) throw new BadRequestException('invalid user');
-    const tenancy = tenant.tenancy[0];
-    if (!tenancy)
+    if (!tenant.tenancy.length)
       throw new BadRequestException(
         'We could not found any billable tenancy for this request',
       );
 
     return {
       tenant,
-      tenancy,
+      tenancies: tenant.tenancy,
     };
   }
 
   async validateDueAndAmount(
     totalAmount: number,
     dues: PaymentDueDetails[],
-    tenancyId: number,
-  ) {
-    const length = dues.length;
+    tenancyIds: number[],
+  ): Promise<{ tenancyId: number; propertyId: number }> {
+    if (!dues.length) throw new BadRequestException('no dues provided');
 
-    if (length === 1) {
-      const dueId = dues[0].dueId;
-      const requestedAmount = dues[0].amount;
-
-      if (requestedAmount === 0) {
+    // Validate that each amount is non-zero and the declared total matches
+    if (dues.length === 1) {
+      if (dues[0].amount === 0)
         throw new BadRequestException('you cant pay 0 amount');
-      }
-      if (totalAmount !== requestedAmount) {
+      if (totalAmount !== dues[0].amount)
         throw new BadRequestException('total amount does not match due amount');
-      }
-
-      const due = await this.prisma.tenantDue.findUnique({
-        where: { id: dueId, tenancyId },
-      });
-      if (!due) throw new BadRequestException('due not found');
-
-      if (due.status === DueStatus.PAID || due.status === DueStatus.WAIVED) {
-        throw new BadRequestException('due is already cleared');
-      }
-
-      const balanceAmount = Number(due.balanceAmount);
-      if (requestedAmount > balanceAmount) {
-        throw new BadRequestException(
-          'amount can not be more than the due amount',
-        );
-      }
-
-      return true;
     } else {
-      // tenant is paying multiple dues at a time
       let sumOfAmounts = 0;
-
       for (const item of dues) {
-        if (item.amount === 0) {
+        if (item.amount === 0)
           throw new BadRequestException(
             `amount for due ${item.dueId} cannot be 0`,
           );
-        }
-        sumOfAmounts += item.amount;
+        sumOfAmounts = Number((sumOfAmounts + item.amount).toFixed(2));
       }
-
-      if (totalAmount !== sumOfAmounts) {
+      if (totalAmount !== sumOfAmounts)
         throw new BadRequestException(
           'total amount does not match sum of individual due amounts',
         );
-      }
-
-      const dueIds = dues.map((d) => d.dueId);
-      const fetchedDues = await this.prisma.tenantDue.findMany({
-        where: { id: { in: dueIds }, tenancyId },
-      });
-
-      if (fetchedDues.length !== dueIds.length) {
-        throw new BadRequestException('one or more dues not found');
-      }
-
-      const dueMap = new Map(fetchedDues.map((d) => [d.id, d]));
-
-      for (const item of dues) {
-        const due = dueMap.get(item.dueId);
-        if (!due) throw new BadRequestException(`due ${item.dueId} not found`);
-        if (due.status === DueStatus.PAID || due.status === DueStatus.WAIVED) {
-          throw new BadRequestException(`due ${due.id} is already cleared`);
-        }
-        if (item.amount > Number(due.balanceAmount)) {
-          throw new BadRequestException(
-            `amount for due ${due.id} cannot be more than the balance amount`,
-          );
-        }
-      }
-
-      return true;
     }
+
+    const dueIds = dues.map((d) => d.dueId);
+    const fetchedDues = await this.prisma.tenantDue.findMany({
+      where: { id: { in: dueIds }, tenancyId: { in: tenancyIds } },
+      select: {
+        id: true,
+        tenancyId: true,
+        propertyId: true,
+        status: true,
+        balanceAmount: true,
+      },
+    });
+
+    if (fetchedDues.length !== dueIds.length)
+      throw new BadRequestException('one or more dues not found');
+
+    const uniquePropertyIds = new Set(fetchedDues.map((d) => d.propertyId));
+    if (uniquePropertyIds.size > 1)
+      throw new BadRequestException(
+        'all dues in a single payment must belong to the same property',
+      );
+
+    const dueMap = new Map(fetchedDues.map((d) => [d.id, d]));
+
+    for (const item of dues) {
+      const due = dueMap.get(item.dueId)!;
+      if (due.status === DueStatus.PAID || due.status === DueStatus.WAIVED)
+        throw new BadRequestException(`due ${due.id} is already cleared`);
+      if (item.amount > Number(due.balanceAmount))
+        throw new BadRequestException(
+          `amount for due ${due.id} cannot be more than the balance amount`,
+        );
+    }
+
+    const first = fetchedDues[0];
+    return { tenancyId: first.tenancyId, propertyId: first.propertyId };
   }
 }

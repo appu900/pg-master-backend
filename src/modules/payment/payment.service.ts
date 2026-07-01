@@ -219,16 +219,18 @@ export class PaymentService {
 
   async makePayment(data: MakePaymentDto, tenantUserId: number) {
     const CheckpaymentIsProcessing = await this.paymentCacheService.IsPaymentLocked(data.dues.map(d => d.dueId));
-    if(CheckpaymentIsProcessing){
+    if (CheckpaymentIsProcessing) {
       throw new BadRequestException('Payment is already being processed for one or more of the selected dues. Please wait and try again.');
     }
-    
+
     const redirectTargets = this.getRedirectTargets(data);
-    const { tenancy } = await this.paymentHelperService.validateTenant(tenantUserId);
-    await this.paymentHelperService.validateDueAndAmount(
+
+    const { tenancies } = await this.paymentHelperService.validateTenant(tenantUserId);
+
+    const { tenancyId, propertyId } = await this.paymentHelperService.validateDueAndAmount(
       data.totalAmount,
       data.dues,
-      tenancy.id,
+      tenancies.map((t) => t.id),
     );
 
     const tenantUser = await this.prisma.user.findUnique({
@@ -237,9 +239,7 @@ export class PaymentService {
     });
     if (!tenantUser) throw new BadRequestException('tenant user not found');
 
-    const gatewayConfig = await this.paymentConfigService.getConfigForPayment(
-      tenancy.propertyId,
-    );
+    const gatewayConfig = await this.paymentConfigService.getConfigForPayment(propertyId);
 
     const txnId = uuidv4().replace(/-/g, '').substring(0, 32);
     const amountStr = data.totalAmount.toFixed(2);
@@ -247,12 +247,10 @@ export class PaymentService {
     const firstname = tenantUser.fullName.split(' ')[0];
     const { surl, furl } = this.getEasebuzzCallbackUrls();
 
-
-    // this need to be fixed 
     const transaction = await this.prisma.paymentGatewayTransaction.create({
       data: {
-        tenancyId: tenancy.id,
-        propertyId: tenancy.propertyId,
+        tenancyId,
+        propertyId,
         txnId,
         amount: data.totalAmount,
         status: 'INITIATED',
@@ -281,7 +279,7 @@ export class PaymentService {
       furl,
       environment: gatewayConfig.environment,
       udf1: String(transaction.id),
-      udf2: String(tenancy.propertyId),
+      udf2: String(propertyId),
     });
 
     await this.prisma.paymentGatewayTransaction.update({
@@ -289,7 +287,7 @@ export class PaymentService {
       data: { accessKey },
     });
     await this.paymentCacheService.LockPayment(data.dues.map(d => d.dueId));
-    this.logger.log(`locked done for due ids ${data.dues.map(d => d.dueId)}`)
+    this.logger.log(`locked done for due ids ${data.dues.map(d => d.dueId)}`);
     return {
       txnId,
       paymentUrl,
@@ -415,7 +413,6 @@ export class PaymentService {
       };
     }
 
-    // 1. Find the transaction
     const transaction = await this.prisma.paymentGatewayTransaction.findUnique({
       where: { txnId: txnid },
     });
@@ -431,7 +428,6 @@ export class PaymentService {
       };
     }
 
-    // Idempotency: already processed
     if (transaction.status !== 'INITIATED') {
       this.logger.log(`Webhook already processed for txnId: ${txnid}`);
       return {
@@ -497,7 +493,6 @@ export class PaymentService {
       };
     }
 
-    // 4. Handle success
     const normalizedStatus = status?.toLowerCase();
 
     if (normalizedStatus === 'success') {
@@ -517,7 +512,6 @@ export class PaymentService {
         }
       })
       this.logger.debug(`transaction added to the table ${transaction.id} with amount ${transaction.amount}`)
-      //** add to the settelment global value */
       await this.prisma.propertySettlementLedger.upsert({
         where:{
           propertyId:transaction.propertyId
@@ -533,7 +527,6 @@ export class PaymentService {
           totalSetteledAmount:0
         }
       })      
-      // ** one event emitter to be here if transaction id sucessfull
       this.paymentEventPublisher.onPaymentSuccess({
         transactionId: txnid,
         propertyId: transaction.propertyId,
