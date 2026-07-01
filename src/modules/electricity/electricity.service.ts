@@ -559,13 +559,14 @@ export class ElectricityService {
 
 
     try {
-      await this.electricityBillingService.runBilling({ propertyId, month, year });
+      // await this.electricityBillingService.runBilling({ propertyId, month, year });
+       this.eventBus.emitElectricityReadingCreated({ propertyId, month, year });
     } catch (billingError: any) {
       this.logger.warn(
         `Sync billing failed for property ${propertyId} ${month}/${year}: ` +
           `${billingError?.message ?? 'unknown error'}. Queuing for retry.`,
       );
-      this.eventBus.emitElectricityReadingCreated({ propertyId, month, year });
+      // this.eventBus.emitElectricityReadingCreated({ propertyId, month, year });
     }
 
     return { mainMeter: mainMeterResult, rooms: roomResults };

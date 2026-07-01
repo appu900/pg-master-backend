@@ -232,6 +232,8 @@ export class TenancyController {
 
 
   @Put('/reactive-tenancy/:tenancyId/property/:propertyId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
   async reactivateTenancy(
     @Param('tenancyId', ParseIntPipe) tenancyId: number,
     @Param('propertyId', ParseIntPipe) propertyId: number,
