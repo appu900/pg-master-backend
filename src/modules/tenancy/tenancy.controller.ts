@@ -32,6 +32,7 @@ export class TenancyController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROPERTY_OWNER)
   async onBoardTenancy(@Body() dto: AddTenantDto, @GetUser() user: any) {
+    console.log('onboard tenancy payload', dto);
     const res = await this.tenancyService.createTenant(dto, user.userId);
     return { message: 'Tenant created successfully', res };
   }
