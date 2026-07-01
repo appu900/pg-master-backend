@@ -178,9 +178,6 @@ export class ComplaintService {
       }
     }
 
-    const hasAssignee =
-      dto.assignToSelf || !!dto.assignedMaintenanceStaffProfileId;
-
     let initialLogTitle = 'Complaint raised';
     if (dto.assignToSelf) {
       const ownerName = this.formatOwnerAssigneeName(owner);
@@ -211,9 +208,7 @@ export class ComplaintService {
           ? null
           : (dto.assignedMaintenanceStaffProfileId ?? null),
         assignedOwnerId: dto.assignToSelf ? ownerId : null,
-        status: hasAssignee
-          ? ComplaintStatus.ASSIGNED
-          : (dto.status as ComplaintStatus),
+        status: dto.status as ComplaintStatus,
         roomNumber: dto.roomNumber,
         logs: {
           create: {
