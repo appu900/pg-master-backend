@@ -1708,8 +1708,6 @@ export class TenancyService {
     );
   }
 
-
-
   async getMoveOutHistory(propertyId: number, ownerUserId: number) {
     const property = await this.prisma.property.findFirst({
       where: { id: propertyId, ownerId: ownerUserId },
@@ -1790,7 +1788,6 @@ export class TenancyService {
       };
     });
   }
-
   // fetch all tenency detals and tenant details whose status marked as expired recently
   async fetchRecentlyDeletedTenants(propertyId:number,ownerId:number) {
     const property = await this.prisma.property.findUnique({
@@ -1884,5 +1881,9 @@ export class TenancyService {
       })
     })
     return "tenancy re-activated successfully"
+  }
+
+  async reactiveTenancyAndActive(propertyId:number,ownerId:number,tenancyId:number,roomId){
+    
   }
 }

@@ -60,6 +60,8 @@ export class ElectricityController {
     );
   }
 
+  
+
   @Post('/submit-readings/:propertyId')
   async submitAllReadings(
     @Param('propertyId', ParseIntPipe) propertyId: number,
