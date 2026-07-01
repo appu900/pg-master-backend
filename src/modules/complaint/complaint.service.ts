@@ -541,13 +541,7 @@ export class ComplaintService {
             name: true,
           },
         },
-        assignedMaintenanceStaffProfile: {
-          select: {
-            whatsAppNumber: true,
-            phoneNumber: true,
-            user: { select: { fullName: true } },
-          },
-        },
+        ...this.assigneeSelect,
       },
       orderBy: {
         createdAt: 'desc',
