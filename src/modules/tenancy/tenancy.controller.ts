@@ -199,6 +199,16 @@ export class TenancyController {
     return this.tenancyService.getMoveInHistory(propertyId, user.userId);
   }
 
+  @Get('/move-out-history/property/:propertyId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROPERTY_OWNER)
+  async getMoveOutHistory(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
+  ) {
+    return this.tenancyService.getMoveOutHistory(propertyId, user.userId);
+  }
+
   @Get('/recently-deleted/:propertyId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROPERTY_OWNER)

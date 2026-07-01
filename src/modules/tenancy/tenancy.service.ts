@@ -1712,6 +1712,87 @@ export class TenancyService {
   }
 
 
+  async getMoveOutHistory(propertyId: number, ownerUserId: number) {
+    const property = await this.prisma.property.findFirst({
+      where: { id: propertyId, ownerId: ownerUserId },
+      select: { id: true },
+    });
+
+    if (!property) {
+      throw new NotFoundException('Property not found or access denied');
+    }
+
+    const tenancies = await this.prisma.tenancy.findMany({
+      where: {
+        propertyId,
+        tenancyStatus: {
+          in: [TenancyStatus.EXITED, TenancyStatus.EVICTED],
+        },
+      },
+      orderBy: [{ leftAt: 'desc' }, { deletedAt: 'desc' }],
+      select: {
+        id: true,
+        rentAmount: true,
+        securityDeposit: true,
+        joinedAt: true,
+        leftAt: true,
+        deletedAt: true,
+        tenancyStatus: true,
+        createdAt: true,
+        room: { select: { roomNumber: true, floorNumber: true } },
+        tenent: {
+          select: {
+            id: true,
+            fullName: true,
+            phoneNumber: true,
+            email: true,
+            tenentProfile: {
+              select: { profileImage: true, profession: true, moveOutDate: true },
+            },
+          },
+        },
+      },
+    });
+
+    return tenancies.map((tenancy) => {
+      const scheduledMoveOut = tenancy.tenent.tenentProfile?.moveOutDate ?? null;
+      const actualMoveOut = tenancy.leftAt ?? tenancy.deletedAt ?? scheduledMoveOut;
+
+      return {
+        id: tenancy.id,
+        movedOutDate: actualMoveOut
+          ? formatDate(toLocalDateOnly(actualMoveOut))
+          : null,
+        scheduledMoveOutDate: scheduledMoveOut
+          ? formatDate(toLocalDateOnly(scheduledMoveOut))
+          : null,
+        joinedAt: formatDate(toLocalDateOnly(tenancy.joinedAt)),
+        tenancyStatus: tenancy.tenancyStatus,
+        createdAt: tenancy.createdAt.toISOString(),
+        tenancy: {
+          id: tenancy.id,
+          rentAmount: tenancy.rentAmount,
+          securityDeposit: tenancy.securityDeposit,
+          joinedAt: formatDate(toLocalDateOnly(tenancy.joinedAt)),
+          tenancyStatus: tenancy.tenancyStatus,
+          room: tenancy.room,
+          tenent: {
+            ...tenancy.tenent,
+            tenentProfile: tenancy.tenent.tenentProfile
+              ? {
+                  profileImage: tenancy.tenent.tenentProfile.profileImage,
+                  profession: tenancy.tenent.tenentProfile.profession,
+                  moveOutDate: scheduledMoveOut
+                    ? formatDate(toLocalDateOnly(scheduledMoveOut))
+                    : null,
+                }
+              : null,
+          },
+        },
+      };
+    });
+  }
+
   // fetch all tenency detals and tenant details whose status marked as expired recently
   async fetchRecentlyDeletedTenants(propertyId:number,ownerId:number) {
     const property = await this.prisma.property.findUnique({
