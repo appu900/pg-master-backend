@@ -32,7 +32,7 @@ export class NotificationListner {
         data: {
           tenantName: event.tenantName,
           propertyName: event.propertyName,
-          appLink: 'https://app.rentpe.com',
+          appLink: 'https://play.google.com/store/apps/details?id=com.pgmaster.tenant',
           pg_name: event.propertyName,
         },
       },

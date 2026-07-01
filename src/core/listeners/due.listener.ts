@@ -25,7 +25,8 @@ export class DueListner {
         due_type: 'Security Deposit & Rent',
         due_amount: event.securityDepositeAmount,
         due_date: event.dueDate,
-        payment_link: 'https://app.rentpe.com',
+        payment_link: 'https://pay.pgmaster.in',
+        pgname: event.propertyName,
       },
     });
   }
