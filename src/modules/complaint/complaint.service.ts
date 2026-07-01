@@ -539,10 +539,17 @@ export class ComplaintService {
     tenantId: number,
     complaintId: number,
     dto: EditComplaintByTenantDto,
+    images?: Express.Multer.File[],
   ) {
     const complaint = await this.prisma.complaint.findUnique({
       where: { id: complaintId },
-      select: { id: true, raisedById: true, status: true, title: true },
+      select: {
+        id: true,
+        raisedById: true,
+        status: true,
+        title: true,
+        _count: { select: { images: true } },
+      },
     });
 
     if (!complaint) throw new NotFoundException('Complaint not found');
@@ -592,6 +599,38 @@ export class ComplaintService {
         updatedAt: true,
       },
     });
+
+    if (images && images.length > 0) {
+      const currentCount = complaint._count.images;
+      if (currentCount + images.length > this.MAX_COMPLAINT_PHOTOS) {
+        throw new BadRequestException(
+          `Maximum ${this.MAX_COMPLAINT_PHOTOS} photos allowed per complaint`,
+        );
+      }
+
+      const uploadedUrls: string[] = [];
+      for (const image of images) {
+        const url = await this.s3Service.uploadFile(
+          image,
+          this.COMPLAINT_S3_FOLDER_NAME,
+        );
+        uploadedUrls.push(url);
+      }
+
+      await this.prisma.$transaction([
+        ...uploadedUrls.map((imageUrl) =>
+          this.prisma.complaintPhoto.create({
+            data: { complaintId, imageUrl },
+          }),
+        ),
+        this.prisma.complaintActivityLog.create({
+          data: {
+            complaintId,
+            title: `${images.length} photo${images.length > 1 ? 's' : ''} added`,
+          },
+        }),
+      ]);
+    }
 
     return { message: 'Complaint updated successfully', complaint: updated };
   }

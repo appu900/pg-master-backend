@@ -132,15 +132,20 @@ export class ComplaintController {
   @Put('/:complaintId/edit')
   @Roles(Role.TENANT)
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseInterceptors(
+    FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
+  )
   async editComplaint(
     @Param('complaintId', ParseIntPipe) complaintId: number,
     @Body() dto: EditComplaintByTenantDto,
+    @UploadedFiles() images: Express.Multer.File[],
     @GetUser() user: any,
   ) {
     return this.complaintService.editComplaintByTenant(
       user.userId,
       complaintId,
       dto,
+      images,
     );
   }
 
