@@ -249,8 +249,11 @@ export class ComplaintService {
     const activeTenancy = await this.prisma.tenancy.findFirst({
       where: {
         tenentId: tenant.id,
-        tenancyStatus: TenancyStatus.ACTIVE,
         deletedAt: null,
+        tenancyStatus: {
+          in: [TenancyStatus.ACTIVE, TenancyStatus.NOTICE_PERIOD],
+        },
+        ...(dto.propertyId ? { propertyId: dto.propertyId } : {}),
       },
       select: {
         propertyId: true,
@@ -261,8 +264,13 @@ export class ComplaintService {
         },
       },
     });
-    if (!activeTenancy)
-      throw new BadRequestException('No active tenancy found for this tenant');
+    if (!activeTenancy) {
+      throw new BadRequestException(
+        dto.propertyId
+          ? 'No active tenancy found for the selected property'
+          : 'No active tenancy found for this tenant',
+      );
+    }
 
     let uploadImages: string[] = [];
     if (images && images.length > 0) {
@@ -503,7 +511,10 @@ export class ComplaintService {
     });
   }
 
-  async fetchAllComplaintsCreatedByTenant(tenantId: number) {
+  async fetchAllComplaintsCreatedByTenant(
+    tenantId: number,
+    propertyId?: number,
+  ) {
     const exists = await this.prisma.user.findUnique({
       where: { id: tenantId },
       select: { id: true },
@@ -512,6 +523,7 @@ export class ComplaintService {
     const result = await this.prisma.complaint.findMany({
       where: {
         raisedById: tenantId,
+        ...(propertyId ? { propertyId } : {}),
       },
       select: {
         id: true,
@@ -523,6 +535,12 @@ export class ComplaintService {
         requestedVisitDate: true,
         requestedVisitTime: true,
         priority: true,
+        property: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         assignedMaintenanceStaffProfile: {
           select: {
             whatsAppNumber: true,
@@ -530,6 +548,9 @@ export class ComplaintService {
             user: { select: { fullName: true } },
           },
         },
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
     return result;

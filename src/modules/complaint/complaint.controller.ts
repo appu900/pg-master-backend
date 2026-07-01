@@ -7,8 +7,10 @@ import {
   Put,
   UseGuards,
   Param,
+  Query,
   UnauthorizedException,
   ForbiddenException,
+  BadRequestException,
   UseInterceptors,
   UploadedFiles,
   ParseIntPipe,
@@ -123,10 +125,20 @@ export class ComplaintController {
   @Get('/raisedby/tenant')
   @Roles(Role.TENANT)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async fetchAllComplaintsByTenant(@GetUser() user: any) {
+  async fetchAllComplaintsByTenant(
+    @GetUser() user: any,
+    @Query('propertyId') propertyId?: string,
+  ) {
     const tenantId = user.userId;
     if (!tenantId) throw new UnauthorizedException();
-    return this.complaintService.fetchAllComplaintsCreatedByTenant(tenantId);
+    const parsedPropertyId = propertyId ? Number(propertyId) : undefined;
+    if (propertyId && Number.isNaN(parsedPropertyId)) {
+      throw new BadRequestException('Invalid propertyId');
+    }
+    return this.complaintService.fetchAllComplaintsCreatedByTenant(
+      tenantId,
+      parsedPropertyId,
+    );
   }
 
   @Put('/:complaintId/edit')
