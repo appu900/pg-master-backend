@@ -28,6 +28,7 @@ import {
   nowIST,
   parseDateUTC,
   toDateOnly,
+  todayIST,
   toLocalDateOnly,
 } from 'src/utils/Proration.utils';
 import { TenancyEvents, TenantAddedEventPayload } from './tenancy.event';
@@ -68,7 +69,7 @@ export class TenancyService {
       throw new BadRequestException('moveOutDate is not a valid date');
     }
 
-    const today = toLocalDateOnly(new Date());
+    const today = todayIST();
     if (moveOut < today) {
       throw new BadRequestException('Move-out date cannot be in the past');
     }
@@ -365,7 +366,7 @@ export class TenancyService {
           update: profilePayload,
         });
 
-        const todayLocal = toLocalDateOnly(new Date());
+        const todayLocal = todayIST();
         const isFutureJoin = joinDate.getTime() > todayLocal.getTime();
 
         // ** create tenancy
@@ -689,7 +690,7 @@ export class TenancyService {
       throw new BadRequestException('joiningDate is not a valid date');
     }
 
-    const today = toLocalDateOnly(new Date());
+    const today = todayIST();
     const maxFuture = new Date(today);
     maxFuture.setUTCDate(maxFuture.getUTCDate() + MAX_FUTURE_JOINING_DAYS);
     if (joinDate > maxFuture) {
@@ -1521,7 +1522,7 @@ export class TenancyService {
   }
 
   async confirmMoveIn(tenancyId: number, ownerUserId: number) {
-    const todayDate = toLocalDateOnly(new Date());
+    const todayDate = todayIST();
 
     const tenancy = await this.prisma.tenancy.findFirst({
       where: {

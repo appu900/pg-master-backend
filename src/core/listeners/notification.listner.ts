@@ -86,7 +86,8 @@ export class NotificationListner {
         due_type: event.dueType,
         due_amount: event.totalAmount,
         due_date: 'With in this month end',
-        payment_link: 'https://rentpay.com/pay?12345',
+        payment_link: 'https://pay.pgmaster.in',
+        pgname: propertyName,
       },
     });
     this.logger.debug(

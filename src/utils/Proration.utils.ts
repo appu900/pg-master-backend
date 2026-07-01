@@ -29,6 +29,17 @@ export function nowIST(): Date {
 }
 
 /**
+ * Returns today's IST calendar date as a UTC-midnight Date.
+ * Use for all "today" comparisons (isFutureJoin, moveout validation, etc.).
+ * Unlike toLocalDateOnly(new Date()), this is not dependent on the server's
+ * configured timezone and always reflects the correct IST calendar date.
+ */
+export function todayIST(): Date {
+  const ist = nowIST();
+  return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
+}
+
+/**
  * Parse "YYYY-MM-DD" → UTC midnight Date. Always unambiguous.
  * Do NOT use new Date("2026-03-19T00:00:00") — that's LOCAL midnight
  * and will shift by -5:30 on IST servers.
