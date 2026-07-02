@@ -208,7 +208,7 @@ export class StaffController {
     if (!ownerId) throw new UnauthorizedException();
     if (user.role === Role.MAINTENANCE_STAFF) {
       ownerId =
-        await this.maintenanceStaffService.validateStaffManageStaffProfileAccess(
+        await this.maintenanceStaffService.validateStaffManageStaffDeleteAccess(
           user.userId,
           staffProfileId,
         );

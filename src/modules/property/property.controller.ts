@@ -141,7 +141,7 @@ export class PropertyController {
     if (!user.userId) throw new BadRequestException();
     let effectiveUserId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffRoomInventoryAccess(user.userId, id, 'edit');
+      await this.staffService.validateStaffRoomInventoryAccess(user.userId, id, 'delete');
       effectiveUserId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return this.propertyService.deleteRoom(id, effectiveUserId);
@@ -158,7 +158,7 @@ export class PropertyController {
     if (!user.userId) throw new BadRequestException('User ID not found');
     let effectiveUserId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffRoomInventoryAccess(user.userId, roomId, 'edit');
+      await this.staffService.validateStaffRoomInventoryAccess(user.userId, roomId, 'delete');
       effectiveUserId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return this.propertyService.deleteRoomImage(roomId, imageId, effectiveUserId);

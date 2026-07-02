@@ -11,12 +11,14 @@ import { Type } from 'class-transformer';
 export class RoomsPermissionsDto {
   @IsOptional() @IsBoolean() view?: boolean;
   @IsOptional() @IsBoolean() edit?: boolean;
+  @IsOptional() @IsBoolean() delete?: boolean;
 }
 
 export class TenantsPermissionsDto {
   @IsOptional() @IsBoolean() view?: boolean;
   @IsOptional() @IsBoolean() add?: boolean;
   @IsOptional() @IsBoolean() edit?: boolean;
+  @IsOptional() @IsBoolean() delete?: boolean;
 }
 
 export class FinancePermissionsDto {
@@ -25,6 +27,12 @@ export class FinancePermissionsDto {
   @IsOptional() @IsBoolean() collectPayments?: boolean;
   @IsOptional() @IsBoolean() viewExpenses?: boolean;
   @IsOptional() @IsBoolean() addExpenses?: boolean;
+  @IsOptional() @IsBoolean() deleteDues?: boolean;
+  @IsOptional() @IsBoolean() deleteExpenses?: boolean;
+}
+
+export class ManageStaffPermissionsDto {
+  @IsOptional() @IsBoolean() delete?: boolean;
 }
 
 export class ComplaintsPermissionsDto {
@@ -45,6 +53,9 @@ export class GranularPermissionsDto {
 
   @IsOptional() @IsObject() @ValidateNested() @Type(() => ComplaintsPermissionsDto)
   complaints?: ComplaintsPermissionsDto;
+
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => ManageStaffPermissionsDto)
+  manageStaff?: ManageStaffPermissionsDto;
 }
 
 export class UpdateStaffAppPermissionsDto {

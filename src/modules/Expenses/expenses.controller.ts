@@ -86,7 +86,7 @@ export class ExpensesController {
   ) {
     if (!expenseId) throw new BadRequestException('expense id is required');
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffExpenseAccess(user.userId, expenseId);
+      await this.staffService.validateStaffExpenseDeleteAccess(user.userId, expenseId);
     }
     return this.expensesServices.deleteExpenses(expenseId);
   }

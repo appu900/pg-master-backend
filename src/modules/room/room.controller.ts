@@ -62,7 +62,7 @@ export class RoomController {
     if (!user.userId) throw new BadRequestException();
     let effectiveOwnerId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffRoomInventoryAccess(user.userId, roomId, 'edit');
+      await this.staffService.validateStaffRoomInventoryAccess(user.userId, roomId, 'delete');
       effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return this.roomService.deleteRoom(roomId, effectiveOwnerId);

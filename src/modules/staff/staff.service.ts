@@ -855,7 +855,7 @@ export class StaffService {
   async validateStaffRoomsModuleAccess(
     staffUserId: number,
     propertyId: number,
-    action: 'view' | 'edit' = 'view',
+    action: 'view' | 'edit' | 'delete' = 'view',
   ): Promise<void> {
     await this.validateStaffPropertyAccess(staffUserId, propertyId);
 
@@ -915,7 +915,7 @@ export class StaffService {
   async validateStaffTenantsModuleAccess(
     staffUserId: number,
     propertyId: number,
-    action: 'view' | 'add' | 'edit' = 'view',
+    action: 'view' | 'add' | 'edit' | 'delete' = 'view',
   ): Promise<void> {
     await this.validateStaffPropertyAccess(staffUserId, propertyId);
 
@@ -1074,7 +1074,9 @@ export class StaffService {
       | 'editDues'
       | 'collectPayments'
       | 'viewExpenses'
-      | 'addExpenses' = 'viewDues',
+      | 'addExpenses'
+      | 'deleteDues'
+      | 'deleteExpenses' = 'viewDues',
   ): Promise<void> {
     await this.validateStaffPropertyAccess(staffUserId, propertyId);
 
@@ -1337,7 +1339,7 @@ export class StaffService {
   async validateStaffRoomInventoryAccess(
     staffUserId: number,
     roomId: number,
-    action: 'view' | 'edit' = 'view',
+    action: 'view' | 'edit' | 'delete' = 'view',
   ): Promise<number> {
     const room = await this.prisma.room.findFirst({
       where: { id: roomId },
@@ -1382,7 +1384,7 @@ export class StaffService {
     await this.validateStaffPropertyAccess(staffUserId, due.propertyId);
   }
 
-  /** Delete due — finance editDues OR tenants edit (checkout flow). */
+  /** Delete due — finance deleteDues OR tenants delete (checkout prep). */
   async validateStaffDueDeleteAccess(
     staffUserId: number,
     dueId: number,
@@ -1393,19 +1395,19 @@ export class StaffService {
     });
     if (!due) throw new ForbiddenException('Due not found');
 
-    const financeEdit = await this.validateStaffFinanceModuleAccess(
+    const financeDelete = await this.validateStaffFinanceModuleAccess(
       staffUserId,
       due.propertyId,
-      'editDues',
+      'deleteDues',
     )
       .then(() => true)
       .catch(() => false);
-    if (financeEdit) return due.propertyId;
+    if (financeDelete) return due.propertyId;
 
     await this.validateStaffTenantsModuleAccess(
       staffUserId,
       due.propertyId,
-      'edit',
+      'delete',
     );
     return due.propertyId;
   }
@@ -1574,6 +1576,58 @@ export class StaffService {
       expense.propertyId,
       'addExpenses',
     );
+  }
+
+  async validateStaffExpenseDeleteAccess(
+    staffUserId: number,
+    expenseId: number,
+  ): Promise<void> {
+    const expense = await this.prisma.expenses.findUnique({
+      where: { id: expenseId },
+      select: { propertyId: true },
+    });
+    if (!expense) throw new NotFoundException('Expense not found');
+    await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      expense.propertyId,
+      'deleteExpenses',
+    );
+  }
+
+  async validateStaffManageStaffDeleteAccess(
+    staffUserId: number,
+    targetProfileId: number,
+  ): Promise<number> {
+    const ownerId = await this.validateStaffManageStaffAccess(staffUserId);
+
+    const profile = await this.prisma.maintenanceStaffProfile.findFirst({
+      where: { userId: staffUserId },
+      select: { granularPermissions: true },
+    });
+    if (!profile) throw new ForbiddenException('Staff profile not found');
+
+    const gp = profile.granularPermissions as Record<
+      string,
+      Record<string, boolean>
+    > | null;
+    const manageStaffGranular = gp?.manageStaff ?? {};
+    const granularKeys = Object.keys(manageStaffGranular ?? {});
+    if (granularKeys.length > 0 && manageStaffGranular.delete !== true) {
+      throw new ForbiddenException(
+        'Staff does not have permission to delete staff members',
+      );
+    }
+
+    const book = await this.validateOwnertoEmployeeMapping(
+      ownerId,
+      targetProfileId,
+    );
+    if (!book) {
+      throw new ForbiddenException(
+        'You do not have access to manage this staff member',
+      );
+    }
+    return ownerId;
   }
 
   private async validateOwnertoEmployeeMapping(

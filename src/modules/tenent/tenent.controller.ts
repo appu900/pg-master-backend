@@ -179,7 +179,7 @@ export class TenentController {
       await this.staffService.validateStaffTenantsModuleAccess(
         user.userId,
         propertyId,
-        'edit',
+        'delete',
       );
       effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(
         user.userId,
