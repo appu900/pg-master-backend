@@ -555,7 +555,20 @@ export class ElectricityService {
     ]);
 
 
+<<<<<<< Updated upstream
     const sharedPoolUnits = Number(mainUnitConsumed) - totalRoomUnits;
+=======
+    try {
+      // await this.electricityBillingService.runBilling({ propertyId, month, year });
+      this.eventBus.emitElectricityReadingCreated({ propertyId, month, year });
+    } catch (billingError: any) {
+      this.logger.warn(
+        `Sync billing failed for property ${propertyId} ${month}/${year}: ` +
+          `${billingError?.message ?? 'unknown error'}. Queuing for retry.`,
+      );
+      // this.eventBus.emitElectricityReadingCreated({ propertyId, month, year });
+    }
+>>>>>>> Stashed changes
 
     await this.prisma.electricityBillingRun.upsert({
       where: { propertyId_month_year: { propertyId, month, year } },
