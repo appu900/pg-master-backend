@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { TenancyStatus } from '@prisma/client';
@@ -15,8 +14,6 @@ import { nowIST } from 'src/utils/Proration.utils';
 
 @Injectable()
 export class ElectricityService {
-  private readonly logger = new Logger(ElectricityService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventBus: ElectricityEvents,
@@ -558,17 +555,30 @@ export class ElectricityService {
     ]);
 
 
-    try {
-      // await this.electricityBillingService.runBilling({ propertyId, month, year });
-      this.eventBus.emitElectricityReadingCreated({ propertyId, month, year });
-    } catch (billingError: any) {
-      this.logger.warn(
-        `Sync billing failed for property ${propertyId} ${month}/${year}: ` +
-          `${billingError?.message ?? 'unknown error'}. Queuing for retry.`,
-      );
-      // this.eventBus.emitElectricityReadingCreated({ propertyId, month, year });
-    }
+    const sharedPoolUnits = Number(mainUnitConsumed) - totalRoomUnits;
 
+    await this.prisma.electricityBillingRun.upsert({
+      where: { propertyId_month_year: { propertyId, month, year } },
+      create: {
+        propertyId,
+        month,
+        year,
+        status: 'PENDING',
+        mainMeterUnits: mainUnitConsumed,
+        privateRoomsUnits: totalRoomUnits,
+        sharedPoolUnits,
+        unitPrice: mainMeter.unitPrice,
+      },
+      update: {
+        status: 'PENDING',
+        mainMeterUnits: mainUnitConsumed,
+        privateRoomsUnits: totalRoomUnits,
+        sharedPoolUnits,
+        unitPrice: mainMeter.unitPrice,
+      },
+    });
+
+    this.eventBus.emitElectricityReadingCreated({ propertyId, month, year });
     return { mainMeter: mainMeterResult, rooms: roomResults };
   }
 
