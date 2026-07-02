@@ -530,18 +530,31 @@ export class DueService {
       where: { id: propertyId },
       select: { name: true },
     });
+
+    if (!property) {
+      throw new NotFoundException('Property not found');
+    }
+
+    const sendToAll = dto.sendToAll === true;
+    const tenantIds = dto.tenantIds ?? [];
+
+    if (!sendToAll && tenantIds.length === 0) {
+      throw new BadRequestException('Select at least one tenant to remind');
+    }
+
     const now = new Date();
     const currentHour = now.getHours();
     const date = now.getDate();
     const bulkReminderKey = `bulk-reminder-${propertyId}-${date}`;
-    console.log(bulkReminderKey);
-    
+
     const isLocked = await this.redisService.get(bulkReminderKey);
-    if(isLocked){
-      throw new BadRequestException('Bulk reminder is already sent for this property, you can send only once in 24 hours');
+    if (isLocked) {
+      throw new BadRequestException(
+        'Bulk reminder is already sent for this property, you can send only once in 24 hours',
+      );
     }
 
-    const pgName = property?.name ?? 'PG Master';
+    const pgName = property.name;
 
     const unpaidDues = await this.prisma.tenantDue.findMany({
       where: {
@@ -562,10 +575,7 @@ export class DueService {
       },
     });
 
-    const tenantFilter =
-      !dto.sendToAll && dto.tenantIds && dto.tenantIds.length > 0
-        ? new Set(dto.tenantIds)
-        : null;
+    const tenantFilter = !sendToAll ? new Set(tenantIds) : null;
 
     const tenantMap = new Map<
       number,
@@ -630,13 +640,14 @@ export class DueService {
       this.logger.log(
         `Bulk reminder: queued ${jobs.length} jobs for property ${propertyId}`,
       );
+
+      const hoursLeft = 24 - currentHour;
+      await this.redisService.set(
+        bulkReminderKey,
+        'locked',
+        hoursLeft * 60 * 60,
+      );
     }
-
-
-    // check how many hours left to night 12:00 AM
-    const hoursLeft = 24 - currentHour;
-    //set hours to expire the lock after 24 hours
-    await this.redisService.set(bulkReminderKey, 'locked', hoursLeft * 60 * 60); // Lock for 24 hours
 
     return {
       message:
