@@ -95,7 +95,11 @@ export class ComplaintController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getComplaintById(
     @Param('complaintId', ParseIntPipe) complaintId: number,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffComplaintAccess(user.userId, complaintId);
+    }
     return this.complaintService.getComplaintById(complaintId);
   }
 
@@ -189,7 +193,7 @@ export class ComplaintController {
   }
 
   @Post(':complaintId/photos')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(
     FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
@@ -199,8 +203,12 @@ export class ComplaintController {
     @UploadedFiles() images: Express.Multer.File[],
     @GetUser() user: any,
   ) {
-    const ownerId = user.userId;
+    let ownerId = user.userId;
     if (!ownerId) throw new UnauthorizedException();
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffComplaintAccess(user.userId, complaintId);
+      ownerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
     return this.complaintService.addComplaintPhotos(
       ownerId,
       complaintId,

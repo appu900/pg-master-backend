@@ -52,6 +52,7 @@ export class TenancyController {
     let effectiveOwnerId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
       await this.staffService.validateStaffTenancyAccess(user.userId, dto.tenancyId);
+      await this.staffService.validateStaffRoomAccess(user.userId, dto.newRoomId);
       effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return this.tenancyService.shiftTenantRoom(dto, effectiveOwnerId);
@@ -127,6 +128,7 @@ export class TenancyController {
   ) {
     let effectiveOwnerId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffMoveOutRequestAccess(user.userId, requestId);
       effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return this.tenancyService.getMoveOutRequestDetails(requestId, effectiveOwnerId);
@@ -183,6 +185,7 @@ export class TenancyController {
   ) {
     let effectiveOwnerId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffRoomShiftRequestAccess(user.userId, requestId);
       effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return this.tenancyService.getRoomShiftRequestDetails(

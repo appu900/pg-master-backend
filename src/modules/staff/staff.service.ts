@@ -827,6 +827,24 @@ export class StaffService {
     await this.validateStaffPropertyAccess(staffUserId, tenancy.propertyId);
   }
 
+  async validateStaffMoveOutRequestAccess(staffUserId: number, requestId: number): Promise<void> {
+    const request = await this.prisma.moveOutRequest.findFirst({
+      where: { id: requestId },
+      select: { propertyId: true },
+    });
+    if (!request) throw new NotFoundException('Move-out request not found');
+    await this.validateStaffPropertyAccess(staffUserId, request.propertyId);
+  }
+
+  async validateStaffRoomShiftRequestAccess(staffUserId: number, requestId: number): Promise<void> {
+    const request = await this.prisma.roomShiftRequest.findFirst({
+      where: { id: requestId },
+      select: { propertyId: true },
+    });
+    if (!request) throw new NotFoundException('Room shift request not found');
+    await this.validateStaffPropertyAccess(staffUserId, request.propertyId);
+  }
+
   private async validateOwnerToPropertyMapping(
     propertyId: number,
     ownerId: number,

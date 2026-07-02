@@ -40,6 +40,9 @@ export class TenentController {
     @Param('roomId', ParseIntPipe) roomId: number,
     @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffRoomAccess(user.userId, roomId);
+    }
     return this.tenentService.getTenantsByRoom(roomId);
   }
 

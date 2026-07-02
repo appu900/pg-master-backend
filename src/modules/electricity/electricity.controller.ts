@@ -15,63 +15,77 @@ import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { SubmitAllReadingsDto } from './dto/submit-all-readings.dto';
 import { ElectricityService } from './electricity.service';
+import { StaffService } from '../staff/staff.service';
 
 @Controller('electricity')
-@Roles(Role.PROPERTY_OWNER)
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ElectricityController {
-  constructor(private readonly electricityService: ElectricityService) {}
+  constructor(
+    private readonly electricityService: ElectricityService,
+    private readonly staffService: StaffService,
+  ) {}
+
+  private async resolveOwnerContext(user: any, propertyId: number): Promise<number> {
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return effectiveOwnerId;
+  }
 
   @Get('/rooms/:propertyId')
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async getRoomsWithMeter(
     @Param('propertyId', ParseIntPipe) propertyId: number,
-    @GetUser() user: { userId: number },
+    @GetUser() user: { userId: number; role: string },
   ) {
-    return this.electricityService.getRoomsWithMeter(propertyId, user.userId);
+    const ownerId = await this.resolveOwnerContext(user, propertyId);
+    return this.electricityService.getRoomsWithMeter(propertyId, ownerId);
   }
 
   @Get('/meter-readings/:propertyId')
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async getMeterReadingsForMonth(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Query('month', ParseIntPipe) month: number,
     @Query('year', ParseIntPipe) year: number,
-    @GetUser() user: { userId: number },
+    @GetUser() user: { userId: number; role: string },
   ) {
+    const ownerId = await this.resolveOwnerContext(user, propertyId);
     return this.electricityService.getMeterReadingsForMonth(
       propertyId,
-      user.userId,
+      ownerId,
       month,
       year,
     );
   }
 
   @Get('/status/:propertyId')
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async getMeterReadingStatus(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Query('month', ParseIntPipe) month: number,
     @Query('year', ParseIntPipe) year: number,
-    @GetUser() user: { userId: number },
+    @GetUser() user: { userId: number; role: string },
   ) {
+    const ownerId = await this.resolveOwnerContext(user, propertyId);
     return this.electricityService.getMeterReadingStatus(
       propertyId,
-      user.userId,
+      ownerId,
       month,
       year,
     );
   }
 
-  
-
   @Post('/submit-readings/:propertyId')
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async submitAllReadings(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Body() dto: SubmitAllReadingsDto,
-    @GetUser() user: { userId: number },
+    @GetUser() user: { userId: number; role: string },
   ) {
-    return this.electricityService.submitAllReadings(
-      propertyId,
-      user.userId,
-      dto,
-    );
+    const ownerId = await this.resolveOwnerContext(user, propertyId);
+    return this.electricityService.submitAllReadings(propertyId, ownerId, dto);
   }
 }
