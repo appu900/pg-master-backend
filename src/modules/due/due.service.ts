@@ -27,6 +27,7 @@ import {
 } from 'src/core/ports/queue-producer.port';
 import { QUEUES } from 'src/core/queue/queue.constants';
 import { BulkReminderDto, BulkReminderResult } from './dto/bulk-reminder.dto';
+import { RedisService } from 'src/infra/redis/redis.service';
 
 /** Tenancies that can have dues viewed, collected, and created. */
 const BILLABLE_TENANCY_STATUSES: TenancyStatus[] = [
@@ -41,6 +42,7 @@ export class DueService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly redisService:RedisService,
     @Inject(QUEUE_PRODUCER) private readonly queue: IQueueProducer,
   ) {}
 
@@ -528,6 +530,12 @@ export class DueService {
       where: { id: propertyId },
       select: { name: true },
     });
+    const bulkReminderKey = `bulk-reminder-${propertyId}-${Date.now()}`;
+    const isLocked = await this.redisService.get(bulkReminderKey);
+    if(isLocked){
+      throw new BadRequestException('Bulk reminder is already sent for this property, you can send only once in 24 hours');
+    }
+
     const pgName = property?.name ?? 'PG Master';
 
     const unpaidDues = await this.prisma.tenantDue.findMany({
@@ -618,6 +626,8 @@ export class DueService {
         `Bulk reminder: queued ${jobs.length} jobs for property ${propertyId}`,
       );
     }
+
+    await this.redisService.set(bulkReminderKey, 'locked', 24 * 60 * 60); // Lock for 24 hours
 
     return {
       message:
