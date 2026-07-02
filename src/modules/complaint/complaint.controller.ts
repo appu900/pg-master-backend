@@ -9,7 +9,6 @@ import {
   Param,
   Query,
   UnauthorizedException,
-  ForbiddenException,
   BadRequestException,
   UseInterceptors,
   UploadedFiles,
@@ -22,7 +21,6 @@ import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
-import { UserRole } from '@prisma/client';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { UPLOAD_FILE_SIZE_LIMITS } from 'src/common/constants/upload.constants';
 import { ComplaintCreateByOwnerDto } from './dto/create.complaint-by-owner.dto';
@@ -69,7 +67,11 @@ export class ComplaintController {
     let ownerId = user.userId;
     if (!ownerId) throw new UnauthorizedException();
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, dto.propertyId);
+      await this.staffService.validateStaffComplaintsModuleAccess(
+        user.userId,
+        dto.propertyId,
+        'add',
+      );
       ownerId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return await this.complaintService.createComplaintByOwner(ownerId, dto, images);
@@ -84,7 +86,11 @@ export class ComplaintController {
   ) {
     let effectiveOwnerId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffComplaintsModuleAccess(
+        user.userId,
+        propertyId,
+        'view',
+      );
       effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return this.complaintService.getComplaintSummaryByProperty(propertyId, effectiveOwnerId);
@@ -98,7 +104,11 @@ export class ComplaintController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffComplaintAccess(user.userId, complaintId);
+      await this.staffService.validateStaffComplaintModuleAccess(
+        user.userId,
+        complaintId,
+        'view',
+      );
     }
     return this.complaintService.getComplaintById(complaintId);
   }
@@ -111,7 +121,11 @@ export class ComplaintController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffComplaintsModuleAccess(
+        user.userId,
+        propertyId,
+        'view',
+      );
     }
     return this.complaintService.getAllComplaints(propertyId);
   }
@@ -121,7 +135,11 @@ export class ComplaintController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async changeStatus(@Body() dto: ChnageComplaintStatus, @GetUser() user: any) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffComplaintAccess(user.userId, dto.complaintId);
+      await this.staffService.validateStaffComplaintModuleAccess(
+        user.userId,
+        dto.complaintId,
+        'handle',
+      );
     }
     return this.complaintService.changeStatus(dto.status, dto.complaintId);
   }
@@ -187,7 +205,11 @@ export class ComplaintController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffComplaintAccess(user.userId, compaintId);
+      await this.staffService.validateStaffComplaintModuleAccess(
+        user.userId,
+        compaintId,
+        'handle',
+      );
     }
     return this.complaintService.addLogs(compaintId, dto);
   }
@@ -206,7 +228,11 @@ export class ComplaintController {
     let ownerId = user.userId;
     if (!ownerId) throw new UnauthorizedException();
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffComplaintAccess(user.userId, complaintId);
+      await this.staffService.validateStaffComplaintModuleAccess(
+        user.userId,
+        complaintId,
+        'handle',
+      );
       ownerId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return this.complaintService.addComplaintPhotos(

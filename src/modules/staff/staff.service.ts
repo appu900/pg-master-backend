@@ -780,13 +780,597 @@ export class StaffService {
     if (!access) throw new ForbiddenException('Staff does not have access to this property');
   }
 
-  async validateStaffComplaintAccess(staffUserId: number, complaintId: number): Promise<void> {
+  async validateStaffManageStaffAccess(staffUserId: number): Promise<number> {
+    const profile = await this.prisma.maintenanceStaffProfile.findFirst({
+      where: { userId: staffUserId },
+      select: { canManageStaff: true, isActive: true },
+    });
+    if (!profile) throw new ForbiddenException('Staff profile not found');
+    if (!profile.isActive) {
+      throw new ForbiddenException('Your account has been deactivated');
+    }
+    if (profile.canManageStaff !== true) {
+      throw new ForbiddenException(
+        'Staff does not have Manage Staff Members access',
+      );
+    }
+    return this.resolveOwnerFromStaff(staffUserId);
+  }
+
+  async validateStaffManageStaffProfileAccess(
+    staffUserId: number,
+    targetProfileId: number,
+  ): Promise<number> {
+    const ownerId = await this.validateStaffManageStaffAccess(staffUserId);
+    const book = await this.validateOwnertoEmployeeMapping(
+      ownerId,
+      targetProfileId,
+    );
+    if (!book) {
+      throw new ForbiddenException(
+        'You do not have access to manage this staff member',
+      );
+    }
+    return ownerId;
+  }
+
+  async validateStaffManageStaffUserAccess(
+    staffUserId: number,
+    targetStaffUserId: number,
+  ): Promise<number> {
+    const ownerId = await this.validateStaffManageStaffAccess(staffUserId);
+    const targetProfile = await this.prisma.maintenanceStaffProfile.findFirst({
+      where: { userId: targetStaffUserId },
+      select: { id: true },
+    });
+    if (!targetProfile) throw new NotFoundException('Staff member not found');
+    const book = await this.validateOwnertoEmployeeMapping(
+      ownerId,
+      targetProfile.id,
+    );
+    if (!book) {
+      throw new ForbiddenException(
+        'You do not have access to manage this staff member',
+      );
+    }
+    return ownerId;
+  }
+
+  async validateStaffManageStaffPropertyAccess(
+    staffUserId: number,
+    propertyId: number,
+  ): Promise<number> {
+    const ownerId = await this.validateStaffManageStaffAccess(staffUserId);
+    const property = await this.prisma.property.findFirst({
+      where: { id: propertyId, ownerId },
+      select: { id: true },
+    });
+    if (!property) {
+      throw new ForbiddenException('Staff does not have access to this property');
+    }
+    return ownerId;
+  }
+
+  
+  async validateStaffRoomsModuleAccess(
+    staffUserId: number,
+    propertyId: number,
+    action: 'view' | 'edit' = 'view',
+  ): Promise<void> {
+    await this.validateStaffPropertyAccess(staffUserId, propertyId);
+
+    const profile = await this.prisma.maintenanceStaffProfile.findFirst({
+      where: { userId: staffUserId },
+      select: {
+        propertyScope: true,
+        canAccessRooms: true,
+        granularPermissions: true,
+        maintenanceStaffPropertyAccesses: {
+          where: { propertyId },
+          select: { permissions: true },
+          take: 1,
+        },
+      },
+    });
+    if (!profile) throw new ForbiddenException('Staff profile not found');
+
+    let moduleAllowed = false;
+    let roomsGranular: Record<string, boolean> = {};
+
+    if (profile.propertyScope === PropertyAccessScope.ALL_PROPERTIES) {
+      moduleAllowed = profile.canAccessRooms === true;
+      const gp = profile.granularPermissions as Record<
+        string,
+        Record<string, boolean>
+      > | null;
+      roomsGranular = gp?.rooms ?? {};
+    } else {
+      const raw = profile.maintenanceStaffPropertyAccesses[0]?.permissions as
+        | Record<string, unknown>
+        | null
+        | undefined;
+      if (raw && typeof raw === 'object') {
+        moduleAllowed = raw.canAccessRooms === true;
+        const gp = raw.granularPermissions as
+          | Record<string, Record<string, boolean>>
+          | undefined;
+        roomsGranular = gp?.rooms ?? {};
+      }
+    }
+
+    if (!moduleAllowed) {
+      throw new ForbiddenException(
+        'Staff does not have Rooms & Inventory access for this property',
+      );
+    }
+
+    const granularKeys = Object.keys(roomsGranular ?? {});
+    if (granularKeys.length > 0 && roomsGranular[action] !== true) {
+      throw new ForbiddenException(
+        `Staff does not have permission to ${action} rooms for this property`,
+      );
+    }
+  }
+
+  async validateStaffTenantsModuleAccess(
+    staffUserId: number,
+    propertyId: number,
+    action: 'view' | 'add' | 'edit' = 'view',
+  ): Promise<void> {
+    await this.validateStaffPropertyAccess(staffUserId, propertyId);
+
+    const profile = await this.prisma.maintenanceStaffProfile.findFirst({
+      where: { userId: staffUserId },
+      select: {
+        propertyScope: true,
+        canAccessTenants: true,
+        granularPermissions: true,
+        maintenanceStaffPropertyAccesses: {
+          where: { propertyId },
+          select: { permissions: true },
+          take: 1,
+        },
+      },
+    });
+    if (!profile) throw new ForbiddenException('Staff profile not found');
+
+    let moduleAllowed = false;
+    let tenantsGranular: Record<string, boolean> = {};
+
+    if (profile.propertyScope === PropertyAccessScope.ALL_PROPERTIES) {
+      moduleAllowed = profile.canAccessTenants === true;
+      const gp = profile.granularPermissions as Record<
+        string,
+        Record<string, boolean>
+      > | null;
+      tenantsGranular = gp?.tenants ?? {};
+    } else {
+      const raw = profile.maintenanceStaffPropertyAccesses[0]?.permissions as
+        | Record<string, unknown>
+        | null
+        | undefined;
+      if (raw && typeof raw === 'object') {
+        moduleAllowed = raw.canAccessTenants === true;
+        const gp = raw.granularPermissions as
+          | Record<string, Record<string, boolean>>
+          | undefined;
+        tenantsGranular = gp?.tenants ?? {};
+      }
+    }
+
+    if (!moduleAllowed) {
+      throw new ForbiddenException(
+        'Staff does not have Tenants & Stays access for this property',
+      );
+    }
+
+    const granularKeys = Object.keys(tenantsGranular ?? {});
+    if (granularKeys.length > 0 && tenantsGranular[action] !== true) {
+      throw new ForbiddenException(
+        `Staff does not have permission to ${action} tenants for this property`,
+      );
+    }
+  }
+
+  async validateStaffComplaintsModuleAccess(
+    staffUserId: number,
+    propertyId: number,
+    action: 'view' | 'add' | 'handle' = 'view',
+  ): Promise<void> {
+    await this.validateStaffPropertyAccess(staffUserId, propertyId);
+
+    const profile = await this.prisma.maintenanceStaffProfile.findFirst({
+      where: { userId: staffUserId },
+      select: {
+        propertyScope: true,
+        canAccessComplaints: true,
+        granularPermissions: true,
+        maintenanceStaffPropertyAccesses: {
+          where: { propertyId },
+          select: { permissions: true },
+          take: 1,
+        },
+      },
+    });
+    if (!profile) throw new ForbiddenException('Staff profile not found');
+
+    let moduleAllowed = false;
+    let complaintsGranular: Record<string, boolean> = {};
+
+    if (profile.propertyScope === PropertyAccessScope.ALL_PROPERTIES) {
+      moduleAllowed = profile.canAccessComplaints === true;
+      const gp = profile.granularPermissions as Record<
+        string,
+        Record<string, boolean>
+      > | null;
+      complaintsGranular = gp?.complaints ?? {};
+    } else {
+      const raw = profile.maintenanceStaffPropertyAccesses[0]?.permissions as
+        | Record<string, unknown>
+        | null
+        | undefined;
+      if (raw && typeof raw === 'object') {
+        moduleAllowed = raw.canAccessComplaints === true;
+        const gp = raw.granularPermissions as
+          | Record<string, Record<string, boolean>>
+          | undefined;
+        complaintsGranular = gp?.complaints ?? {};
+      }
+    }
+
+    if (!moduleAllowed) {
+      throw new ForbiddenException(
+        'Staff does not have Complaints & Operations access for this property',
+      );
+    }
+
+    const granularKeys = Object.keys(complaintsGranular ?? {});
+    if (granularKeys.length > 0) {
+      const viewAllowed =
+        action === 'view' &&
+        (complaintsGranular.view === true ||
+          complaintsGranular.handle === true);
+      if (viewAllowed) return;
+
+      if (complaintsGranular[action] !== true) {
+        throw new ForbiddenException(
+          `Staff does not have permission to ${action} complaints for this property`,
+        );
+      }
+    }
+  }
+
+  /** Room list for onboarding/shift — rooms view OR tenants add/edit. */
+  async validateStaffRoomListAccessForPicker(
+    staffUserId: number,
+    propertyId: number,
+  ): Promise<void> {
+    const roomsAllowed = await this.validateStaffRoomsModuleAccess(
+      staffUserId,
+      propertyId,
+      'view',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (roomsAllowed) return;
+
+    const tenantsAddAllowed = await this.validateStaffTenantsModuleAccess(
+      staffUserId,
+      propertyId,
+      'add',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (tenantsAddAllowed) return;
+
+    await this.validateStaffTenantsModuleAccess(staffUserId, propertyId, 'edit');
+  }
+
+  async validateStaffFinanceModuleAccess(
+    staffUserId: number,
+    propertyId: number,
+    action:
+      | 'viewDues'
+      | 'editDues'
+      | 'collectPayments'
+      | 'viewExpenses'
+      | 'addExpenses' = 'viewDues',
+  ): Promise<void> {
+    await this.validateStaffPropertyAccess(staffUserId, propertyId);
+
+    const profile = await this.prisma.maintenanceStaffProfile.findFirst({
+      where: { userId: staffUserId },
+      select: {
+        propertyScope: true,
+        canAccessFinance: true,
+        granularPermissions: true,
+        maintenanceStaffPropertyAccesses: {
+          where: { propertyId },
+          select: { permissions: true },
+          take: 1,
+        },
+      },
+    });
+    if (!profile) throw new ForbiddenException('Staff profile not found');
+
+    let moduleAllowed = false;
+    let financeGranular: Record<string, boolean> = {};
+
+    if (profile.propertyScope === PropertyAccessScope.ALL_PROPERTIES) {
+      moduleAllowed = profile.canAccessFinance === true;
+      const gp = profile.granularPermissions as Record<
+        string,
+        Record<string, boolean>
+      > | null;
+      financeGranular = gp?.finance ?? {};
+    } else {
+      const raw = profile.maintenanceStaffPropertyAccesses[0]?.permissions as
+        | Record<string, unknown>
+        | null
+        | undefined;
+      if (raw && typeof raw === 'object') {
+        moduleAllowed = raw.canAccessFinance === true;
+        const gp = raw.granularPermissions as
+          | Record<string, Record<string, boolean>>
+          | undefined;
+        financeGranular = gp?.finance ?? {};
+      }
+    }
+
+    if (!moduleAllowed) {
+      throw new ForbiddenException(
+        'Staff does not have Payments & Finance access for this property',
+      );
+    }
+
+    const granularKeys = Object.keys(financeGranular ?? {});
+    if (granularKeys.length > 0 && financeGranular[action] !== true) {
+      throw new ForbiddenException(
+        `Staff does not have permission to ${action} for this property`,
+      );
+    }
+  }
+
+  /** Rent book — finance viewDues OR tenants edit. */
+  async validateStaffRentBookAccess(
+    staffUserId: number,
+    propertyId: number,
+  ): Promise<void> {
+    const financeAllowed = await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      propertyId,
+      'viewDues',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (financeAllowed) return;
+    await this.validateStaffTenantsModuleAccess(staffUserId, propertyId, 'edit');
+  }
+
+  /** Tenant dues by property — viewDues / collectPayments OR tenants edit. */
+  async validateStaffTenantDuesReadAccess(
+    staffUserId: number,
+    propertyId: number,
+  ): Promise<void> {
+    const viewDuesAllowed = await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      propertyId,
+      'viewDues',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (viewDuesAllowed) return;
+
+    const collectAllowed = await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      propertyId,
+      'collectPayments',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (collectAllowed) return;
+
+    await this.validateStaffTenantsModuleAccess(staffUserId, propertyId, 'edit');
+  }
+
+  /** Property unpaid dues — finance viewDues OR collectPayments. */
+  async validateStaffPropertyUnpaidDuesAccess(
+    staffUserId: number,
+    propertyId: number,
+  ): Promise<void> {
+    const viewDuesAllowed = await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      propertyId,
+      'viewDues',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (viewDuesAllowed) return;
+    await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      propertyId,
+      'collectPayments',
+    );
+  }
+
+  /** Property tenant list — finance / complaints-add / tenants view. */
+  async validateStaffPropertyTenantListForFinanceAccess(
+    staffUserId: number,
+    propertyId: number,
+  ): Promise<void> {
+    const viewDuesAllowed = await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      propertyId,
+      'viewDues',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (viewDuesAllowed) return;
+
+    const collectAllowed = await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      propertyId,
+      'collectPayments',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (collectAllowed) return;
+
+    const complaintsAddAllowed = await this.validateStaffComplaintsModuleAccess(
+      staffUserId,
+      propertyId,
+      'add',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (complaintsAddAllowed) return;
+
+    await this.validateStaffTenantsModuleAccess(staffUserId, propertyId, 'view');
+  }
+
+  /** Tenant dues reads — finance viewDues/collectPayments OR tenants edit. */
+  async validateStaffTenantFinanceViewAccess(
+    staffUserId: number,
+    tenantUserId: number,
+  ): Promise<number> {
+    const tenancy = await this.prisma.tenancy.findFirst({
+      where: { tenentId: tenantUserId },
+      select: { propertyId: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!tenancy) throw new ForbiddenException('Tenant not found');
+
+    const financeViewAllowed = await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      tenancy.propertyId,
+      'viewDues',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (financeViewAllowed) return tenancy.propertyId;
+
+    const collectAllowed = await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      tenancy.propertyId,
+      'collectPayments',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (collectAllowed) return tenancy.propertyId;
+
+    await this.validateStaffTenantsModuleAccess(
+      staffUserId,
+      tenancy.propertyId,
+      'edit',
+    );
+    return tenancy.propertyId;
+  }
+
+  async validateStaffTenancyModuleAccess(
+    staffUserId: number,
+    tenancyId: number,
+    action: 'view' | 'add' | 'edit' = 'view',
+  ): Promise<number> {
+    const tenancy = await this.prisma.tenancy.findFirst({
+      where: { id: tenancyId },
+      select: { propertyId: true },
+    });
+    if (!tenancy) throw new ForbiddenException('Tenancy not found');
+    await this.validateStaffTenantsModuleAccess(
+      staffUserId,
+      tenancy.propertyId,
+      action,
+    );
+    return tenancy.propertyId;
+  }
+
+  async validateStaffTenantUserModuleAccess(
+    staffUserId: number,
+    tenantUserId: number,
+    action: 'view' | 'add' | 'edit' = 'view',
+  ): Promise<number> {
+    const tenancy = await this.prisma.tenancy.findFirst({
+      where: { tenentId: tenantUserId },
+      select: { propertyId: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!tenancy) throw new ForbiddenException('Tenant not found');
+
+    if (action === 'view') {
+      const collectAllowed = await this.validateStaffFinanceModuleAccess(
+        staffUserId,
+        tenancy.propertyId,
+        'collectPayments',
+      )
+        .then(() => true)
+        .catch(() => false);
+      if (collectAllowed) return tenancy.propertyId;
+    }
+
+    await this.validateStaffTenantsModuleAccess(
+      staffUserId,
+      tenancy.propertyId,
+      action,
+    );
+    return tenancy.propertyId;
+  }
+
+  async validateStaffTenantsModuleAccessForRoom(
+    staffUserId: number,
+    roomId: number,
+    action: 'view' | 'add' | 'edit' = 'view',
+  ): Promise<number> {
+    const room = await this.prisma.room.findFirst({
+      where: { id: roomId },
+      select: { propertyId: true },
+    });
+    if (!room) throw new ForbiddenException('Room not found');
+    await this.validateStaffTenantsModuleAccess(
+      staffUserId,
+      room.propertyId,
+      action,
+    );
+    return room.propertyId;
+  }
+
+  /** Property id for the room after module + property access checks. */
+  async validateStaffRoomInventoryAccess(
+    staffUserId: number,
+    roomId: number,
+    action: 'view' | 'edit' = 'view',
+  ): Promise<number> {
+    const room = await this.prisma.room.findFirst({
+      where: { id: roomId },
+      select: { propertyId: true },
+    });
+    if (!room) throw new ForbiddenException('Room not found');
+    await this.validateStaffRoomsModuleAccess(staffUserId, room.propertyId, action);
+    return room.propertyId;
+  }
+
+  async validateStaffComplaintModuleAccess(
+    staffUserId: number,
+    complaintId: number,
+    action: 'view' | 'add' | 'handle' = 'view',
+  ): Promise<number> {
     const complaint = await this.prisma.complaint.findFirst({
       where: { id: complaintId },
       select: { propertyId: true },
     });
     if (!complaint) throw new ForbiddenException('Complaint not found');
-    await this.validateStaffPropertyAccess(staffUserId, complaint.propertyId);
+    await this.validateStaffComplaintsModuleAccess(
+      staffUserId,
+      complaint.propertyId,
+      action,
+    );
+    return complaint.propertyId;
+  }
+
+  async validateStaffComplaintAccess(
+    staffUserId: number,
+    complaintId: number,
+  ): Promise<void> {
+    await this.validateStaffComplaintModuleAccess(staffUserId, complaintId, 'view');
   }
 
   async validateStaffDueAccess(staffUserId: number, dueId: number): Promise<void> {
@@ -798,6 +1382,72 @@ export class StaffService {
     await this.validateStaffPropertyAccess(staffUserId, due.propertyId);
   }
 
+  /** Delete due — finance editDues OR tenants edit (checkout flow). */
+  async validateStaffDueDeleteAccess(
+    staffUserId: number,
+    dueId: number,
+  ): Promise<number> {
+    const due = await this.prisma.tenantDue.findFirst({
+      where: { id: dueId },
+      select: { propertyId: true },
+    });
+    if (!due) throw new ForbiddenException('Due not found');
+
+    const financeEdit = await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      due.propertyId,
+      'editDues',
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (financeEdit) return due.propertyId;
+
+    await this.validateStaffTenantsModuleAccess(
+      staffUserId,
+      due.propertyId,
+      'edit',
+    );
+    return due.propertyId;
+  }
+
+  /** Collect / edit / view a specific due — finance granular. */
+  async validateStaffDueFinanceAccess(
+    staffUserId: number,
+    dueId: number,
+    action:
+      | 'viewDues'
+      | 'editDues'
+      | 'collectPayments' = 'editDues',
+  ): Promise<number> {
+    const due = await this.prisma.tenantDue.findFirst({
+      where: { id: dueId },
+      select: { propertyId: true },
+    });
+    if (!due) throw new ForbiddenException('Due not found');
+    const allowed = await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      due.propertyId,
+      action,
+    )
+      .then(() => true)
+      .catch(() => false);
+    if (allowed) return due.propertyId;
+    if (action === 'viewDues') {
+      await this.validateStaffFinanceModuleAccess(
+        staffUserId,
+        due.propertyId,
+        'collectPayments',
+      );
+      return due.propertyId;
+    }
+    await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      due.propertyId,
+      action,
+    );
+    return due.propertyId;
+  }
+
   async validateStaffRoomAccess(staffUserId: number, roomId: number): Promise<void> {
     const room = await this.prisma.room.findFirst({
       where: { id: roomId },
@@ -805,6 +1455,40 @@ export class StaffService {
     });
     if (!room) throw new ForbiddenException('Room not found');
     await this.validateStaffPropertyAccess(staffUserId, room.propertyId);
+  }
+
+  /** Ensures the room exists, belongs to the given property, and staff can access that property. */
+  async validateStaffRoomBelongsToProperty(
+    staffUserId: number,
+    roomId: number,
+    propertyId: number,
+  ): Promise<void> {
+    const room = await this.prisma.room.findFirst({
+      where: { id: roomId },
+      select: { propertyId: true },
+    });
+    if (!room) throw new ForbiddenException('Room not found');
+    if (room.propertyId !== propertyId) {
+      throw new ForbiddenException('Room does not belong to this property');
+    }
+    await this.validateStaffPropertyAccess(staffUserId, propertyId);
+  }
+
+  async validateStaffRoomShiftAccess(
+    staffUserId: number,
+    tenancyId: number,
+    newRoomId: number,
+  ): Promise<void> {
+    const propertyId = await this.validateStaffTenancyModuleAccess(
+      staffUserId,
+      tenancyId,
+      'edit',
+    );
+    await this.validateStaffRoomBelongsToProperty(
+      staffUserId,
+      newRoomId,
+      propertyId,
+    );
   }
 
   async validateStaffTenancyAccess(staffUserId: number, tenancyId: number): Promise<void> {
@@ -827,22 +1511,40 @@ export class StaffService {
     await this.validateStaffPropertyAccess(staffUserId, tenancy.propertyId);
   }
 
-  async validateStaffMoveOutRequestAccess(staffUserId: number, requestId: number): Promise<void> {
+  async validateStaffMoveOutRequestAccess(
+    staffUserId: number,
+    requestId: number,
+    action: 'view' | 'edit' = 'view',
+  ): Promise<number> {
     const request = await this.prisma.moveOutRequest.findFirst({
       where: { id: requestId },
       select: { propertyId: true },
     });
     if (!request) throw new NotFoundException('Move-out request not found');
-    await this.validateStaffPropertyAccess(staffUserId, request.propertyId);
+    await this.validateStaffTenantsModuleAccess(
+      staffUserId,
+      request.propertyId,
+      action,
+    );
+    return request.propertyId;
   }
 
-  async validateStaffRoomShiftRequestAccess(staffUserId: number, requestId: number): Promise<void> {
+  async validateStaffRoomShiftRequestAccess(
+    staffUserId: number,
+    requestId: number,
+    action: 'view' | 'edit' = 'view',
+  ): Promise<number> {
     const request = await this.prisma.roomShiftRequest.findFirst({
       where: { id: requestId },
       select: { propertyId: true },
     });
     if (!request) throw new NotFoundException('Room shift request not found');
-    await this.validateStaffPropertyAccess(staffUserId, request.propertyId);
+    await this.validateStaffTenantsModuleAccess(
+      staffUserId,
+      request.propertyId,
+      action,
+    );
+    return request.propertyId;
   }
 
   private async validateOwnerToPropertyMapping(
@@ -867,7 +1569,11 @@ export class StaffService {
       select: { propertyId: true },
     });
     if (!expense) throw new NotFoundException('Expense not found');
-    await this.validateStaffPropertyAccess(staffUserId, expense.propertyId);
+    await this.validateStaffFinanceModuleAccess(
+      staffUserId,
+      expense.propertyId,
+      'addExpenses',
+    );
   }
 
   private async validateOwnertoEmployeeMapping(

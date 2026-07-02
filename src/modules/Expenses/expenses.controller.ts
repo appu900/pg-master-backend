@@ -43,7 +43,11 @@ export class ExpensesController {
     @UploadedFile() image?: Express.Multer.File,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, dto.propertyId);
+      await this.staffService.validateStaffFinanceModuleAccess(
+        user.userId,
+        dto.propertyId,
+        'addExpenses',
+      );
     }
     return this.expensesServices.createExpenses(dto, image);
   }
@@ -58,7 +62,11 @@ export class ExpensesController {
     if (!propertyId)
       throw new BadRequestException('property details is required');
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffFinanceModuleAccess(
+        user.userId,
+        propertyId,
+        'viewExpenses',
+      );
     }
     const result =
       await this.expensesServices.fetchAllExpensesByPropertyId(propertyId);

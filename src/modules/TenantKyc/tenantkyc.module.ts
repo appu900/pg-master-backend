@@ -1,3 +1,4 @@
+import { StaffModule } from '../staff/staff.module';
 import { Module } from '@nestjs/common';
 import { TenantKycService } from './tenantKyc.service';
 import { TenantKycController } from './tenantkyc.controller';
@@ -6,7 +7,7 @@ import { CashfreeVerificationService} from './adapters/cashfree.digilocker.servi
 import { HttpModule } from '@nestjs/axios';
 
 @Module({
-  imports: [HttpModule],
+  imports: [HttpModule, StaffModule],
   controllers: [TenantKycController,DigilockerController],
   providers: [TenantKycService,CashfreeVerificationService],
   exports: [TenantKycService],

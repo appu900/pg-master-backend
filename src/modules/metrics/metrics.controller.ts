@@ -23,7 +23,11 @@ export class MetricsController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffFinanceModuleAccess(
+        user.userId,
+        propertyId,
+        'viewDues',
+      );
     }
     return this.metricsService.getPropertyMetrics(propertyId);
   }

@@ -28,7 +28,11 @@ export class ElectricityController {
   private async resolveOwnerContext(user: any, propertyId: number): Promise<number> {
     let effectiveOwnerId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffFinanceModuleAccess(
+        user.userId,
+        propertyId,
+        'editDues',
+      );
       effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return effectiveOwnerId;

@@ -5,7 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Injectable,
   Param,
   ParseIntPipe,
   Post,
@@ -14,24 +13,25 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { TenantKycService } from './tenantKyc.service';
-import {
-  FileFieldsInterceptor,
-  FileInterceptor,
-} from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { UPLOAD_FILE_SIZE_LIMITS } from 'src/common/constants/upload.constants';
+import { StaffService } from '../staff/staff.service';
 
 @Controller('tenantkyc')
 export class TenantKycController {
-  constructor(private readonly tenentKycService: TenantKycService) {}
+  constructor(
+    private readonly tenentKycService: TenantKycService,
+    private readonly staffService: StaffService,
+  ) {}
 
   @Post(':tenantUserId/kyc')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF, Role.TENANT)
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(
     FileFieldsInterceptor(
@@ -58,9 +58,14 @@ export class TenantKycController {
     if (!tenantUserId) throw new BadRequestException('tenant id is required');
     const userId = user.userId;
     const userRole = user.role;
-    let result;
-    if (userRole === Role.PROPERTY_OWNER) {
-      result = await this.tenentKycService.uploadKycDocuments(
+
+    if (userRole === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenantUserModuleAccess(
+        user.userId,
+        tenantUserId,
+        'edit',
+      );
+      const result = await this.tenentKycService.uploadKycDocuments(
         tenantUserId,
         files,
       );
@@ -69,9 +74,23 @@ export class TenantKycController {
         message: 'Kyc documented upload sucessfully',
         result,
       };
-    } else if (userRole === Role.TENANT) {
+    }
+
+    if (userRole === Role.PROPERTY_OWNER) {
+      const result = await this.tenentKycService.uploadKycDocuments(
+        tenantUserId,
+        files,
+      );
+      return {
+        success: true,
+        message: 'Kyc documented upload sucessfully',
+        result,
+      };
+    }
+
+    if (userRole === Role.TENANT) {
       if (userId !== tenantUserId) throw new ForbiddenException('acess denied');
-      result = await this.tenentKycService.uploadKycDocuments(
+      const result = await this.tenentKycService.uploadKycDocuments(
         tenantUserId,
         files,
       );
@@ -85,7 +104,7 @@ export class TenantKycController {
 
   @Get(':tenantUserId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF, Role.TENANT)
   async fetchKycDetailsOfTenant(
     @Param('tenantUserId', ParseIntPipe) tenantUserId: number,
     @GetUser() user: any,
@@ -93,19 +112,36 @@ export class TenantKycController {
     if (!tenantUserId) throw new BadRequestException('tenant id is required');
     const userId = user.userId;
     const userRole = user.role;
-    let result;
-    if (userRole === Role.PROPERTY_OWNER) {
-      result =
+
+    if (userRole === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenantUserModuleAccess(
+        user.userId,
+        tenantUserId,
+        'view',
+      );
+      const result =
         await this.tenentKycService.fetchKycDetailsOfTenant(tenantUserId);
       return {
         success: true,
         message: 'kyc documents fetched',
         result,
       };
-    } else if (userRole === Role.TENANT) {
+    }
+
+    if (userRole === Role.PROPERTY_OWNER) {
+      const result =
+        await this.tenentKycService.fetchKycDetailsOfTenant(tenantUserId);
+      return {
+        success: true,
+        message: 'kyc documents fetched',
+        result,
+      };
+    }
+
+    if (userRole === Role.TENANT) {
       if (tenantUserId !== userId)
         throw new ForbiddenException('Access denied');
-      result =
+      const result =
         await this.tenentKycService.fetchKycDetailsOfTenant(tenantUserId);
       return {
         success: true,

@@ -27,103 +27,211 @@ export class StaffController {
   constructor(private readonly maintenanceStaffService: StaffService) {}
 
   @Post('')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async addMaintenanceStaff(@Body() dto: CreateStaffDto, @GetUser() user: any) {
-    const userId = user.userId;
-    if (!userId) throw new BadRequestException('please login again and try');
-    return this.maintenanceStaffService.createMaintenanceStaff(userId, dto);
+    let ownerId = user.userId;
+    if (!ownerId) throw new BadRequestException('please login again and try');
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      ownerId = await this.maintenanceStaffService.validateStaffManageStaffAccess(
+        user.userId,
+      );
+    }
+    return this.maintenanceStaffService.createMaintenanceStaff(ownerId, dto);
   }
 
-
-
   @Get('profile/:id')
-  @Roles(Role.PROPERTY_OWNER)
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  async getStaffDetails(@Param('id', ParseIntPipe) staffProfileId:number){
-      return this.maintenanceStaffService.getStaffDetailsById(staffProfileId)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getStaffDetails(
+    @Param('id', ParseIntPipe) staffProfileId: number,
+    @GetUser() user: any,
+  ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.maintenanceStaffService.validateStaffManageStaffProfileAccess(
+        user.userId,
+        staffProfileId,
+      );
+    }
+    return this.maintenanceStaffService.getStaffDetailsById(staffProfileId);
   }
 
   @Get('owner')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getAllMaintenanceStaffOfaOwner(@GetUser() user: any) {
-    const userId = user.userId;
-    if (!userId) throw new BadRequestException('please login and try again');
-    return this.maintenanceStaffService.getMaintenanceStaffsByOwner(userId);
+    let ownerId = user.userId;
+    if (!ownerId) throw new BadRequestException('please login and try again');
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      ownerId = await this.maintenanceStaffService.validateStaffManageStaffAccess(
+        user.userId,
+      );
+    }
+    return this.maintenanceStaffService.getMaintenanceStaffsByOwner(ownerId);
   }
 
   @Get('/by/property/:propertyId')
   @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  async fetchAllStaffsForProperty(@Param('propertyId',ParseIntPipe) propertyId:number,@GetUser() user:any){
-     let ownerId = user.userId;
-     if(!ownerId || !propertyId) throw new BadRequestException()
-     if (user.role === Role.MAINTENANCE_STAFF) {
-       await this.maintenanceStaffService.validateStaffPropertyAccess(user.userId, propertyId);
-       ownerId = await this.maintenanceStaffService.resolveOwnerFromStaff(user.userId);
-     }
-     return this.maintenanceStaffService.fetchAllocatedStaffByPropertyId(propertyId,ownerId)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async fetchAllStaffsForProperty(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
+  ) {
+    let ownerId = user.userId;
+    if (!ownerId || !propertyId) throw new BadRequestException();
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      const addAllowed =
+        await this.maintenanceStaffService
+          .validateStaffComplaintsModuleAccess(user.userId, propertyId, 'add')
+          .then(() => true)
+          .catch(() => false);
+      if (!addAllowed) {
+        await this.maintenanceStaffService.validateStaffComplaintsModuleAccess(
+          user.userId,
+          propertyId,
+          'handle',
+        );
+      }
+      ownerId = await this.maintenanceStaffService.resolveOwnerFromStaff(
+        user.userId,
+      );
+    }
+    return this.maintenanceStaffService.fetchAllocatedStaffByPropertyId(
+      propertyId,
+      ownerId,
+    );
   }
 
   @Patch('/property/access')
-  @Roles(Role.PROPERTY_OWNER)
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  async editPropertyPermission(@Body() dto:EditStaffAccessDto,@GetUser() user:any){
-       const ownerId = user.userId;
-       if(!ownerId) throw new UnauthorizedException();
-       return this.maintenanceStaffService.editStaffAccess(ownerId,dto)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async editPropertyPermission(
+    @Body() dto: EditStaffAccessDto,
+    @GetUser() user: any,
+  ) {
+    let ownerId = user.userId;
+    if (!ownerId) throw new UnauthorizedException();
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      ownerId =
+        await this.maintenanceStaffService.validateStaffManageStaffProfileAccess(
+          user.userId,
+          dto.staffProfileId,
+        );
+    }
+    return this.maintenanceStaffService.editStaffAccess(ownerId, dto);
   }
 
-
   @Patch('profile')
-  @Roles(Role.PROPERTY_OWNER)
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  async editEmpProfile(@Body() dto:EditEmployeeProfileDto,@GetUser() user:any){
-      const ownerId = user.userId;
-      if(!ownerId) throw new UnauthorizedException();
-      return this.maintenanceStaffService.editMaintenanceStaffProfile(dto,ownerId,dto.empProfileId)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async editEmpProfile(
+    @Body() dto: EditEmployeeProfileDto,
+    @GetUser() user: any,
+  ) {
+    let ownerId = user.userId;
+    if (!ownerId) throw new UnauthorizedException();
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      ownerId =
+        await this.maintenanceStaffService.validateStaffManageStaffProfileAccess(
+          user.userId,
+          dto.empProfileId,
+        );
+    }
+    return this.maintenanceStaffService.editMaintenanceStaffProfile(
+      dto,
+      ownerId,
+      dto.empProfileId,
+    );
   }
 
   @Get('user/:userId/expenses')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getStaffExpenses(@Param('userId', ParseIntPipe) userId: number) {
+  async getStaffExpenses(
+    @Param('userId', ParseIntPipe) userId: number,
+    @GetUser() user: any,
+  ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.maintenanceStaffService.validateStaffManageStaffUserAccess(
+        user.userId,
+        userId,
+      );
+    }
     return this.maintenanceStaffService.getExpensesByStaffUserId(userId);
   }
 
   @Get('user/:userId/collections')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getStaffCollections(@Param('userId', ParseIntPipe) userId: number) {
+  async getStaffCollections(
+    @Param('userId', ParseIntPipe) userId: number,
+    @GetUser() user: any,
+  ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.maintenanceStaffService.validateStaffManageStaffUserAccess(
+        user.userId,
+        userId,
+      );
+    }
     return this.maintenanceStaffService.getPaymentsCollectedByStaff(userId);
   }
 
   @Get('property/:propertyId/collections')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getPropertyStaffCollections(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @GetUser() user: any,
   ) {
-    return this.maintenanceStaffService.getStaffCollectionSummaryByProperty(propertyId, user.userId);
+    let ownerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      ownerId =
+        await this.maintenanceStaffService.validateStaffManageStaffPropertyAccess(
+          user.userId,
+          propertyId,
+        );
+    }
+    return this.maintenanceStaffService.getStaffCollectionSummaryByProperty(
+      propertyId,
+      ownerId,
+    );
   }
 
   @Delete(':id')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async deleteStaff(@Param('id', ParseIntPipe) staffProfileId: number, @GetUser() user: any) {
-    const ownerId = user.userId;
+  async deleteStaff(
+    @Param('id', ParseIntPipe) staffProfileId: number,
+    @GetUser() user: any,
+  ) {
+    let ownerId = user.userId;
     if (!ownerId) throw new UnauthorizedException();
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      ownerId =
+        await this.maintenanceStaffService.validateStaffManageStaffProfileAccess(
+          user.userId,
+          staffProfileId,
+        );
+    }
     return this.maintenanceStaffService.deleteStaff(ownerId, staffProfileId);
   }
 
   @Patch('app-permissions')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async updateStaffAppPermissions(@Body() dto: UpdateStaffAppPermissionsDto, @GetUser() user: any) {
-    const ownerId = user.userId;
+  async updateStaffAppPermissions(
+    @Body() dto: UpdateStaffAppPermissionsDto,
+    @GetUser() user: any,
+  ) {
+    let ownerId = user.userId;
     if (!ownerId) throw new UnauthorizedException();
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      ownerId =
+        await this.maintenanceStaffService.validateStaffManageStaffProfileAccess(
+          user.userId,
+          dto.staffProfileId,
+        );
+    }
     return this.maintenanceStaffService.updateStaffAppPermissions(ownerId, dto);
   }
 
@@ -135,5 +243,4 @@ export class StaffController {
     if (!userId) throw new UnauthorizedException();
     return this.maintenanceStaffService.getStaffSelfProfile(userId);
   }
-
 }

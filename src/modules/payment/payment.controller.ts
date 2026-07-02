@@ -9,6 +9,7 @@ import {
   Query,
   Res,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
@@ -19,10 +20,14 @@ import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { PaymentService } from './payment.service';
 import { InitiatePaymentDto, MakePaymentDto } from './dto/initiate-payment.dto';
 import { EasebuzzWebhookPayload } from 'src/infra/payment/easebuzz/easebuzz.types';
+import { StaffService } from '../staff/staff.service';
 
 @Controller('payment')
 export class PaymentController {
-  constructor(private readonly paymentService: PaymentService) {}
+  constructor(
+    private readonly paymentService: PaymentService,
+    private readonly staffService: StaffService,
+  ) {}
 
   @Post('initiate')
   @Roles(Role.TENANT)
@@ -78,13 +83,24 @@ export class PaymentController {
   }
 
   @Get('history/:tenantId')
-  @Roles(Role.TENANT, Role.PROPERTY_OWNER)
+  @Roles(Role.TENANT, Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getPaymentHistory(
     @Param('tenantId', ParseIntPipe) tenantId: number,
+    @GetUser() user: any,
     @Query('tenancyId') tenancyId?: string,
     @Query('propertyId') propertyId?: string,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      const parsedPropertyId = propertyId ? Number(propertyId) : NaN;
+      if (!Number.isFinite(parsedPropertyId)) {
+        throw new BadRequestException('propertyId is required for staff payment history');
+      }
+      await this.staffService.validateStaffRentBookAccess(
+        user.userId,
+        parsedPropertyId,
+      );
+    }
     return this.paymentService.getTenantPaymentHistory(
       tenantId,
       tenancyId ? Number(tenancyId) : undefined,

@@ -28,7 +28,11 @@ export class PropertyMatricsController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffFinanceModuleAccess(
+        user.userId,
+        propertyId,
+        'viewDues',
+      );
     }
     const result =
       await this.propertymatricsService.fetchPropertyMatrics(propertyId);

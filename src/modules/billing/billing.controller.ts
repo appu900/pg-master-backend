@@ -31,7 +31,11 @@ export class BillingController {
   async addDue(@Body() dto: AddDueDto, @GetUser() user: any) {
     let ownerUserId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, dto.propertyId);
+      await this.staffService.validateStaffFinanceModuleAccess(
+        user.userId,
+        dto.propertyId,
+        'editDues',
+      );
       ownerUserId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     const res = await this.billingService.createDueForTenant(
@@ -52,7 +56,7 @@ export class BillingController {
   async deleteDue(@Param('dueId', ParseIntPipe) dueId: number, @GetUser() user: any) {
     let ownerUserId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffDueAccess(user.userId, dueId);
+      await this.staffService.validateStaffDueDeleteAccess(user.userId, dueId);
       ownerUserId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return this.billingService.deleteDue(dueId, ownerUserId);
@@ -68,7 +72,11 @@ export class BillingController {
   ) {
     let ownerUserId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffDueAccess(user.userId, dueId);
+      await this.staffService.validateStaffDueFinanceAccess(
+        user.userId,
+        dueId,
+        'editDues',
+      );
       ownerUserId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return this.billingService.editDue(dueId, dto, ownerUserId);

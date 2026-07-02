@@ -41,7 +41,11 @@ export class TenentController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffRoomAccess(user.userId, roomId);
+      await this.staffService.validateStaffTenantsModuleAccessForRoom(
+        user.userId,
+        roomId,
+        'view',
+      );
     }
     return this.tenentService.getTenantsByRoom(roomId);
   }
@@ -54,7 +58,10 @@ export class TenentController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffPropertyTenantListForFinanceAccess(
+        user.userId,
+        propertyId,
+      );
     }
     return this.tenentService.getTenantsByProperty(propertyId);
   }
@@ -67,7 +74,11 @@ export class TenentController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffTenantsModuleAccess(
+        user.userId,
+        propertyId,
+        'view',
+      );
     }
     return this.tenentService.getTenantStats(propertyId);
   }
@@ -81,7 +92,11 @@ export class TenentController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffTenantsModuleAccess(
+        user.userId,
+        propertyId,
+        'view',
+      );
     }
     return this.tenentService.searchTenants(propertyId, searchQuery || '');
   }
@@ -119,13 +134,17 @@ export class TenentController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffTenantUserAccess(user.userId, tenantId);
+      await this.staffService.validateStaffTenantUserModuleAccess(
+        user.userId,
+        tenantId,
+        'view',
+      );
     }
     return this.tenentService.getTenantById(tenantId);
   }
 
   @Patch('/:tenantId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(
     FileInterceptor('profileImage', { limits: UPLOAD_FILE_SIZE_LIMITS }),
@@ -133,41 +152,83 @@ export class TenentController {
   async updateTenant(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Body() dto: UpdateTenantDto,
+    @GetUser() user: any,
     @UploadedFile() profileImage?: Express.Multer.File,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenantUserModuleAccess(
+        user.userId,
+        tenantId,
+        'edit',
+      );
+    }
     return this.tenentService.updateTenant(tenantId, dto, profileImage);
   }
 
   // propertyId is now required so the owner specifies which tenancy to exit
   @Delete('/:tenantId/property/:propertyId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async deleteTenant(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @GetUser() user: any,
   ) {
-    return this.tenentService.deleteTenant(tenantId, propertyId, user.userId);
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenantsModuleAccess(
+        user.userId,
+        propertyId,
+        'edit',
+      );
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(
+        user.userId,
+      );
+    }
+    return this.tenentService.deleteTenant(
+      tenantId,
+      propertyId,
+      effectiveOwnerId,
+    );
   }
 
   // owner revokes an exited tenancy back to active
   @Patch('/tenancy/:tenancyId/revoke')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async revokeTenancyExit(
     @Param('tenancyId', ParseIntPipe) tenancyId: number,
     @GetUser() user: any,
   ) {
-    return this.tenentService.revokeTenancyExit(tenancyId, user.userId);
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenancyModuleAccess(
+        user.userId,
+        tenancyId,
+        'edit',
+      );
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(
+        user.userId,
+      );
+    }
+    return this.tenentService.revokeTenancyExit(tenancyId, effectiveOwnerId);
   }
 
   @Post('/tenancy/:tenancyId/moveout')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async moveTenantOut(
     @Param('tenancyId', ParseIntPipe) tenancyId: number,
     @Body() dto: MoveOutTenantDto,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenancyModuleAccess(
+        user.userId,
+        tenancyId,
+        'edit',
+      );
+    }
     return this.tenentService.moveTenantOut(tenancyId, dto);
   }
 

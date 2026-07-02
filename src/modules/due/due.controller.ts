@@ -37,7 +37,11 @@ export class DuesController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffFinanceModuleAccess(
+        user.userId,
+        propertyId,
+        'editDues',
+      );
     }
     return this.dueService.addDueToTenant(dto, propertyId);
   }
@@ -51,7 +55,16 @@ export class DuesController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffFinanceModuleAccess(
+        user.userId,
+        propertyId,
+        'editDues',
+      );
+      await this.staffService.validateStaffRoomBelongsToProperty(
+        user.userId,
+        dto.roomId,
+        propertyId,
+      );
     }
     return this.dueService.addDueToRoom(dto, propertyId);
   }
@@ -65,7 +78,10 @@ export class DuesController {
   ) {
     // tenantId here is the tenant's userId (tenentId on Tenancy), not tenancy PK.
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffTenantUserAccess(user.userId, tenantId);
+      await this.staffService.validateStaffTenantFinanceViewAccess(
+        user.userId,
+        tenantId,
+      );
     }
     return this.dueService.fetchAllDuesByTenantId(tenantId);
   }
@@ -79,7 +95,10 @@ export class DuesController {
   ) {
     // tenantId here is the tenant's userId (tenentId on Tenancy), not tenancy PK.
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffTenantUserAccess(user.userId, tenantId);
+      await this.staffService.validateStaffTenantFinanceViewAccess(
+        user.userId,
+        tenantId,
+      );
     }
     return this.dueService.getTenantDuesByTenancyId(tenantId);
   }
@@ -92,7 +111,10 @@ export class DuesController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffPropertyUnpaidDuesAccess(
+        user.userId,
+        propertyId,
+      );
     }
     return this.dueService.getUnpaidDuesByProperty(propertyId);
   }
@@ -106,7 +128,10 @@ export class DuesController {
   ) {
     // tenantId here is the tenant's userId, not tenancy PK.
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffTenantUserAccess(user.userId, tenantId);
+      await this.staffService.validateStaffTenantFinanceViewAccess(
+        user.userId,
+        tenantId,
+      );
     }
     return this.dueService.getUnpaidDuesByTenantId(tenantId);
   }
@@ -120,7 +145,10 @@ export class DuesController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffTenantDuesReadAccess(
+        user.userId,
+        propertyId,
+      );
     }
     return this.dueService.getDuesByTenantAndProperty(tenantId, propertyId);
   }
@@ -130,7 +158,11 @@ export class DuesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async collectDue(@Body() dto: CollectDueDto, @GetUser() user: any) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffDueAccess(user.userId, dto.dueId);
+      await this.staffService.validateStaffDueFinanceAccess(
+        user.userId,
+        dto.dueId,
+        'collectPayments',
+      );
     }
     // Staff userId is intentionally used as recordedById for audit tracing.
     return this.dueService.collectDue(dto, user.userId);
@@ -144,7 +176,11 @@ export class DuesController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffFinanceModuleAccess(
+        user.userId,
+        propertyId,
+        'viewDues',
+      );
     }
     return this.dueService.getPropertyCollections(propertyId);
   }
@@ -158,7 +194,11 @@ export class DuesController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      await this.staffService.validateStaffFinanceModuleAccess(
+        user.userId,
+        propertyId,
+        'viewDues',
+      );
     }
     return this.dueService.sendBulkReminder(propertyId, dto);
   }
@@ -171,7 +211,11 @@ export class DuesController {
     @GetUser() user: any,
   ) {
     if (user.role === Role.MAINTENANCE_STAFF) {
-      await this.staffService.validateStaffDueAccess(user.userId, dueId);
+      await this.staffService.validateStaffDueFinanceAccess(
+        user.userId,
+        dueId,
+        'viewDues',
+      );
     }
     return this.dueService.getDueById(dueId);
   }
