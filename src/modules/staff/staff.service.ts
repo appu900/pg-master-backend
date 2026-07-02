@@ -1000,6 +1000,12 @@ export class StaffService {
       );
     }
 
+    if (action === 'viewProfile' || action === 'editProfile') {
+      throw new ForbiddenException(
+        'Staff cannot view or edit the property owner personal profile',
+      );
+    }
+
     const gp = profile.granularPermissions as Record<
       string,
       Record<string, boolean>
