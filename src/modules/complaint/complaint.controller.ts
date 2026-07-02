@@ -30,10 +30,14 @@ import { ChnageComplaintStatus } from './dto/change.status.dto';
 import { assignMaintenanceStaffDto } from './dto/assign-staff.dto';
 import { AddLogsDto } from './dto/addLogs.dto';
 import { EditComplaintByTenantDto } from './dto/edit-complaint-by-tenant.dto';
+import { StaffService } from '../staff/staff.service';
 
 @Controller('complaint')
 export class ComplaintController {
-  constructor(private readonly complaintService: ComplaintService) {}
+  constructor(
+    private readonly complaintService: ComplaintService,
+    private readonly staffService: StaffService,
+  ) {}
 
   @Post('/by/tenant')
   @Roles(Role.TENANT)
@@ -52,7 +56,7 @@ export class ComplaintController {
   }
 
   @Post('/by/owner')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(
     FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
@@ -62,30 +66,32 @@ export class ComplaintController {
     @UploadedFiles() images: Express.Multer.File[],
     @GetUser() user: any,
   ) {
-    const ownerId = user.userId;
+    let ownerId = user.userId;
     if (!ownerId) throw new UnauthorizedException();
-    return await this.complaintService.createComplaintByOwner(
-      ownerId,
-      dto,
-      images,
-    );
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, dto.propertyId);
+      ownerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return await this.complaintService.createComplaintByOwner(ownerId, dto, images);
   }
 
   @Get('/summary/property/:propertyId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getComplaintSummary(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @GetUser() user: any,
   ) {
-    return this.complaintService.getComplaintSummaryByProperty(
-      propertyId,
-      user.userId,
-    );
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.complaintService.getComplaintSummaryByProperty(propertyId, effectiveOwnerId);
   }
 
   @Get(':complaintId')
-  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @Roles(Role.PROPERTY_OWNER, Role.TENANT, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getComplaintById(
     @Param('complaintId', ParseIntPipe) complaintId: number,
@@ -94,16 +100,20 @@ export class ComplaintController {
   }
 
   @Get('/property/:propertyId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getAllComplaints(
     @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+    }
     return this.complaintService.getAllComplaints(propertyId);
   }
 
   @Put('status')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async changeStatus(@Body() dto: ChnageComplaintStatus) {
     return this.complaintService.changeStatus(dto.status, dto.complaintId);
@@ -162,7 +172,7 @@ export class ComplaintController {
   }
 
   @Post('/log/:complaintId')
-  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @Roles(Role.PROPERTY_OWNER, Role.TENANT, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async addLogs(
     @Body() dto: AddLogsDto,

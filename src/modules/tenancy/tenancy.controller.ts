@@ -23,38 +23,54 @@ import { ShiftRoomDto } from './dto/shift-room.dto';
 import { RejectMoveOutDto } from './dto/reject-moveout.dto';
 import { RejectRoomShiftDto } from './dto/reject-room-shift.dto';
 import { MoveOutTenantDto } from './dto/move-out-tenant.dto';
+import { StaffService } from '../staff/staff.service';
 
 @Controller('tenancy')
 export class TenancyController {
-  constructor(private readonly tenancyService: TenancyService) {}
+  constructor(
+    private readonly tenancyService: TenancyService,
+    private readonly staffService: StaffService,
+  ) {}
 
   @Post('onboard')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async onBoardTenancy(@Body() dto: AddTenantDto, @GetUser() user: any) {
-    console.log('onboard tenancy payload', dto);
-    const res = await this.tenancyService.createTenant(dto, user.userId);
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, dto.propertyId);
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    const res = await this.tenancyService.createTenant(dto, effectiveOwnerId);
     return { message: 'Tenant created successfully', res };
   }
 
   @Post('shift-room')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async shiftTenantRoom(@Body() dto: ShiftRoomDto, @GetUser() user: any) {
-    return this.tenancyService.shiftTenantRoom(dto, user.userId);
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.tenancyService.shiftTenantRoom(dto, effectiveOwnerId);
   }
 
   @Put('/:tenancyId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async updateTenancyDetails(
     @Body() dto: EditTenancyDto,
     @GetUser() user: any,
     @Param('tenancyId', ParseIntPipe) tenancyId: number,
   ) {
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
     const res = await this.tenancyService.updateTenancyDetails(
       tenancyId,
-      user.userId,
+      effectiveOwnerId,
       dto,
     );
     return { res, message: 'Update rental details successful' };
@@ -86,12 +102,17 @@ export class TenancyController {
   // list all pending moveout requests for a property
   @Get('/moveout-requests/property/:propertyId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async getMoveOutRequests(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @GetUser() user: any,
   ) {
-    return this.tenancyService.getMoveOutRequests(propertyId, user.userId);
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.tenancyService.getMoveOutRequests(propertyId, effectiveOwnerId);
   }
 
   // get full details of a single moveout request (with tenant dues)

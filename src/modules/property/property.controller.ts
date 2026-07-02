@@ -24,10 +24,14 @@ import { AddRoomDto } from './dto/AddRoom.dto';
 import { CreatePropertyDto } from './dto/create.property.dto';
 import { editRoomDto } from './dto/edit.room.dto';
 import { PropertyService } from './property.service';
+import { StaffService } from '../staff/staff.service';
 
 @Controller('property')
 export class PropertyController {
-  constructor(private readonly propertyService: PropertyService) {}
+  constructor(
+    private readonly propertyService: PropertyService,
+    private readonly staffService: StaffService,
+  ) {}
 
   @Post('')
   @Roles(Role.PROPERTY_OWNER)
@@ -49,59 +53,62 @@ export class PropertyController {
   }
 
   @Post('/:propertyId/room')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(
     FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
-  ) // Allow up to 10 images
+  )
   async createRoom(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Body() dto: AddRoomDto,
     @UploadedFiles() images: Express.Multer.File[],
     @GetUser() user: any,
   ) {
-    const userId = user.userId;
-    console.log('userId', userId);
-    if (!userId) throw new BadRequestException('User ID not found');
-
-    return this.propertyService.addRooms(
-      Number(userId),
-      propertyId,
-      dto,
-      images,
-    );
+    let effectiveUserId = user.userId;
+    if (!effectiveUserId) throw new BadRequestException('User ID not found');
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      effectiveUserId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.propertyService.addRooms(effectiveUserId, propertyId, dto, images);
   }
 
   @Get('/:propertyId/rooms')
-  @UseGuards(JwtAuthGuard)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async fetchAllRoomsOfProperty(
     @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+    }
     return this.propertyService.fetchAllRoomsOfProperty(propertyId);
   }
 
   @Patch('/room/:roomId/')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(
     FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
   )
-  editRoom(
+  async editRoom(
     @Body() dto: editRoomDto,
     @Param('roomId', ParseIntPipe) id: number,
     @GetUser() user: any,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
-    const userId = user.userId;
-    if (!userId) throw new BadRequestException('User ID not found');
-
-    return this.propertyService.editRoom(id, dto, userId, files);
+    let effectiveUserId = user.userId;
+    if (!effectiveUserId) throw new BadRequestException('User ID not found');
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      effectiveUserId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.propertyService.editRoom(id, dto, effectiveUserId, files);
   }
 
-  // NOTE: React Native (axios/XHR) can be flaky with multipart PATCH.
-  // Provide a PUT alias for the same operation when uploading images.
+
   @Put('/room/:roomId/')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(
     FilesInterceptor('images', 10, { limits: UPLOAD_FILE_SIZE_LIMITS }),
@@ -116,39 +123,48 @@ export class PropertyController {
   }
 
   @Delete('/room/:roomId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async deleteRoom(
     @Param('roomId', ParseIntPipe) id: number,
     @GetUser() user: any,
   ) {
-    const userId = user.userId;
-    if (!userId) throw new BadRequestException();
-    return this.propertyService.deleteRoom(id, userId);
+    if (!user.userId) throw new BadRequestException();
+    let effectiveUserId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      effectiveUserId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.propertyService.deleteRoom(id, effectiveUserId);
   }
 
   @Delete('/room/:roomId/image/:imageId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async deleteRoomImage(
     @Param('roomId', ParseIntPipe) roomId: number,
     @Param('imageId', ParseIntPipe) imageId: number,
     @GetUser() user: any,
   ) {
-    const userId = user.userId;
-    if (!userId) throw new BadRequestException('User ID not found');
-    return this.propertyService.deleteRoomImage(roomId, imageId, userId);
+    if (!user.userId) throw new BadRequestException('User ID not found');
+    let effectiveUserId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      effectiveUserId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.propertyService.deleteRoomImage(roomId, imageId, effectiveUserId);
   }
 
   @Get('/room/:roomId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async GetRoomById(
     @Param('roomId', ParseIntPipe) id: number,
     @GetUser() user: any,
   ) {
-    const userId = user.userId;
-    if (!userId) throw new BadRequestException();
-    return this.propertyService.getRoomDetails(id, userId);
+    if (!user.userId) throw new BadRequestException();
+    let effectiveUserId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      effectiveUserId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.propertyService.getRoomDetails(id, effectiveUserId);
   }
 }

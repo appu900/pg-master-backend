@@ -24,41 +24,62 @@ import { TenentService } from './tenent.service';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { RequestMoveOutDto } from './dto/request-moveout.dto';
 import { RequestRoomShiftDto } from './dto/request-room-shift.dto';
+import { StaffService } from '../staff/staff.service';
 
 @Controller('tenant')
 export class TenentController {
-  constructor(private readonly tenentService: TenentService) {}
+  constructor(
+    private readonly tenentService: TenentService,
+    private readonly staffService: StaffService,
+  ) {}
 
   @Get('/room/:roomId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getTenantsInRoom(@Param('roomId', ParseIntPipe) roomId: number) {
+  async getTenantsInRoom(
+    @Param('roomId', ParseIntPipe) roomId: number,
+    @GetUser() user: any,
+  ) {
     return this.tenentService.getTenantsByRoom(roomId);
   }
 
   @Get('/property/:propertyId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getTenantsByProperty(
     @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+    }
     return this.tenentService.getTenantsByProperty(propertyId);
   }
 
   @Get('/property/:propertyId/stats')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getTenantStats(@Param('propertyId', ParseIntPipe) propertyId: number) {
+  async getTenantStats(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
+  ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+    }
     return this.tenentService.getTenantStats(propertyId);
   }
 
   @Get('/property/:propertyId/search')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async searchTenants(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Query('q') searchQuery: string,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+    }
     return this.tenentService.searchTenants(propertyId, searchQuery || '');
   }
 
@@ -88,7 +109,7 @@ export class TenentController {
   }
 
   @Get('/:tenantId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getTenantById(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.tenentService.getTenantById(tenantId);

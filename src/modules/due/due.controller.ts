@@ -19,33 +19,45 @@ import {
 } from './dto/create.due.dto';
 import { CollectDueDto } from './dto/collect-due.dto';
 import { BulkReminderDto } from './dto/bulk-reminder.dto';
+import { StaffService } from '../staff/staff.service';
 
 @Controller('dues')
 export class DuesController {
-  constructor(private readonly dueService: DueService) {}
+  constructor(
+    private readonly dueService: DueService,
+    private readonly staffService: StaffService,
+  ) {}
 
   @Post('/property/:propertyId/tenant')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async addDueToTenant(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Body() dto: CreateDueForTenantDto,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+    }
     return this.dueService.addDueToTenant(dto, propertyId);
   }
 
   @Post('/property/:propertyId/room')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async addDueToRoom(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Body() dto: CreateDueForRoomDto,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+    }
     return this.dueService.addDueToRoom(dto, propertyId);
   }
 
   @Get('/tenant/:tenantId')
-  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @Roles(Role.PROPERTY_OWNER, Role.TENANT, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async fetchTenantDuesByTenancyId(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -54,23 +66,27 @@ export class DuesController {
   }
 
   @Get('/tenant/:tenantId/all')
-  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @Roles(Role.PROPERTY_OWNER, Role.TENANT, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getAllTenantDues(@Param('tenantId', ParseIntPipe) tenantId: number) {
     return this.dueService.getTenantDuesByTenancyId(tenantId);
   }
 
   @Get('/property/:propertyId/unpaid')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getUnpaidDuesByProperty(
     @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+    }
     return this.dueService.getUnpaidDuesByProperty(propertyId);
   }
 
   @Get('/tenant/:tenantId/unpaid')
-  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @Roles(Role.PROPERTY_OWNER, Role.TENANT, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getUnpaidDuesByTenant(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -79,7 +95,7 @@ export class DuesController {
   }
 
   @Get('/tenant/:tenantId/property/:propertyId')
-  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @Roles(Role.PROPERTY_OWNER, Role.TENANT, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getDuesByTenantAndProperty(
     @Param('tenantId', ParseIntPipe) tenantId: number,
@@ -89,33 +105,42 @@ export class DuesController {
   }
 
   @Post('/collect')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async collectDue(@Body() dto: CollectDueDto, @GetUser() user: any) {
+    // staff userId is intentionally used here as recordedById (auditing who collected)
     return this.dueService.collectDue(dto, user.userId);
   }
 
   @Get('/property/:propertyId/collections')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getPropertyCollections(
     @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+    }
     return this.dueService.getPropertyCollections(propertyId);
   }
 
   @Post('/property/:propertyId/bulk-remind')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async sendBulkReminder(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Body() dto: BulkReminderDto,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+    }
     return this.dueService.sendBulkReminder(propertyId, dto);
   }
 
   @Get('/:dueId')
-  @Roles(Role.PROPERTY_OWNER, Role.TENANT)
+  @Roles(Role.PROPERTY_OWNER, Role.TENANT, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getDueById(@Param('dueId', ParseIntPipe) dueId: number) {
     return this.dueService.getDueById(dueId);

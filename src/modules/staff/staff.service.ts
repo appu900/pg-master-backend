@@ -747,7 +747,28 @@ export class StaffService {
     };
   }
 
-  //   private functions to handle things
+
+  async resolveOwnerFromStaff(staffUserId: number): Promise<number> {
+    const book = await this.prisma.employeeBook.findFirst({
+      where: { employeeProfile: { userId: staffUserId } },
+      select: { ownerId: true },
+    });
+    if (!book) throw new ForbiddenException('Staff member is not linked to any owner');
+    return book.ownerId;
+  }
+
+
+  async validateStaffPropertyAccess(staffUserId: number, propertyId: number): Promise<void> {
+    const access = await this.prisma.maintenanceStaffPropertyAccess.findFirst({
+      where: {
+        staffProfile: { userId: staffUserId },
+        propertyId,
+      },
+      select: { id: true },
+    });
+    if (!access) throw new ForbiddenException('Staff does not have access to this property');
+  }
+
   private async validateOwnerToPropertyMapping(
     propertyId: number,
     ownerId: number,
