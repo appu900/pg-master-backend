@@ -54,11 +54,15 @@ export class StaffController {
   }
 
   @Get('/by/property/:propertyId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard,RolesGuard)
   async fetchAllStaffsForProperty(@Param('propertyId',ParseIntPipe) propertyId:number,@GetUser() user:any){
-     const ownerId = user.userId;
+     let ownerId = user.userId;
      if(!ownerId || !propertyId) throw new BadRequestException()
+     if (user.role === Role.MAINTENANCE_STAFF) {
+       await this.maintenanceStaffService.validateStaffPropertyAccess(user.userId, propertyId);
+       ownerId = await this.maintenanceStaffService.resolveOwnerFromStaff(user.userId);
+     }
      return this.maintenanceStaffService.fetchAllocatedStaffByPropertyId(propertyId,ownerId)
   }
 
