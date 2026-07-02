@@ -61,14 +61,26 @@ export class DuesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async fetchTenantDuesByTenancyId(
     @Param('tenantId', ParseIntPipe) tenantId: number,
+    @GetUser() user: any,
   ) {
+    // tenantId here is the tenant's userId (tenentId on Tenancy), not tenancy PK.
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenantUserAccess(user.userId, tenantId);
+    }
     return this.dueService.fetchAllDuesByTenantId(tenantId);
   }
 
   @Get('/tenant/:tenantId/all')
   @Roles(Role.PROPERTY_OWNER, Role.TENANT, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getAllTenantDues(@Param('tenantId', ParseIntPipe) tenantId: number) {
+  async getAllTenantDues(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @GetUser() user: any,
+  ) {
+    // tenantId here is the tenant's userId (tenentId on Tenancy), not tenancy PK.
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenantUserAccess(user.userId, tenantId);
+    }
     return this.dueService.getTenantDuesByTenancyId(tenantId);
   }
 
@@ -90,7 +102,12 @@ export class DuesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async getUnpaidDuesByTenant(
     @Param('tenantId', ParseIntPipe) tenantId: number,
+    @GetUser() user: any,
   ) {
+    // tenantId here is the tenant's userId, not tenancy PK.
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenantUserAccess(user.userId, tenantId);
+    }
     return this.dueService.getUnpaidDuesByTenantId(tenantId);
   }
 
@@ -100,7 +117,11 @@ export class DuesController {
   async getDuesByTenantAndProperty(
     @Param('tenantId', ParseIntPipe) tenantId: number,
     @Param('propertyId', ParseIntPipe) propertyId: number,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+    }
     return this.dueService.getDuesByTenantAndProperty(tenantId, propertyId);
   }
 
@@ -108,7 +129,10 @@ export class DuesController {
   @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async collectDue(@Body() dto: CollectDueDto, @GetUser() user: any) {
-    // staff userId is intentionally used here as recordedById (auditing who collected)
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffDueAccess(user.userId, dto.dueId);
+    }
+    // Staff userId is intentionally used as recordedById for audit tracing.
     return this.dueService.collectDue(dto, user.userId);
   }
 
@@ -142,7 +166,13 @@ export class DuesController {
   @Get('/:dueId')
   @Roles(Role.PROPERTY_OWNER, Role.TENANT, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getDueById(@Param('dueId', ParseIntPipe) dueId: number) {
+  async getDueById(
+    @Param('dueId', ParseIntPipe) dueId: number,
+    @GetUser() user: any,
+  ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffDueAccess(user.userId, dueId);
+    }
     return this.dueService.getDueById(dueId);
   }
 }

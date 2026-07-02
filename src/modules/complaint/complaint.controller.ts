@@ -115,7 +115,10 @@ export class ComplaintController {
   @Put('status')
   @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async changeStatus(@Body() dto: ChnageComplaintStatus) {
+  async changeStatus(@Body() dto: ChnageComplaintStatus, @GetUser() user: any) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffComplaintAccess(user.userId, dto.complaintId);
+    }
     return this.complaintService.changeStatus(dto.status, dto.complaintId);
   }
 
@@ -177,7 +180,11 @@ export class ComplaintController {
   async addLogs(
     @Body() dto: AddLogsDto,
     @Param('complaintId', ParseIntPipe) compaintId: number,
+    @GetUser() user: any,
   ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffComplaintAccess(user.userId, compaintId);
+    }
     return this.complaintService.addLogs(compaintId, dto);
   }
 

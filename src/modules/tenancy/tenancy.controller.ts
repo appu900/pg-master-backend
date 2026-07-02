@@ -51,6 +51,7 @@ export class TenancyController {
   async shiftTenantRoom(@Body() dto: ShiftRoomDto, @GetUser() user: any) {
     let effectiveOwnerId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenancyAccess(user.userId, dto.tenancyId);
       effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     return this.tenancyService.shiftTenantRoom(dto, effectiveOwnerId);
@@ -66,6 +67,7 @@ export class TenancyController {
   ) {
     let effectiveOwnerId = user.userId;
     if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenancyAccess(user.userId, tenancyId);
       effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
     }
     const res = await this.tenancyService.updateTenancyDetails(
