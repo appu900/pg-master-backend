@@ -157,6 +157,7 @@ export class StaffService {
                 id: true,
               },
             },
+            permissions: true,
           },
         },
       },
@@ -645,20 +646,45 @@ export class StaffService {
     const employeeBook = await this.validateOwnertoEmployeeMapping(ownerId, dto.staffProfileId);
     if (!employeeBook) throw new ForbiddenException('You do not have access to manage this staff member');
 
-    await this.prisma.maintenanceStaffProfile.update({
-      where: { id: dto.staffProfileId },
-      data: {
+    if (dto.propertyId) {
+      // Per-property update: store permissions on the property access record so SELECTIVE
+      // scope staff can have different access per property.
+      const propertyAccess = await this.prisma.maintenanceStaffPropertyAccess.findFirst({
+        where: { staffProfileId: dto.staffProfileId, propertyId: dto.propertyId },
+      });
+      if (!propertyAccess) throw new NotFoundException('Staff does not have access to this property');
+
+      const propertyPermissions = {
         canAccessRooms: dto.canAccessRooms,
         canAccessTenants: dto.canAccessTenants,
         canAccessFinance: dto.canAccessFinance,
         canAccessComplaints: dto.canAccessComplaints,
-        canManageStaff: dto.canManageStaff,
+        granularPermissions: dto.granularPermissions ?? {},
+      };
+
+      await this.prisma.maintenanceStaffPropertyAccess.update({
+        where: { id: propertyAccess.id },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...(dto.granularPermissions !== undefined
-          ? { granularPermissions: dto.granularPermissions as any }
-          : {}),
-      },
-    });
+        data: { permissions: propertyPermissions as any },
+      });
+    } else {
+      // Global update: update profile-level permissions (used for ALL_PROPERTIES scope
+      // or as the legacy fallback).
+      await this.prisma.maintenanceStaffProfile.update({
+        where: { id: dto.staffProfileId },
+        data: {
+          canAccessRooms: dto.canAccessRooms,
+          canAccessTenants: dto.canAccessTenants,
+          canAccessFinance: dto.canAccessFinance,
+          canAccessComplaints: dto.canAccessComplaints,
+          canManageStaff: dto.canManageStaff,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...(dto.granularPermissions !== undefined
+            ? { granularPermissions: dto.granularPermissions as any }
+            : {}),
+        },
+      });
+    }
 
     return { message: 'App permissions updated successfully' };
   }
@@ -687,6 +713,7 @@ export class StaffService {
         maintenanceStaffPropertyAccesses: {
           select: {
             property: { select: { id: true, name: true } },
+            permissions: true,
           },
         },
       },
@@ -712,7 +739,11 @@ export class StaffService {
       },
       granularPermissions: staffProfile.granularPermissions ?? {},
       allowedPropertyIds: staffProfile.maintenanceStaffPropertyAccesses.map((a) => a.property.id),
-      allowedProperties: staffProfile.maintenanceStaffPropertyAccesses.map((a) => a.property),
+      allowedProperties: staffProfile.maintenanceStaffPropertyAccesses.map((a) => ({
+        id: a.property.id,
+        name: a.property.name,
+        permissions: a.permissions ?? {},
+      })),
     };
   }
 

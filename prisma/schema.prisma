@@ -491,6 +491,9 @@ model MaintenanceStaffPropertyAccess {
   id             Int                     @id @default(autoincrement())
   propertyId     Int
   staffProfileId Int
+  /// Per-property module and granular permissions. Overrides profile-level booleans
+  /// for SELECTIVE scope staff. Empty {} means full restriction for that property.
+  permissions    Json                    @default("{}")
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
   property       Property                @relation(fields: [propertyId], references: [id])

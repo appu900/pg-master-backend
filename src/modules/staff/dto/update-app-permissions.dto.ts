@@ -21,6 +21,7 @@ export class TenantsPermissionsDto {
 
 export class FinancePermissionsDto {
   @IsOptional() @IsBoolean() viewDues?: boolean;
+  @IsOptional() @IsBoolean() editDues?: boolean;
   @IsOptional() @IsBoolean() collectPayments?: boolean;
   @IsOptional() @IsBoolean() viewExpenses?: boolean;
   @IsOptional() @IsBoolean() addExpenses?: boolean;
@@ -71,4 +72,10 @@ export class UpdateStaffAppPermissionsDto {
   @ValidateNested()
   @Type(() => GranularPermissionsDto)
   granularPermissions?: GranularPermissionsDto;
+
+  /** When provided, update per-property permissions on MaintenanceStaffPropertyAccess */
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  propertyId?: number;
 }
