@@ -530,7 +530,12 @@ export class DueService {
       where: { id: propertyId },
       select: { name: true },
     });
-    const bulkReminderKey = `bulk-reminder-${propertyId}-${Date.now()}`;
+    const now = new Date();
+    const currentHour = now.getHours();
+    const date = now.getDate();
+    const bulkReminderKey = `bulk-reminder-${propertyId}-${date}`;
+    console.log(bulkReminderKey);
+    
     const isLocked = await this.redisService.get(bulkReminderKey);
     if(isLocked){
       throw new BadRequestException('Bulk reminder is already sent for this property, you can send only once in 24 hours');
@@ -627,7 +632,11 @@ export class DueService {
       );
     }
 
-    await this.redisService.set(bulkReminderKey, 'locked', 24 * 60 * 60); // Lock for 24 hours
+
+    // check how many hours left to night 12:00 AM
+    const hoursLeft = 24 - currentHour;
+    //set hours to expire the lock after 24 hours
+    await this.redisService.set(bulkReminderKey, 'locked', hoursLeft * 60 * 60); // Lock for 24 hours
 
     return {
       message:

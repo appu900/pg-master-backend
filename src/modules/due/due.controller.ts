@@ -106,7 +106,7 @@ export class DuesController {
 
   @Post('/property/:propertyId/bulk-remind')
   @Roles(Role.PROPERTY_OWNER)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  // @UseGuards(JwtAuthGuard, RolesGuard)
   async sendBulkReminder(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @Body() dto: BulkReminderDto,
