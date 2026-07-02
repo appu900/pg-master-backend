@@ -755,6 +755,32 @@ export class StaffService {
     if (!staffProfile) throw new NotFoundException('Staff profile not found');
     if (!staffProfile.isActive) throw new ForbiddenException('Your account has been deactivated');
 
+    let allowedProperties = staffProfile.maintenanceStaffPropertyAccesses.map((a) => ({
+      id: a.property.id,
+      name: a.property.name,
+      permissions: a.permissions ?? {},
+    }));
+    let allowedPropertyIds = allowedProperties.map((p) => p.id);
+
+    if (staffProfile.propertyScope === PropertyAccessScope.ALL_PROPERTIES) {
+      try {
+        const ownerId = await this.resolveOwnerFromStaff(userId);
+        const ownerProperties = await this.prisma.property.findMany({
+          where: { ownerId },
+          select: { id: true, name: true },
+          orderBy: { name: 'asc' },
+        });
+        allowedProperties = ownerProperties.map((property) => ({
+          id: property.id,
+          name: property.name,
+          permissions: {},
+        }));
+        allowedPropertyIds = ownerProperties.map((property) => property.id);
+      } catch {
+        // Keep property-access rows if owner lookup fails unexpectedly.
+      }
+    }
+
     return {
       userId: staffProfile.user.id,
       profileId: staffProfile.id,
@@ -762,7 +788,10 @@ export class StaffService {
       phoneNumber: staffProfile.phoneNumber,
       whatsAppNumber: staffProfile.whatsAppNumber,
       email: staffProfile.user.email,
-      monthlySalary: staffProfile.monthlySalary,
+      monthlySalary:
+        staffProfile.monthlySalary != null
+          ? Number(staffProfile.monthlySalary)
+          : null,
       staffType: staffProfile.staffType,
       jobPosition: staffProfile.jobPosition,
       propertyScope: staffProfile.propertyScope,
@@ -775,12 +804,8 @@ export class StaffService {
         canAccessOwnerSettings: staffProfile.canAccessOwnerSettings,
       },
       granularPermissions: staffProfile.granularPermissions ?? {},
-      allowedPropertyIds: staffProfile.maintenanceStaffPropertyAccesses.map((a) => a.property.id),
-      allowedProperties: staffProfile.maintenanceStaffPropertyAccesses.map((a) => ({
-        id: a.property.id,
-        name: a.property.name,
-        permissions: a.permissions ?? {},
-      })),
+      allowedPropertyIds,
+      allowedProperties,
     };
   }
 
