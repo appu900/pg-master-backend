@@ -71,20 +71,30 @@ export class ExpensesController {
 
   @Delete(':expenseId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
-  async deleteExpense(@Param('expenseId', ParseIntPipe) expenseId: number) {
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
+  async deleteExpense(
+    @Param('expenseId', ParseIntPipe) expenseId: number,
+    @GetUser() user: any,
+  ) {
     if (!expenseId) throw new BadRequestException('expense id is required');
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffExpenseAccess(user.userId, expenseId);
+    }
     return this.expensesServices.deleteExpenses(expenseId);
   }
 
   @Put(':expenseId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async updateExpense(
     @Body() dto: EditExpensesDto,
     @Param('expenseId', ParseIntPipe) expenseId: number,
+    @GetUser() user: any,
   ) {
     if (!expenseId) throw new BadRequestException('expense id is required');
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffExpenseAccess(user.userId, expenseId);
+    }
     return this.expensesServices.editExpenses(expenseId, dto);
   }
 }

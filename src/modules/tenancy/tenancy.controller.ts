@@ -157,24 +157,33 @@ export class TenancyController {
 
   @Get('/room-shift-requests/property/:propertyId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async getRoomShiftRequests(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @GetUser() user: any,
   ) {
-    return this.tenancyService.getRoomShiftRequests(propertyId, user.userId);
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.tenancyService.getRoomShiftRequests(propertyId, effectiveOwnerId);
   }
 
   @Get('/room-shift-request/:requestId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async getRoomShiftRequestDetails(
     @Param('requestId', ParseIntPipe) requestId: number,
     @GetUser() user: any,
   ) {
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
     return this.tenancyService.getRoomShiftRequestDetails(
       requestId,
-      user.userId,
+      effectiveOwnerId,
     );
   }
 

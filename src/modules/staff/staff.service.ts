@@ -647,8 +647,7 @@ export class StaffService {
     if (!employeeBook) throw new ForbiddenException('You do not have access to manage this staff member');
 
     if (dto.propertyId) {
-      // Per-property update: store permissions on the property access record so SELECTIVE
-      // scope staff can have different access per property.
+
       const propertyAccess = await this.prisma.maintenanceStaffPropertyAccess.findFirst({
         where: { staffProfileId: dto.staffProfileId, propertyId: dto.propertyId },
       });
@@ -668,8 +667,6 @@ export class StaffService {
         data: { permissions: propertyPermissions as any },
       });
     } else {
-      // Global update: update profile-level permissions (used for ALL_PROPERTIES scope
-      // or as the legacy fallback).
       await this.prisma.maintenanceStaffProfile.update({
         where: { id: dto.staffProfileId },
         data: {
@@ -758,14 +755,7 @@ export class StaffService {
   }
 
 
-  /**
-   * Validates that a MAINTENANCE_STAFF user has access to the given property.
-   *
-   * - ALL_PROPERTIES scope → confirms the property belongs to the staff's owner.
-   * - SELECTIVE scope      → checks MaintenanceStaffPropertyAccess row exists.
-   *
-   * Throws ForbiddenException on any failure.
-   */
+
   async validateStaffPropertyAccess(staffUserId: number, propertyId: number): Promise<void> {
     const profile = await this.prisma.maintenanceStaffProfile.findFirst({
       where: { userId: staffUserId },
@@ -774,7 +764,6 @@ export class StaffService {
     if (!profile) throw new ForbiddenException('Staff profile not found');
 
     if (profile.propertyScope === PropertyAccessScope.ALL_PROPERTIES) {
-      // For ALL_PROPERTIES staff, the property just needs to belong to their owner.
       const ownerId = await this.resolveOwnerFromStaff(staffUserId);
       const property = await this.prisma.property.findFirst({
         where: { id: propertyId, ownerId },
@@ -784,7 +773,6 @@ export class StaffService {
       return;
     }
 
-    // SELECTIVE scope: explicit per-property access row required.
     const access = await this.prisma.maintenanceStaffPropertyAccess.findFirst({
       where: { staffProfileId: profile.id, propertyId },
       select: { id: true },
@@ -792,7 +780,6 @@ export class StaffService {
     if (!access) throw new ForbiddenException('Staff does not have access to this property');
   }
 
-  /** Validates staff access for a complaint (fetches complaint.propertyId, then validates). */
   async validateStaffComplaintAccess(staffUserId: number, complaintId: number): Promise<void> {
     const complaint = await this.prisma.complaint.findFirst({
       where: { id: complaintId },
@@ -802,7 +789,6 @@ export class StaffService {
     await this.validateStaffPropertyAccess(staffUserId, complaint.propertyId);
   }
 
-  /** Validates staff access for a due (fetches tenantDue.propertyId, then validates). */
   async validateStaffDueAccess(staffUserId: number, dueId: number): Promise<void> {
     const due = await this.prisma.tenantDue.findFirst({
       where: { id: dueId },
@@ -812,7 +798,6 @@ export class StaffService {
     await this.validateStaffPropertyAccess(staffUserId, due.propertyId);
   }
 
-  /** Validates staff access for a room (fetches room.propertyId, then validates). */
   async validateStaffRoomAccess(staffUserId: number, roomId: number): Promise<void> {
     const room = await this.prisma.room.findFirst({
       where: { id: roomId },
@@ -822,7 +807,6 @@ export class StaffService {
     await this.validateStaffPropertyAccess(staffUserId, room.propertyId);
   }
 
-  /** Validates staff access for a tenancy by tenancy PK (fetches property, then validates). */
   async validateStaffTenancyAccess(staffUserId: number, tenancyId: number): Promise<void> {
     const tenancy = await this.prisma.tenancy.findFirst({
       where: { id: tenancyId },
@@ -832,10 +816,7 @@ export class StaffService {
     await this.validateStaffPropertyAccess(staffUserId, tenancy.propertyId);
   }
 
-  /**
-   * Validates staff access using a tenant's USER ID (tenentId on Tenancy).
-   * Used for due endpoints that route by tenant user id, not tenancy PK.
-   */
+
   async validateStaffTenantUserAccess(staffUserId: number, tenantUserId: number): Promise<void> {
     const tenancy = await this.prisma.tenancy.findFirst({
       where: { tenentId: tenantUserId },
@@ -860,6 +841,15 @@ export class StaffService {
       throw new BadRequestException('access denied');
     }
     return true;
+  }
+
+  async validateStaffExpenseAccess(staffUserId: number, expenseId: number): Promise<void> {
+    const expense = await this.prisma.expenses.findUnique({
+      where: { id: expenseId },
+      select: { propertyId: true },
+    });
+    if (!expense) throw new NotFoundException('Expense not found');
+    await this.validateStaffPropertyAccess(staffUserId, expense.propertyId);
   }
 
   private async validateOwnertoEmployeeMapping(
