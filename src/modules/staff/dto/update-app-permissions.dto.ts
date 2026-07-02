@@ -1,42 +1,49 @@
-import { IsBoolean, IsInt, IsObject, IsOptional, IsPositive, ValidateNested } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsPositive,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class RoomsPermissionsDto {
-  @IsBoolean() view: boolean;
-  @IsBoolean() edit: boolean;
+  @IsOptional() @IsBoolean() view?: boolean;
+  @IsOptional() @IsBoolean() edit?: boolean;
 }
 
 export class TenantsPermissionsDto {
-  @IsBoolean() view: boolean;
-  @IsBoolean() add: boolean;
-  @IsBoolean() edit: boolean;
+  @IsOptional() @IsBoolean() view?: boolean;
+  @IsOptional() @IsBoolean() add?: boolean;
+  @IsOptional() @IsBoolean() edit?: boolean;
 }
 
 export class FinancePermissionsDto {
-  @IsBoolean() viewDues: boolean;
-  @IsBoolean() collectPayments: boolean;
-  @IsBoolean() viewExpenses: boolean;
-  @IsBoolean() addExpenses: boolean;
+  @IsOptional() @IsBoolean() viewDues?: boolean;
+  @IsOptional() @IsBoolean() collectPayments?: boolean;
+  @IsOptional() @IsBoolean() viewExpenses?: boolean;
+  @IsOptional() @IsBoolean() addExpenses?: boolean;
 }
 
 export class ComplaintsPermissionsDto {
-  @IsBoolean() view: boolean;
-  @IsBoolean() add: boolean;
-  @IsBoolean() handle: boolean;
+  @IsOptional() @IsBoolean() view?: boolean;
+  @IsOptional() @IsBoolean() add?: boolean;
+  @IsOptional() @IsBoolean() handle?: boolean;
 }
 
 export class GranularPermissionsDto {
-  @IsObject() @ValidateNested() @Type(() => RoomsPermissionsDto)
-  rooms: RoomsPermissionsDto;
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => RoomsPermissionsDto)
+  rooms?: RoomsPermissionsDto;
 
-  @IsObject() @ValidateNested() @Type(() => TenantsPermissionsDto)
-  tenants: TenantsPermissionsDto;
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => TenantsPermissionsDto)
+  tenants?: TenantsPermissionsDto;
 
-  @IsObject() @ValidateNested() @Type(() => FinancePermissionsDto)
-  finance: FinancePermissionsDto;
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => FinancePermissionsDto)
+  finance?: FinancePermissionsDto;
 
-  @IsObject() @ValidateNested() @Type(() => ComplaintsPermissionsDto)
-  complaints: ComplaintsPermissionsDto;
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => ComplaintsPermissionsDto)
+  complaints?: ComplaintsPermissionsDto;
 }
 
 export class UpdateStaffAppPermissionsDto {
