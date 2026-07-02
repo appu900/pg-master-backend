@@ -469,6 +469,11 @@ model MaintenanceStaffProfile {
   monthlySalary                    Decimal                          @db.Decimal(10, 2)
   propertyScope                    PropertyAccessScope
   isActive                         Boolean                          @default(true)
+  canAccessRooms                   Boolean                          @default(false)
+  canAccessTenants                 Boolean                          @default(false)
+  canAccessFinance                 Boolean                          @default(false)
+  canAccessComplaints              Boolean                          @default(false)
+  canManageStaff                   Boolean                          @default(false)
   createdAt                        DateTime                         @default(now())
   updatedAt                        DateTime                         @updatedAt
   complaints                       Complaint[]

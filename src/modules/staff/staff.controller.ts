@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   UseGuards,
   Body,
   Patch,
@@ -19,6 +20,7 @@ import { CreateStaffDto } from './dto/create.staff.dto';
 import { GetUser } from 'src/common/decorators/Getuser.decorator';
 import { EditStaffAccessDto } from './dto/edit-Staff_Access.dto';
 import { EditEmployeeProfileDto } from './dto/edit.staff.profile.dto';
+import { UpdateStaffAppPermissionsDto } from './dto/update-app-permissions.dto';
 
 @Controller('staff')
 export class StaffController {
@@ -101,6 +103,33 @@ export class StaffController {
     @GetUser() user: any,
   ) {
     return this.maintenanceStaffService.getStaffCollectionSummaryByProperty(propertyId, user.userId);
+  }
+
+  @Delete(':id')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async deleteStaff(@Param('id', ParseIntPipe) staffProfileId: number, @GetUser() user: any) {
+    const ownerId = user.userId;
+    if (!ownerId) throw new UnauthorizedException();
+    return this.maintenanceStaffService.deleteStaff(ownerId, staffProfileId);
+  }
+
+  @Patch('app-permissions')
+  @Roles(Role.PROPERTY_OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async updateStaffAppPermissions(@Body() dto: UpdateStaffAppPermissionsDto, @GetUser() user: any) {
+    const ownerId = user.userId;
+    if (!ownerId) throw new UnauthorizedException();
+    return this.maintenanceStaffService.updateStaffAppPermissions(ownerId, dto);
+  }
+
+  @Get('me')
+  @Roles(Role.MAINTENANCE_STAFF)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async getStaffSelfProfile(@GetUser() user: any) {
+    const userId = user.userId;
+    if (!userId) throw new UnauthorizedException();
+    return this.maintenanceStaffService.getStaffSelfProfile(userId);
   }
 
 }

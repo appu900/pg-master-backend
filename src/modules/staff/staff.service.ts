@@ -16,6 +16,7 @@ import {
 import { StaffMapper } from './mappers/staff.mappers';
 import { EditStaffAccessDto } from './dto/edit-Staff_Access.dto';
 import { EditEmployeeProfileDto } from './dto/edit.staff.profile.dto';
+import { UpdateStaffAppPermissionsDto } from './dto/update-app-permissions.dto';
 import {
   normalizePhoneNumber,
   phoneSearchVariants,
@@ -134,6 +135,13 @@ export class StaffService {
         staffType: true,
         jobPosition: true,
         monthlySalary: true,
+        propertyScope: true,
+        isActive: true,
+        canAccessRooms: true,
+        canAccessTenants: true,
+        canAccessFinance: true,
+        canAccessComplaints: true,
+        canManageStaff: true,
         user: {
           select: {
             id: true,
@@ -205,6 +213,7 @@ export class StaffService {
     const records = await this.prisma.employeeBook.findMany({
       where: {
         ownerId: ownerId,
+        employeeProfile: { isActive: true },
       },
       select: {
         employeeProfile: {
@@ -582,6 +591,121 @@ export class StaffService {
         byPaymentMode: Array.from(byModeMap.values()),
       },
       payments,
+    };
+  }
+
+  async deleteStaff(ownerId: number, staffProfileId: number) {
+    const staffProfile = await this.prisma.maintenanceStaffProfile.findUnique({
+      where: { id: staffProfileId },
+      select: { id: true, userId: true, isActive: true },
+    });
+    if (!staffProfile) throw new NotFoundException('Staff member not found');
+
+    const employeeBook = await this.validateOwnertoEmployeeMapping(ownerId, staffProfileId);
+    if (!employeeBook) throw new ForbiddenException('You do not have access to delete this staff member');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.maintenanceStaffPropertyAccess.deleteMany({
+        where: { staffProfileId },
+      });
+
+      await tx.employeeBook.deleteMany({
+        where: { employeeProfileId: staffProfileId },
+      });
+
+      // Unassign from complaints instead of hard-deleting
+      await tx.complaint.updateMany({
+        where: { assignedMaintenanceStaffProfileId: staffProfileId },
+        data: { assignedMaintenanceStaffProfileId: null },
+      });
+
+      await tx.maintenanceStaffProfile.update({
+        where: { id: staffProfileId },
+        data: { isActive: false },
+      });
+
+      await tx.user.update({
+        where: { id: staffProfile.userId },
+        data: { isActive: false },
+      });
+    });
+
+    return { message: 'Staff member removed successfully' };
+  }
+
+  async updateStaffAppPermissions(ownerId: number, dto: UpdateStaffAppPermissionsDto) {
+    const staffProfile = await this.prisma.maintenanceStaffProfile.findUnique({
+      where: { id: dto.staffProfileId },
+      select: { id: true, isActive: true },
+    });
+    if (!staffProfile) throw new NotFoundException('Staff member not found');
+    if (!staffProfile.isActive) throw new BadRequestException('Cannot update permissions for an inactive staff member');
+
+    const employeeBook = await this.validateOwnertoEmployeeMapping(ownerId, dto.staffProfileId);
+    if (!employeeBook) throw new ForbiddenException('You do not have access to manage this staff member');
+
+    await this.prisma.maintenanceStaffProfile.update({
+      where: { id: dto.staffProfileId },
+      data: {
+        canAccessRooms: dto.canAccessRooms,
+        canAccessTenants: dto.canAccessTenants,
+        canAccessFinance: dto.canAccessFinance,
+        canAccessComplaints: dto.canAccessComplaints,
+        canManageStaff: dto.canManageStaff,
+      },
+    });
+
+    return { message: 'App permissions updated successfully' };
+  }
+
+  async getStaffSelfProfile(userId: number) {
+    const staffProfile = await this.prisma.maintenanceStaffProfile.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        staffType: true,
+        jobPosition: true,
+        monthlySalary: true,
+        propertyScope: true,
+        phoneNumber: true,
+        whatsAppNumber: true,
+        isActive: true,
+        canAccessRooms: true,
+        canAccessTenants: true,
+        canAccessFinance: true,
+        canAccessComplaints: true,
+        canManageStaff: true,
+        user: {
+          select: { id: true, fullName: true, phoneNumber: true, email: true },
+        },
+        maintenanceStaffPropertyAccesses: {
+          select: {
+            property: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    if (!staffProfile) throw new NotFoundException('Staff profile not found');
+    if (!staffProfile.isActive) throw new ForbiddenException('Your account has been deactivated');
+
+    return {
+      userId: staffProfile.user.id,
+      profileId: staffProfile.id,
+      fullName: staffProfile.user.fullName,
+      phoneNumber: staffProfile.phoneNumber,
+      staffType: staffProfile.staffType,
+      jobPosition: staffProfile.jobPosition,
+      propertyScope: staffProfile.propertyScope,
+      permissions: {
+        canAccessRooms: staffProfile.canAccessRooms,
+        canAccessTenants: staffProfile.canAccessTenants,
+        canAccessFinance: staffProfile.canAccessFinance,
+        canAccessComplaints: staffProfile.canAccessComplaints,
+        canManageStaff: staffProfile.canManageStaff,
+      },
+      allowedPropertyIds: staffProfile.maintenanceStaffPropertyAccesses.map((a) => a.property.id),
+      allowedProperties: staffProfile.maintenanceStaffPropertyAccesses.map((a) => a.property),
     };
   }
 
