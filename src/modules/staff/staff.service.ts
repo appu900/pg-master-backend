@@ -635,10 +635,39 @@ export class StaffService {
     return { message: 'Staff member removed successfully' };
   }
 
+  private mergeGranularPermissions(
+    existing: Record<string, unknown> | null | undefined,
+    incoming: Record<string, unknown> | null | undefined,
+  ): Record<string, unknown> {
+    const merged: Record<string, unknown> = { ...(existing ?? {}) };
+    if (!incoming) return merged;
+
+    for (const [moduleKey, modulePerms] of Object.entries(incoming)) {
+      if (modulePerms && typeof modulePerms === 'object' && !Array.isArray(modulePerms)) {
+        const prev =
+          merged[moduleKey] &&
+          typeof merged[moduleKey] === 'object' &&
+          !Array.isArray(merged[moduleKey])
+            ? (merged[moduleKey] as Record<string, unknown>)
+            : {};
+        merged[moduleKey] = { ...prev, ...(modulePerms as Record<string, unknown>) };
+      }
+    }
+    return merged;
+  }
+
+  private stripManageStaffFromGranular(
+    granular: Record<string, unknown> | null | undefined,
+  ): Record<string, unknown> {
+    if (!granular) return {};
+    const { manageStaff: _omit, ...rest } = granular;
+    return rest;
+  }
+
   async updateStaffAppPermissions(ownerId: number, dto: UpdateStaffAppPermissionsDto) {
     const staffProfile = await this.prisma.maintenanceStaffProfile.findUnique({
       where: { id: dto.staffProfileId },
-      select: { id: true, isActive: true },
+      select: { id: true, isActive: true, granularPermissions: true },
     });
     if (!staffProfile) throw new NotFoundException('Staff member not found');
     if (!staffProfile.isActive) throw new BadRequestException('Cannot update permissions for an inactive staff member');
@@ -658,7 +687,9 @@ export class StaffService {
         canAccessTenants: dto.canAccessTenants,
         canAccessFinance: dto.canAccessFinance,
         canAccessComplaints: dto.canAccessComplaints,
-        granularPermissions: dto.granularPermissions ?? {},
+        granularPermissions: this.stripManageStaffFromGranular(
+          (dto.granularPermissions ?? {}) as Record<string, unknown>,
+        ),
       };
 
       await this.prisma.maintenanceStaffPropertyAccess.update({
@@ -667,6 +698,14 @@ export class StaffService {
         data: { permissions: propertyPermissions as any },
       });
     } else {
+      const mergedGranular =
+        dto.granularPermissions !== undefined
+          ? this.mergeGranularPermissions(
+              staffProfile.granularPermissions as Record<string, unknown> | null,
+              dto.granularPermissions as Record<string, unknown>,
+            )
+          : undefined;
+
       await this.prisma.maintenanceStaffProfile.update({
         where: { id: dto.staffProfileId },
         data: {
@@ -675,9 +714,8 @@ export class StaffService {
           canAccessFinance: dto.canAccessFinance,
           canAccessComplaints: dto.canAccessComplaints,
           canManageStaff: dto.canManageStaff,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ...(dto.granularPermissions !== undefined
-            ? { granularPermissions: dto.granularPermissions as any }
+          ...(mergedGranular !== undefined
+            ? { granularPermissions: mergedGranular as any }
             : {}),
         },
       });
@@ -781,9 +819,38 @@ export class StaffService {
   }
 
   async validateStaffManageStaffAccess(staffUserId: number): Promise<number> {
+    return this.validateStaffManageStaffModuleAccess(staffUserId, 'view');
+  }
+
+  private isManageStaffGranularActionAllowed(
+    manageStaffGranular: Record<string, boolean>,
+    action: 'view' | 'add' | 'edit' | 'delete',
+  ): boolean {
+    const keys = Object.keys(manageStaffGranular ?? {});
+    if (keys.length === 0) return true;
+
+    const hasNewStyleKeys = ['view', 'add', 'edit'].some(
+      (key) => key in manageStaffGranular,
+    );
+    // Legacy profiles only stored manageStaff.delete — treat as full manage access.
+    if (!hasNewStyleKeys && keys.length <= 1 && 'delete' in manageStaffGranular) {
+      return true;
+    }
+
+    return manageStaffGranular[action] === true;
+  }
+
+  async validateStaffManageStaffModuleAccess(
+    staffUserId: number,
+    action: 'view' | 'add' | 'edit' | 'delete' = 'view',
+  ): Promise<number> {
     const profile = await this.prisma.maintenanceStaffProfile.findFirst({
       where: { userId: staffUserId },
-      select: { canManageStaff: true, isActive: true },
+      select: {
+        canManageStaff: true,
+        isActive: true,
+        granularPermissions: true,
+      },
     });
     if (!profile) throw new ForbiddenException('Staff profile not found');
     if (!profile.isActive) {
@@ -794,14 +861,32 @@ export class StaffService {
         'Staff does not have Manage Staff Members access',
       );
     }
+
+    const gp = profile.granularPermissions as Record<
+      string,
+      Record<string, boolean>
+    > | null;
+    const manageStaffGranular = gp?.manageStaff ?? {};
+    if (
+      !this.isManageStaffGranularActionAllowed(manageStaffGranular, action)
+    ) {
+      throw new ForbiddenException(
+        `Staff does not have permission to ${action} staff members`,
+      );
+    }
+
     return this.resolveOwnerFromStaff(staffUserId);
   }
 
   async validateStaffManageStaffProfileAccess(
     staffUserId: number,
     targetProfileId: number,
+    action: 'view' | 'edit' | 'delete' = 'edit',
   ): Promise<number> {
-    const ownerId = await this.validateStaffManageStaffAccess(staffUserId);
+    const ownerId = await this.validateStaffManageStaffModuleAccess(
+      staffUserId,
+      action,
+    );
     const book = await this.validateOwnertoEmployeeMapping(
       ownerId,
       targetProfileId,
@@ -817,8 +902,12 @@ export class StaffService {
   async validateStaffManageStaffUserAccess(
     staffUserId: number,
     targetStaffUserId: number,
+    action: 'view' | 'edit' | 'delete' = 'view',
   ): Promise<number> {
-    const ownerId = await this.validateStaffManageStaffAccess(staffUserId);
+    const ownerId = await this.validateStaffManageStaffModuleAccess(
+      staffUserId,
+      action,
+    );
     const targetProfile = await this.prisma.maintenanceStaffProfile.findFirst({
       where: { userId: targetStaffUserId },
       select: { id: true },
@@ -839,8 +928,12 @@ export class StaffService {
   async validateStaffManageStaffPropertyAccess(
     staffUserId: number,
     propertyId: number,
+    action: 'view' | 'edit' = 'view',
   ): Promise<number> {
-    const ownerId = await this.validateStaffManageStaffAccess(staffUserId);
+    const ownerId = await this.validateStaffManageStaffModuleAccess(
+      staffUserId,
+      action,
+    );
     const property = await this.prisma.property.findFirst({
       where: { id: propertyId, ownerId },
       select: { id: true },
@@ -1598,36 +1691,11 @@ export class StaffService {
     staffUserId: number,
     targetProfileId: number,
   ): Promise<number> {
-    const ownerId = await this.validateStaffManageStaffAccess(staffUserId);
-
-    const profile = await this.prisma.maintenanceStaffProfile.findFirst({
-      where: { userId: staffUserId },
-      select: { granularPermissions: true },
-    });
-    if (!profile) throw new ForbiddenException('Staff profile not found');
-
-    const gp = profile.granularPermissions as Record<
-      string,
-      Record<string, boolean>
-    > | null;
-    const manageStaffGranular = gp?.manageStaff ?? {};
-    const granularKeys = Object.keys(manageStaffGranular ?? {});
-    if (granularKeys.length > 0 && manageStaffGranular.delete !== true) {
-      throw new ForbiddenException(
-        'Staff does not have permission to delete staff members',
-      );
-    }
-
-    const book = await this.validateOwnertoEmployeeMapping(
-      ownerId,
+    return this.validateStaffManageStaffProfileAccess(
+      staffUserId,
       targetProfileId,
+      'delete',
     );
-    if (!book) {
-      throw new ForbiddenException(
-        'You do not have access to manage this staff member',
-      );
-    }
-    return ownerId;
   }
 
   private async validateOwnertoEmployeeMapping(

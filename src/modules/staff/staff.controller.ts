@@ -33,8 +33,9 @@ export class StaffController {
     let ownerId = user.userId;
     if (!ownerId) throw new BadRequestException('please login again and try');
     if (user.role === Role.MAINTENANCE_STAFF) {
-      ownerId = await this.maintenanceStaffService.validateStaffManageStaffAccess(
+      ownerId = await this.maintenanceStaffService.validateStaffManageStaffModuleAccess(
         user.userId,
+        'add',
       );
     }
     return this.maintenanceStaffService.createMaintenanceStaff(ownerId, dto);
@@ -51,6 +52,7 @@ export class StaffController {
       await this.maintenanceStaffService.validateStaffManageStaffProfileAccess(
         user.userId,
         staffProfileId,
+        'view',
       );
     }
     return this.maintenanceStaffService.getStaffDetailsById(staffProfileId);
@@ -63,8 +65,9 @@ export class StaffController {
     let ownerId = user.userId;
     if (!ownerId) throw new BadRequestException('please login and try again');
     if (user.role === Role.MAINTENANCE_STAFF) {
-      ownerId = await this.maintenanceStaffService.validateStaffManageStaffAccess(
+      ownerId = await this.maintenanceStaffService.validateStaffManageStaffModuleAccess(
         user.userId,
+        'view',
       );
     }
     return this.maintenanceStaffService.getMaintenanceStaffsByOwner(ownerId);
@@ -116,6 +119,7 @@ export class StaffController {
         await this.maintenanceStaffService.validateStaffManageStaffProfileAccess(
           user.userId,
           dto.staffProfileId,
+          'edit',
         );
     }
     return this.maintenanceStaffService.editStaffAccess(ownerId, dto);
@@ -135,6 +139,7 @@ export class StaffController {
         await this.maintenanceStaffService.validateStaffManageStaffProfileAccess(
           user.userId,
           dto.empProfileId,
+          'edit',
         );
     }
     return this.maintenanceStaffService.editMaintenanceStaffProfile(
@@ -155,6 +160,7 @@ export class StaffController {
       await this.maintenanceStaffService.validateStaffManageStaffUserAccess(
         user.userId,
         userId,
+        'view',
       );
     }
     return this.maintenanceStaffService.getExpensesByStaffUserId(userId);
@@ -171,6 +177,7 @@ export class StaffController {
       await this.maintenanceStaffService.validateStaffManageStaffUserAccess(
         user.userId,
         userId,
+        'view',
       );
     }
     return this.maintenanceStaffService.getPaymentsCollectedByStaff(userId);
@@ -189,6 +196,7 @@ export class StaffController {
         await this.maintenanceStaffService.validateStaffManageStaffPropertyAccess(
           user.userId,
           propertyId,
+          'view',
         );
     }
     return this.maintenanceStaffService.getStaffCollectionSummaryByProperty(
@@ -230,6 +238,7 @@ export class StaffController {
         await this.maintenanceStaffService.validateStaffManageStaffProfileAccess(
           user.userId,
           dto.staffProfileId,
+          'edit',
         );
     }
     return this.maintenanceStaffService.updateStaffAppPermissions(ownerId, dto);

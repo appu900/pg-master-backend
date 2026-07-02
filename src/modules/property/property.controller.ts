@@ -50,8 +50,9 @@ export class PropertyController {
     let ownerId = user.userId;
     if (!ownerId) throw new BadRequestException();
     if (user.role === Role.MAINTENANCE_STAFF) {
-      ownerId = await this.staffService.validateStaffManageStaffAccess(
+      ownerId = await this.staffService.validateStaffManageStaffModuleAccess(
         user.userId,
+        'edit',
       );
     }
     return this.propertyService.getPropertiesByPropertyOwner(ownerId);

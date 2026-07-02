@@ -32,6 +32,9 @@ export class FinancePermissionsDto {
 }
 
 export class ManageStaffPermissionsDto {
+  @IsOptional() @IsBoolean() view?: boolean;
+  @IsOptional() @IsBoolean() add?: boolean;
+  @IsOptional() @IsBoolean() edit?: boolean;
   @IsOptional() @IsBoolean() delete?: boolean;
 }
 
