@@ -644,13 +644,8 @@ export class StaffService {
 
     for (const [moduleKey, modulePerms] of Object.entries(incoming)) {
       if (modulePerms && typeof modulePerms === 'object' && !Array.isArray(modulePerms)) {
-        const prev =
-          merged[moduleKey] &&
-          typeof merged[moduleKey] === 'object' &&
-          !Array.isArray(merged[moduleKey])
-            ? (merged[moduleKey] as Record<string, unknown>)
-            : {};
-        merged[moduleKey] = { ...prev, ...(modulePerms as Record<string, unknown>) };
+        // Replace the whole module payload so explicit false values persist.
+        merged[moduleKey] = modulePerms;
       }
     }
     return merged;
