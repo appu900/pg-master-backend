@@ -18,9 +18,6 @@ import { CreateAdminDto } from './dto/create-admin.dto';
 import { CreatePropertyOwnerDto } from './dto/create.Property-owner.dto';
 
 
-
-
-
 @Injectable()
 export class AuthService {
   constructor(
