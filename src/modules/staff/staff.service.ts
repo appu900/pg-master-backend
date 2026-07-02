@@ -142,6 +142,7 @@ export class StaffService {
         canAccessFinance: true,
         canAccessComplaints: true,
         canManageStaff: true,
+        granularPermissions: true,
         user: {
           select: {
             id: true,
@@ -652,6 +653,10 @@ export class StaffService {
         canAccessFinance: dto.canAccessFinance,
         canAccessComplaints: dto.canAccessComplaints,
         canManageStaff: dto.canManageStaff,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(dto.granularPermissions !== undefined
+          ? { granularPermissions: dto.granularPermissions as any }
+          : {}),
       },
     });
 
@@ -675,6 +680,7 @@ export class StaffService {
         canAccessFinance: true,
         canAccessComplaints: true,
         canManageStaff: true,
+        granularPermissions: true,
         user: {
           select: { id: true, fullName: true, phoneNumber: true, email: true },
         },
@@ -704,6 +710,7 @@ export class StaffService {
         canAccessComplaints: staffProfile.canAccessComplaints,
         canManageStaff: staffProfile.canManageStaff,
       },
+      granularPermissions: staffProfile.granularPermissions ?? {},
       allowedPropertyIds: staffProfile.maintenanceStaffPropertyAccesses.map((a) => a.property.id),
       allowedProperties: staffProfile.maintenanceStaffPropertyAccesses.map((a) => a.property),
     };
