@@ -8,7 +8,7 @@ import { TenancyService } from './modules/tenancy/tenancy.service';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  
+
   if (!process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET environment variable is required');
   }
@@ -24,22 +24,29 @@ async function bootstrap() {
   app.use(bodyParser.json({ limit: '100mb' }));
   app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
 
-  if (process.env.NODE_ENV === 'production') {
-    app.enableCors({
-      origin: process.env.ALLOWED_ORIGINS?.split(',') || [],
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-    });
-  } else {
-    app.enableCors({
-      origin: true,
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-    });
-    logger.log('CORS enabled for all origins (development mode)');
-  }
+  app.enableCors({
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+
+  // if (process.env.NODE_ENV === 'production') {
+  //   app.enableCors({
+  //     origin: process.env.ALLOWED_ORIGINS?.split(',') || [],
+  //     credentials: true,
+  //     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  //     allowedHeaders: ['Content-Type', 'Authorization'],
+  //   });
+  // } else {
+  //   app.enableCors({
+  //     origin: true,
+  //     credentials: true,
+  //     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  //     allowedHeaders: ['Content-Type', 'Authorization'],
+  //   });
+  //   logger.log('CORS enabled for all origins (development mode)');
+  // }
 
   app.setGlobalPrefix('api');
 
@@ -56,7 +63,7 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
-  console.log(process.env.APP_BASE_URL)
+  console.log(process.env.APP_BASE_URL);
 
   // const moveinService = app.get(TenancyService)
   // const data = await moveinService.getMoveInHistory(2,2)
