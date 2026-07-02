@@ -120,12 +120,16 @@ export class TenancyController {
   // get full details of a single moveout request (with tenant dues)
   @Get('/moveout-request/:requestId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async getMoveOutRequestDetails(
     @Param('requestId', ParseIntPipe) requestId: number,
     @GetUser() user: any,
   ) {
-    return this.tenancyService.getMoveOutRequestDetails(requestId, user.userId);
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.tenancyService.getMoveOutRequestDetails(requestId, effectiveOwnerId);
   }
 
   // approve a moveout request → tenancy goes to NOTICE_PERIOD
@@ -224,22 +228,32 @@ export class TenancyController {
 
   @Get('/move-in-history/property/:propertyId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async getMoveInHistory(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @GetUser() user: any,
   ) {
-    return this.tenancyService.getMoveInHistory(propertyId, user.userId);
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.tenancyService.getMoveInHistory(propertyId, effectiveOwnerId);
   }
 
   @Get('/move-out-history/property/:propertyId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   async getMoveOutHistory(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @GetUser() user: any,
   ) {
-    return this.tenancyService.getMoveOutHistory(propertyId, user.userId);
+    let effectiveOwnerId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffPropertyAccess(user.userId, propertyId);
+      effectiveOwnerId = await this.staffService.resolveOwnerFromStaff(user.userId);
+    }
+    return this.tenancyService.getMoveOutHistory(propertyId, effectiveOwnerId);
   }
 
   @Get('/recently-deleted/:propertyId')

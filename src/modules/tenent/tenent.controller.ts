@@ -111,7 +111,13 @@ export class TenentController {
   @Get('/:tenantId')
   @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getTenantById(@Param('tenantId', ParseIntPipe) tenantId: number) {
+  async getTenantById(
+    @Param('tenantId', ParseIntPipe) tenantId: number,
+    @GetUser() user: any,
+  ) {
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      await this.staffService.validateStaffTenantUserAccess(user.userId, tenantId);
+    }
     return this.tenentService.getTenantById(tenantId);
   }
 
