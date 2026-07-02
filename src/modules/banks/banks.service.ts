@@ -198,10 +198,13 @@ export class BanksService {
     return results;
   }
 
-  async fetchBankAccountById(bankAccountId: number) {
+  async fetchBankAccountById(bankAccountId: number, propertyOwnerId?: number) {
     const bankAccount = await this.prisma.bankAccountDetails.findFirst({
       where: {
         id: bankAccountId,
+        ...(propertyOwnerId
+          ? { profile: { userId: propertyOwnerId } }
+          : {}),
       },
       select: {
         id: true,
@@ -222,6 +225,7 @@ export class BanksService {
         },
       },
     });
+    if (!bankAccount) throw new NotFoundException('Bank account not found');
     return bankAccount;
   }
 }

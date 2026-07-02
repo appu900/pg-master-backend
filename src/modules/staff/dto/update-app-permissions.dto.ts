@@ -38,6 +38,16 @@ export class ManageStaffPermissionsDto {
   @IsOptional() @IsBoolean() delete?: boolean;
 }
 
+export class OwnerSettingsPermissionsDto {
+  @IsOptional() @IsBoolean() viewProfile?: boolean;
+  @IsOptional() @IsBoolean() editProfile?: boolean;
+  @IsOptional() @IsBoolean() viewBusiness?: boolean;
+  @IsOptional() @IsBoolean() editBusiness?: boolean;
+  @IsOptional() @IsBoolean() viewBank?: boolean;
+  @IsOptional() @IsBoolean() editBank?: boolean;
+  @IsOptional() @IsBoolean() propertySettings?: boolean;
+}
+
 export class ComplaintsPermissionsDto {
   @IsOptional() @IsBoolean() view?: boolean;
   @IsOptional() @IsBoolean() add?: boolean;
@@ -59,6 +69,9 @@ export class GranularPermissionsDto {
 
   @IsOptional() @IsObject() @ValidateNested() @Type(() => ManageStaffPermissionsDto)
   manageStaff?: ManageStaffPermissionsDto;
+
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => OwnerSettingsPermissionsDto)
+  ownerSettings?: OwnerSettingsPermissionsDto;
 }
 
 export class UpdateStaffAppPermissionsDto {
@@ -80,6 +93,9 @@ export class UpdateStaffAppPermissionsDto {
 
   @IsBoolean()
   canManageStaff: boolean;
+
+  @IsBoolean()
+  canAccessOwnerSettings: boolean;
 
   @IsOptional()
   @IsObject()

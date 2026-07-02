@@ -475,6 +475,7 @@ model MaintenanceStaffProfile {
   canAccessFinance                 Boolean                          @default(false)
   canAccessComplaints              Boolean                          @default(false)
   canManageStaff                   Boolean                          @default(false)
+  canAccessOwnerSettings           Boolean                          @default(false)
   granularPermissions              Json                             @default("{}")
   createdAt                        DateTime                         @default(now())
   updatedAt                        DateTime                         @updatedAt

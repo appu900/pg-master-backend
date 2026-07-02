@@ -17,68 +17,103 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { StaffService } from '../staff/staff.service';
 import { UpdateBankAccountDto } from './dto/update.bankaccount.dto';
 import { LinkBankAccountDto } from './dto/linkAccount.dto';
 
 @Controller('banks')
 export class BanksController {
-  constructor(private readonly bankService: BanksService) {}
+  constructor(
+    private readonly bankService: BanksService,
+    private readonly staffService: StaffService,
+  ) {}
 
   @Post('/add')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async addAccountDetails(
     @Body() dto: AddBankAccountDto,
     @GetUser() user: any,
   ) {
-    const userId = user.userId;
+    let userId = user.userId;
     if (!userId) throw new UnauthorizedException();
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      userId = await this.staffService.validateStaffOwnerSettingsModuleAccess(
+        user.userId,
+        'editBank',
+      );
+    }
     return this.bankService.addBankAccount(userId, dto);
   }
 
   @Post('/add/upi')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async addUpIAccount(@Body() dto: AddUPIdetailsDto, @GetUser() user: any) {
-    const userId = user.userId;
+    let userId = user.userId;
     if (!userId) throw new UnauthorizedException();
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      userId = await this.staffService.validateStaffOwnerSettingsModuleAccess(
+        user.userId,
+        'editBank',
+      );
+    }
     return this.bankService.addUpiId(userId, dto);
   }
 
   @Get('/propertyowner')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async fetchAllBankAccounts(@GetUser() user: any) {
-    const userId = user.userId;
+    let userId = user.userId;
     if (!userId) throw new UnauthorizedException();
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      userId = await this.staffService.validateStaffOwnerSettingsModuleAccess(
+        user.userId,
+        'viewBank',
+      );
+    }
     return this.bankService.fetchAllBankAccountsByPropertyOwner(userId);
   }
 
   @Put('/account/:accountId/update')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async editBankAccount(
     @Body() dto: UpdateBankAccountDto,
     @GetUser() user: any,
     @Param('accountId', ParseIntPipe) accountId: number,
   ) {
-    const userId = user.userId;
+    let userId = user.userId;
     if (!userId) throw new BadRequestException();
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      userId = await this.staffService.validateStaffOwnerSettingsModuleAccess(
+        user.userId,
+        'editBank',
+      );
+    }
     return this.bankService.updateAccountDetails(accountId, userId, dto);
   }
 
   @Put('/linkaccount/property/:propertyId')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async linkBankAccountToProperty(
     @Param('propertyId', ParseIntPipe) propertyId: number,
     @GetUser() user: any,
     @Body() dto: LinkBankAccountDto,
   ) {
-    const userId = user.userId;
+    let userId = user.userId;
     if (!userId) throw new UnauthorizedException();
     if (!propertyId)
       throw new BadRequestException('select a property and try again');
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      userId = await this.staffService.validateStaffOwnerSettingsPropertyAccess(
+        user.userId,
+        propertyId,
+        'editBank',
+      );
+    }
     return this.bankService.linkPropertyToBankAccount(
       userId,
       propertyId,
@@ -87,22 +122,35 @@ export class BanksController {
   }
 
   @Get('/linkedaccounts')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async fetchAllLinkedBankAccounts(@GetUser() user: any) {
-    const userId = user.userId;
+    let userId = user.userId;
     if (!userId) throw new UnauthorizedException();
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      userId = await this.staffService.validateStaffOwnerSettingsModuleAccess(
+        user.userId,
+        'viewBank',
+      );
+    }
     return this.bankService.fetchAllLinkedAccounts(userId);
   }
 
-
-
-
   @Get('/details/:bankAccountId')
-  @Roles(Role.PROPERTY_OWNER)
-  @UseGuards(JwtAuthGuard,RolesGuard)
-  async fetchBankAccountDetailsByID(@Param('bankAccountId',ParseIntPipe) bankAccountId:number){
-     if(!bankAccountId) throw new BadRequestException();
-     return this.bankService.fetchBankAccountById(bankAccountId)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async fetchBankAccountDetailsByID(
+    @Param('bankAccountId', ParseIntPipe) bankAccountId: number,
+    @GetUser() user: any,
+  ) {
+    if (!bankAccountId) throw new BadRequestException();
+    let ownerUserId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      ownerUserId = await this.staffService.validateStaffOwnerSettingsModuleAccess(
+        user.userId,
+        'viewBank',
+      );
+    }
+    return this.bankService.fetchBankAccountById(bankAccountId, ownerUserId);
   }
 }

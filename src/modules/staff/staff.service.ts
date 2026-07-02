@@ -142,6 +142,7 @@ export class StaffService {
         canAccessFinance: true,
         canAccessComplaints: true,
         canManageStaff: true,
+        canAccessOwnerSettings: true,
         granularPermissions: true,
         user: {
           select: {
@@ -651,11 +652,11 @@ export class StaffService {
     return merged;
   }
 
-  private stripManageStaffFromGranular(
+  private stripGlobalOnlyFromGranular(
     granular: Record<string, unknown> | null | undefined,
   ): Record<string, unknown> {
     if (!granular) return {};
-    const { manageStaff: _omit, ...rest } = granular;
+    const { manageStaff: _omitStaff, ownerSettings: _omitOwner, ...rest } = granular;
     return rest;
   }
 
@@ -682,7 +683,7 @@ export class StaffService {
         canAccessTenants: dto.canAccessTenants,
         canAccessFinance: dto.canAccessFinance,
         canAccessComplaints: dto.canAccessComplaints,
-        granularPermissions: this.stripManageStaffFromGranular(
+        granularPermissions: this.stripGlobalOnlyFromGranular(
           (dto.granularPermissions ?? {}) as Record<string, unknown>,
         ),
       };
@@ -709,6 +710,7 @@ export class StaffService {
           canAccessFinance: dto.canAccessFinance,
           canAccessComplaints: dto.canAccessComplaints,
           canManageStaff: dto.canManageStaff,
+          canAccessOwnerSettings: dto.canAccessOwnerSettings,
           ...(mergedGranular !== undefined
             ? { granularPermissions: mergedGranular as any }
             : {}),
@@ -736,6 +738,7 @@ export class StaffService {
         canAccessFinance: true,
         canAccessComplaints: true,
         canManageStaff: true,
+        canAccessOwnerSettings: true,
         granularPermissions: true,
         user: {
           select: { id: true, fullName: true, phoneNumber: true, email: true },
@@ -757,6 +760,9 @@ export class StaffService {
       profileId: staffProfile.id,
       fullName: staffProfile.user.fullName,
       phoneNumber: staffProfile.phoneNumber,
+      whatsAppNumber: staffProfile.whatsAppNumber,
+      email: staffProfile.user.email,
+      monthlySalary: staffProfile.monthlySalary,
       staffType: staffProfile.staffType,
       jobPosition: staffProfile.jobPosition,
       propertyScope: staffProfile.propertyScope,
@@ -766,6 +772,7 @@ export class StaffService {
         canAccessFinance: staffProfile.canAccessFinance,
         canAccessComplaints: staffProfile.canAccessComplaints,
         canManageStaff: staffProfile.canManageStaff,
+        canAccessOwnerSettings: staffProfile.canAccessOwnerSettings,
       },
       granularPermissions: staffProfile.granularPermissions ?? {},
       allowedPropertyIds: staffProfile.maintenanceStaffPropertyAccesses.map((a) => a.property.id),
@@ -929,6 +936,70 @@ export class StaffService {
       staffUserId,
       action,
     );
+    const property = await this.prisma.property.findFirst({
+      where: { id: propertyId, ownerId },
+      select: { id: true },
+    });
+    if (!property) {
+      throw new ForbiddenException('Staff does not have access to this property');
+    }
+    return ownerId;
+  }
+
+  async validateStaffOwnerSettingsModuleAccess(
+    staffUserId: number,
+    action:
+      | 'viewProfile'
+      | 'editProfile'
+      | 'viewBusiness'
+      | 'editBusiness'
+      | 'viewBank'
+      | 'editBank'
+      | 'propertySettings' = 'viewProfile',
+  ): Promise<number> {
+    const profile = await this.prisma.maintenanceStaffProfile.findFirst({
+      where: { userId: staffUserId },
+      select: {
+        canAccessOwnerSettings: true,
+        isActive: true,
+        granularPermissions: true,
+      },
+    });
+    if (!profile) throw new ForbiddenException('Staff profile not found');
+    if (!profile.isActive) {
+      throw new ForbiddenException('Your account has been deactivated');
+    }
+    if (profile.canAccessOwnerSettings !== true) {
+      throw new ForbiddenException(
+        'Staff does not have Owner Profile & Settings access',
+      );
+    }
+
+    const gp = profile.granularPermissions as Record<
+      string,
+      Record<string, boolean>
+    > | null;
+    const ownerSettingsGranular = gp?.ownerSettings ?? {};
+    const granularKeys = Object.keys(ownerSettingsGranular ?? {});
+    if (granularKeys.length > 0 && ownerSettingsGranular[action] !== true) {
+      throw new ForbiddenException(
+        `Staff does not have permission to ${action} owner settings`,
+      );
+    }
+
+    return this.resolveOwnerFromStaff(staffUserId);
+  }
+
+  async validateStaffOwnerSettingsPropertyAccess(
+    staffUserId: number,
+    propertyId: number,
+    action: 'viewBusiness' | 'editBusiness' | 'editBank' | 'propertySettings',
+  ): Promise<number> {
+    const ownerId = await this.validateStaffOwnerSettingsModuleAccess(
+      staffUserId,
+      action,
+    );
+    await this.validateStaffPropertyAccess(staffUserId, propertyId);
     const property = await this.prisma.property.findFirst({
       where: { id: propertyId, ownerId },
       select: { id: true },

@@ -25,6 +25,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enum/role.enum';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { StaffService } from '../staff/staff.service';
 import { AddBusinessDetails } from './dto/AddBusiness-details.dto';
 import { UpdatePropertyOwnerProfileDto } from './dto/update-property-owner.profile.dto';
 import { UpdateTenantProfileByOwnerDto } from './dto/update-tenant_profile.dto';
@@ -32,10 +33,13 @@ import { PropertyownerService } from './propertyowner.service';
 
 @Controller('propertyowner')
 export class PropertyownerController {
-  constructor(private readonly serviceLayer: PropertyownerService) {}
+  constructor(
+    private readonly serviceLayer: PropertyownerService,
+    private readonly staffService: StaffService,
+  ) {}
 
   @Post('business-details')
-  @Roles(Role.PROPERTY_OWNER)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(
     FileFieldsInterceptor(
@@ -73,8 +77,16 @@ export class PropertyownerController {
     },
     @GetUser() user: any,
   ) {
-    const propertyOwnerId = user.userId;
+    let propertyOwnerId = user.userId;
     if (!propertyOwnerId) throw new BadRequestException('Invalid user');
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      propertyOwnerId =
+        await this.staffService.validateStaffOwnerSettingsPropertyAccess(
+          user.userId,
+          dto.propertyId,
+          'editBusiness',
+        );
+    }
     const uploadedFiles: Express.Multer.File[] = [
       ...(files.aadhaar ?? []),
       ...(files.pan ?? []),
@@ -88,17 +100,24 @@ export class PropertyownerController {
   }
 
   @Get('/profile')
-  @UseGuards(JwtAuthGuard)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async fetchProfile(@GetUser() user: any) {
-    const userId = user.userId;
+    let userId = user.userId;
     if (!userId) throw new BadRequestException('Invalid user');
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      userId = await this.staffService.validateStaffOwnerSettingsModuleAccess(
+        user.userId,
+        'viewProfile',
+      );
+    }
     return this.serviceLayer.fetchProfileDetails(userId);
   }
 
   @Put('/profile')
   @HttpCode(HttpStatus.ACCEPTED)
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
   @UseInterceptors(
     FileInterceptor('profileImage', {
       limits: UPLOAD_FILE_SIZE_LIMITS,
@@ -109,8 +128,15 @@ export class PropertyownerController {
     @GetUser() user: any,
     @UploadedFile() profileImage?: Express.Multer.File,
   ) {
-    const propertyOwnerId = user.userId;
+    let propertyOwnerId = user.userId;
     if (!propertyOwnerId) throw new BadRequestException('Invalid user');
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      propertyOwnerId =
+        await this.staffService.validateStaffOwnerSettingsModuleAccess(
+          user.userId,
+          'editProfile',
+        );
+    }
     return this.serviceLayer.updateProfile(propertyOwnerId, dto, profileImage);
   }
 
@@ -144,13 +170,21 @@ export class PropertyownerController {
 
 
   @Get('/buisnessdetails')
+  @Roles(Role.PROPERTY_OWNER, Role.MAINTENANCE_STAFF)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.PROPERTY_OWNER)
   async fetchBuinessDetails(
     @GetUser() user: any,
     @Query('propertyId', ParseIntPipe) propertyId: number,
   ) {
-    const propertyOwnerUserId = user.userId;
+    let propertyOwnerUserId = user.userId;
+    if (user.role === Role.MAINTENANCE_STAFF) {
+      propertyOwnerUserId =
+        await this.staffService.validateStaffOwnerSettingsPropertyAccess(
+          user.userId,
+          propertyId,
+          'viewBusiness',
+        );
+    }
     const res = await this.serviceLayer.fetchTheBuinessDetails(
       propertyOwnerUserId,
       propertyId,
